@@ -65,7 +65,7 @@ rule main = parse
   | "else"     { ELSE }
   | "print"    { PRINT }
   | "int"      { NAT }
-  | "hack"     { HACK }
+  | "direct"   { HACK }
   | "copy"     { COPY }
   | "let"      { LET }
   | "as"       { AS }

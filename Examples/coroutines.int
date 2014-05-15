@@ -7,7 +7,7 @@ fn tailrecimp(x) {
        | Inl(d, a) -> Inl((), Inr(a))
 }       
 
-let tailrec = hack(tailrecimp: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+let tailrec = direct(tailrecimp: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
 fn coroutimpl(x) {
   case x of 
@@ -29,7 +29,7 @@ fn coroutimpl(x) {
       | Inr(u) -> Inl(Inl(), Inr()))
 }
 
-let corout = hack(coroutimpl
+let corout = direct(coroutimpl
    :{unit+'d}| {'e}|'a -> 'b| -> (unit -> 'c) |  -> 
     {'e} | {'d}|'b -> 'a| -> ('a -> 'c) | -> (unit -> 'c))
 

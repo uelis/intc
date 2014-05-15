@@ -16,7 +16,7 @@ fn fixsimpl(x) {
      Inl((), Inr(q))
 }
 
-let fixs = hack(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
 let fibs = fixs (fun fib ->
    copy fib as fib1, fib2 in

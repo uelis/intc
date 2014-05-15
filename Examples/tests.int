@@ -22,7 +22,7 @@ fn tailrecimp(x) {
 }       
 
 let tailrec = 
-   hack(tailrecimp : {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+   direct(tailrecimp : {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
 let facaux = tailrec (fun facaux ->
     fn (i, r) {
@@ -88,7 +88,7 @@ let fiximpl =
     Inl(~(Nil), Inr(q))
  }
 
-let fix = hack(fiximpl: {~list<'b>} | {'b}|''a| -> ''a| -> ''a)
+let fix = direct(fiximpl: {~list<'b>} | {'b}|''a| -> ''a| -> ''a)
 
 let fib = fix (fun fib ->
    copy fib as fib1, fib2 in
@@ -121,7 +121,7 @@ fn fixsimpl(x) {
      Inl((), Inr(q))
 }
 
-let fixs = hack(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
 let fibs = fixs (fun fib ->
    copy fib as fib1, fib2 in

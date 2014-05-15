@@ -15,7 +15,7 @@ fn fiximpl(x) {
      Inl((), Inr(q))
 }     
 
-let fix = hack(fiximpl: {unit}| {'c}|''a| -> ''a| -> ''a)
+let fix = direct(fiximpl: {unit}| {'c}|''a| -> ''a| -> ''a)
 
 let cons = fun x -> fun xs -> 
    fn(i) { 

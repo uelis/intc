@@ -14,7 +14,7 @@ let fixsimpl = fn x {
      push(unit + 'b, Inl());
      Inl((), Inr(q))
 }
-let fix = hack(fixsimpl: {unit}| {'c}|''a| -> ''a| -> ''a)
+let fix = direct(fixsimpl: {unit}| {'c}|''a| -> ''a| -> ''a)
 
 let val = fun n -> fun k -> k n
 let add = fun k -> k (fun n -> fun k1 -> 

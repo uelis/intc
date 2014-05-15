@@ -9,7 +9,7 @@ fn tailrecimp(x) {
 }       
 
 let tailrec = 
-   hack(tailrecimp : {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+   direct(tailrecimp : {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
 fn fixsimpl(x) {
     case x of 
@@ -29,7 +29,7 @@ fn fixsimpl(x) {
      Inl((), Inr(q))
 }
 
-let fixs = hack(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
 let fibtr = fixs (fun fib ->
    fn i {
