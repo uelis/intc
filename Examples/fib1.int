@@ -1,0 +1,32 @@
+fn fixsimpl(x) {
+    case x of 
+    Inl(lx) -> 
+      let (l,x) = lx in
+        (case x of
+           Inl(b, q) ->
+             push(unit + 'b, Inr(b));
+             Inl((), Inr(q))
+         | Inr(a) ->
+             (case pop(unit + 'b) of 
+                Inl -> Inr(a)
+              | Inr(hd) ->
+                   Inl((), Inl(hd, a))))
+  | Inr(q) -> 
+     push(unit + 'b, Inl());
+     Inl((), Inr(q))
+}
+
+let fixs = hack(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+
+let fibs = fixs (fun fib ->
+   copy fib as fib1, fib2 in
+   fn i {
+      if i < 2 then 1
+      else 
+       fib1(i-1) + fib2(i-2)
+   })
+
+fn main() {
+  let v = fibs 38 in
+  print v
+}

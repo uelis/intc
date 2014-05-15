@@ -1,0 +1,68 @@
+fn tailrecimp(x) {
+  case x of 
+    Inr(a) -> Inl((), Inr(a))
+  | Inl(u, s) ->
+      case s of
+         Inr(b) -> Inr(b)
+       | Inl(d, a) -> Inl((), Inr(a))
+}       
+
+let tailrec = hack(tailrecimp: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+
+fn coroutimpl(x) {
+  case x of 
+    Inl(ud, m) ->
+        (case m of
+          Inl(e, a) ->
+            (case ud of 
+               Inl() -> Inr(Inl((e, Inr(a))))
+             | Inr(d) -> Inr(Inl(e, Inl(d, a))))
+        | Inr(c) -> Inr(Inr(c)))
+  | Inr(r) -> 
+      (case r of 
+        Inl(e, m) ->
+            (case m of
+              Inl(d, b) -> 
+               Inl(Inr(d), Inl(e, b))
+            | Inr(c) -> 
+                Inr(Inr(c)))
+      | Inr(u) -> Inl(Inl(), Inr()))
+}
+
+let corout = hack(coroutimpl
+   :{unit+'d}| {'e}|'a -> 'b| -> (unit -> 'c) |  -> 
+    {'e} | {'d}|'b -> 'a| -> ('a -> 'c) | -> (unit -> 'c))
+
+fn println(i) {
+   print i;
+   print "\n"
+}
+
+let proc1 = fun yield ->
+   fn () {
+     tailrec (fun proc1 ->
+       fn j {
+         print "p1: ";
+         println j;
+         let i = yield (j+2) in
+         proc1 i
+       }) 3
+   }
+
+let proc2 = fun yield ->
+   copy yield as yield1, yield2 in
+   tailrec (fun proc2 ->
+     fn j {
+       print "p2: ";
+       println j;
+       let k = yield1 (j-1) in
+       print "p2: got ";
+       println k;
+       let i = yield2 (k-1) in
+       proc2 i
+     }
+   )
+
+fn main() {
+   corout proc1 proc2 ()
+}

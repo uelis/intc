@@ -1,0 +1,111 @@
+fn fiximpl(x) {
+    case x of 
+    Inl(l, x) -> 
+        (case x of
+           Inl(b, q) ->
+             push(unit + 'b, Inr(b));
+             Inl((), Inr(q))
+         | Inr(a) ->
+             (case pop(unit + 'b) of 
+                Inl -> Inr(a)
+              | Inr(hd) ->
+                   Inl((), Inl(hd, a))))
+  | Inr(q) -> 
+     push(unit + 'b, Inl());
+     Inl((), Inr(q))
+}     
+
+let fix = hack(fiximpl: {unit}| {'c}|''a| -> ''a| -> ''a)
+
+let cons = fun x -> fun xs -> 
+   fn(i) { 
+      if i = 0 then x() else xs(i-1)
+   }
+
+let head = fun l -> fn () { l(0) }
+
+let tail = fun l -> fn i { l(i+1) }
+
+let andalso = 
+   fun b1 -> fun b2 -> 
+      fn() {
+         if b1() then b2() else False
+      }
+
+let orelse = 
+   fun b1 -> fun b2 -> 
+      fn() {
+         if b1() then True else b2()
+      }
+
+let printlistaux = fun l ->
+   fix (fun printlist ->
+   fn (i, j) {
+     if i = j then ()
+     else
+        print (l i);
+        print "\n";
+        printlist (i+1, j)
+   })
+          
+let printlist = fun l -> 
+   fn i {
+      printlistaux l (0, i)
+   }
+
+fn signum(x) {
+   if 0 < x then 1 else if x = 0 then 0 else 0-1
+}
+
+fn abs(x) {
+   if 0 < x then x else 0-x
+
+}
+
+let aux = fix (fun aux ->
+    fun n ->
+      fn i {
+         let v = n() in
+         cons (fn(){ 1 }) 
+           (cons (fn(){ v }) 
+              (cons (fn(){ 1 }) 
+                  (aux (fn(){ v + 2 })))) i
+      })
+
+let eContFrac = cons (fn(){ 2 }) (aux (fn(){ 2 }))                  
+
+let ratTrans = fix (fun ratTrans -> 
+   copy ratTrans as ratTrans1, ratTrans2 in
+   fun abcd ->
+   fun xs ->
+   copy xs as xs1, xs23 in
+   copy xs23 as xs2, xs3 in
+   fn(i) {
+     let (a, (b, (c, d))) = abcd() in
+     if andalso 
+          (orelse (fn(){ signum c = signum d }) 
+                  (fn(){ abs c < abs d }))
+          (andalso (fn(){ (c+d)*(b/d) < a+b+1 })
+             (fn(){ a+b < (c+d)*(b/d) + (c+d) })) () then
+       if i = 0 then b/d 
+       else ratTrans1 (fn () { (c, (d, (a-(b/d)*c, (b-(b/d)*d))))}) 
+               xs1 (i-1)
+     else
+       ratTrans2 (fn () { let x = xs2(0) in (b, (a+x*b, (d, c+x*d)))}) 
+               (tail xs3) i
+   })
+         
+let todigits = fix (fun todigits ->
+    fun l ->
+    copy l as l1, l2 in
+    fn(i){
+      if i = 0 then l1(i) else
+      todigits (ratTrans (fn u { (10, (0, (0, 1)))}) (tail l2)) (i-1)
+    }
+  )
+
+let e = todigits eContFrac
+
+fn main() {
+  printlist e 10
+}

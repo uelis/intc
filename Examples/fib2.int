@@ -1,0 +1,47 @@
+
+fn tailrecimp(x) {
+  case x of 
+    Inr(a) -> Inl((), Inr(a))
+  | Inl(u, s) ->
+      case s of
+         Inr(b) -> Inr(b)
+       | Inl(d, a) -> Inl((), Inr(a))
+}       
+
+let tailrec = 
+   hack(tailrecimp : {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+
+fn fixsimpl(x) {
+    case x of 
+    Inl(lx) -> 
+      let (l,x) = lx in
+        (case x of
+           Inl(b, q) ->
+             push(unit + 'b, Inr(b));
+             Inl((), Inr(q))
+         | Inr(a) ->
+             (case pop(unit + 'b) of 
+                Inl -> Inr(a)
+              | Inr(hd) ->
+                   Inl((), Inl(hd, a))))
+  | Inr(q) -> 
+     push(unit + 'b, Inl());
+     Inl((), Inr(q))
+}
+
+let fixs = hack(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+
+let fibtr = fixs (fun fib ->
+   fn i {
+      tailrec (fun tr ->
+         fn (i, acc) {
+            if i < 2 then acc else 
+              tr (i-2, fib(i-1) + acc)
+         }
+      ) (i, 1)
+   })
+
+fn main() {
+  let v = fibtr 38 in
+  print v
+}

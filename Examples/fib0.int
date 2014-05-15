@@ -1,0 +1,31 @@
+type list<'a> = Nil of unit | Cons of 'a * ~list<'a>
+
+let fiximpl = 
+ fn x {
+  case x of 
+   Inl(l, x) -> 
+       (case x of
+          Inl(b, q) -> Inl(~(Cons(b, l)), Inr(q))
+        | Inr(a) ->
+            case ^l of 
+               Nil -> Inr(a)
+             | Cons(hd, tl) -> Inl(tl, Inl(hd, a)))
+ | Inr(q) -> 
+    Inl(~(Nil), Inr(q))
+ }
+
+let fix = hack(fiximpl: {~list<'b>} | {'b}|''a| -> ''a| -> ''a)
+
+
+let fibs = fix (fun fib ->
+   copy fib as fib1, fib2 in
+   fn i {
+      if i < 2 then 1
+      else 
+       fib1(i-1) + fib2(i-2)
+   })
+
+fn main() {
+  let v = fibs 38 in
+  print v
+}
