@@ -1,0 +1,60 @@
+fn tailrecimp(x) {
+  case x of 
+    Inr(a) -> Inl((), Inr(a))
+  | Inl(u, s) ->
+      case s of
+         Inr(b) -> Inr(b)
+       | Inl(d, a) -> Inl((), Inr(a))
+}       
+
+let tailrec = direct(tailrecimp:
+{unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+
+/* Combinators in the style of Idealised Algol */
+
+fn skip() { () }
+let seq = fun c1 -> fun c2 -> fn() { c1(); c2() }
+
+let pr = fun e -> fn() { print (e()); print "\n" }
+let dec = fun e -> fn() { e() - 1 }
+
+let ispositive = fun e -> fn() { 0 < (e()) }
+
+let cif = 
+  fun e -> fun ct -> fun cf ->
+    fn () {
+      if e() then ct() else cf()
+    }
+
+let while = 
+   fun e -> fun c ->
+    (tailrec (fun f ->
+        fn x {
+          if e() then (c(); f x) else ()}))
+
+fn allocimp(x) { 
+  case x of 
+    Inl(mem, yv) ->
+     (case yv of
+          Inl(c, newmem) -> Inl(newmem, Inl(c, ()))
+        | Inr(ar) -> 
+          (case ar of
+             Inl(d, ()) -> Inl(mem, Inr(Inl(d, mem)))
+           | Inr(a) -> Inr(a))
+     )
+  | Inr(q) -> Inl(q, Inr(Inr())) 
+}
+
+let alloc = direct(allocimp:
+  {int}|{'c}|'a -> unit| -> {'d}|unit -> 'a| -> (unit -> 'b) | -> ('a -> 'b))
+
+let main = alloc (fun write -> fun read ->
+   copy (fun e -> fn () { let v = e() in write(v) }) as write1, write2 in
+   copy read as read1, read23 in      
+   copy read23 as read2, read3 in
+     seq (write1 (fn(){ 12 }))
+         (while (ispositive read1)
+           (seq (pr read2)
+              (write2 (dec read3))
+           )
+         ))
