@@ -59,6 +59,8 @@ rule main = parse
   | "unit"     { UNIT }
   | "push"     { PUSH }
   | "pop"      { POP }
+  | "box"      { BOX }
+  | "unbox"    { UNBOX }
   | "call"     { CALL }
   | "if"       { IF }
   | "then"     { THEN }

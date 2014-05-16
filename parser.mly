@@ -123,7 +123,7 @@ let clear_type_vars () = Hashtbl.clear type_vars
 %token PLUS MINUS TIMES DIV
 %token HAT COMMA TILDE QUOTE DOUBLEQUOTE COLON
 %token SEMICOLON SHARP EQUALS TO VERTBAR
-%token FN LAMBDA TYPE UNIT PUSH POP CALL NAT 
+%token FN LAMBDA TYPE UNIT PUSH POP BOX UNBOX CALL NAT 
 %token IF THEN ELSE PRINT HACK LET AS OF IN 
 %token COPY CASE EXTERNAL
 %token <int> NUM
@@ -236,6 +236,12 @@ term:
     | term_constr term_atom
        { let alpha = Basetype.newty Basetype.Var in
          let id, i = $1 in mkTerm (InW((id, i, $2), alpha)) }
+    | BOX term_atom
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Box($2, alpha)) }
+    | UNBOX term_atom
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Unbox($2, alpha)) }
 
 term_constr:
     | CONSTR
@@ -331,14 +337,12 @@ term_atom:
         { mkTerm (ExternalU(($3, $5), Type.newty Type.Var)) }
     | PRINT STRING
        { mkTerm (App(mkTerm (ConstW(Cprint $2)), Type.newty Type.Var, mkTerm (UnitW))) }
-    | HAT term_atom
-       { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Unbox($2, alpha)) }
-    | TILDE term_atom
-       { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Box($2, alpha)) }
-//    | LPAREN term COLON basetype RPAREN
-//       { mkTerm (TypeAnnot($2, Some $4)) }
+//    | BOX LPAREN term RPAREN
+//       { let alpha = Basetype.newty Basetype.Var in
+//         mkTerm (Box($3, alpha)) }
+//    | UNBOX LPAREN term RPAREN
+//       { let alpha = Basetype.newty Basetype.Var in
+//         mkTerm (Unbox($3, alpha)) }
 
 pattern:
     | identifier
@@ -406,8 +410,8 @@ basetype_atom:
       { Basetype.newty (Basetype.OneW) }
     | NAT
       { Basetype.newty (Basetype.NatW) }
-    | TILDE basetype_atom
-      { Basetype.newty (Basetype.BoxW($2)) }
+    | BOX LANGLE basetype RANGLE
+      { Basetype.newty (Basetype.BoxW($3)) }
     | identifier
       { Basetype.newty (Basetype.DataW($1, [])) }
     | identifier LANGLE basetype_list RANGLE 

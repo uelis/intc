@@ -1,4 +1,4 @@
-type list<'a> = Nil of unit | Cons of 'a * ~list<'a>
+type list<'a> = Nil of unit | Cons of 'a * box<list<'a>>
 
 let f1 = fn(c){ c }
 let f2 = fn c { let x = 3 in 3 }
@@ -40,7 +40,7 @@ fn main12() {
 }
 
 fn trivial() {
-   let x = Cons(1, ~(Cons(2,~(Nil)))) in
+   let x = Cons(1, box(Cons(2, box(Nil)))) in
    let u = case x of
                 Nil -> 12
               | Cons(z) -> let (h,t) = z in h in
@@ -49,7 +49,7 @@ fn trivial() {
 
 let faclistaux= tailrec (fun faclistaux ->
     fn (i, (r, l)) { 
-       if i=1 then l else faclistaux (i-1, (r*i, Cons(r*i, ~l)))
+       if i=1 then l else faclistaux (i-1, (r*i, Cons(r*i, box(l))))
     })
 
 fn faclist(i) {
@@ -64,11 +64,11 @@ let printlist = tailrec (fun printlist ->
          | Cons(h, t) ->
             print h;
             print " ";
-            printlist ^t
+            printlist (unbox t)
     })
 
 fn main2() {
-   let x = Cons(1, ~(Cons(2, ~(Nil)))) in   
+   let x = Cons(1, box(Cons(2, box(Nil)))) in   
    let u1 = printlist x in
    let y = faclist(12) in
    printlist y
@@ -79,16 +79,16 @@ let fiximpl =
   case x of 
    Inl(l, x) -> 
        (case x of
-          Inl(b, q) -> Inl(~(Cons(b, l)), Inr(q))
+          Inl(b, q) -> Inl(box(Cons(b, l)), Inr(q))
         | Inr(a) ->
-            case ^l of 
+            case (unbox l) of 
                Nil -> Inr(a)
              | Cons(hd, tl) -> Inl(tl, Inl(hd, a)))
  | Inr(q) -> 
-    Inl(~(Nil), Inr(q))
+    Inl(box(Nil), Inr(q))
  }
 
-let fix = direct(fiximpl: {~list<'b>} | {'b}|''a| -> ''a| -> ''a)
+let fix = direct(fiximpl: {box<list<'b>>} | {'b}|''a| -> ''a| -> ''a)
 
 let fib = fix (fun fib ->
    copy fib as fib1, fib2 in
@@ -157,7 +157,7 @@ let t =fun f -> (fun mapf ->
       fn l {
         case l of
           Nil -> Nil()
-        | Cons(x, xs) -> Cons(f x, ~(mapf ^xs))
+        | Cons(x, xs) -> Cons(f x, box(mapf (unbox xs)))
       })
 
 let map = fun f ->
@@ -165,7 +165,7 @@ let map = fun f ->
       fn l {
         case l of
           Nil -> Nil()
-        | Cons(x, xs) -> Cons(f x, ~(mapf ^xs))
+        | Cons(x, xs) -> Cons(f x, box(mapf (unbox xs)))
       })
 
 let maprev = fun f ->
@@ -173,7 +173,7 @@ let maprev = fun f ->
       fn (l, r) {
         case l of
           Nil -> r
-        | Cons(x, xs) -> mapf(^xs, Cons(f x, ~r))
+        | Cons(x, xs) -> mapf(unbox xs, Cons(f x, box r))
       })
 
 let revaux =
@@ -181,7 +181,7 @@ let revaux =
       fn (l, r) {
         case l of
           Nil -> r
-        | Cons(x, xs) -> rev(^xs, Cons(x, ~r))
+        | Cons(x, xs) -> rev(unbox xs, Cons(x, box r))
       })
 
 fn rev(l) {
@@ -198,7 +198,7 @@ fn clone(l) {
       fn (l, (l1, l2)) {
         case l of
           Nil -> (rev l1, rev l2)
-        | Cons(x, xs) -> clone(^xs, (Cons(x, ~l1), Cons(x, ~l2)))
+        | Cons(x, xs) -> clone(unbox xs, (Cons(x, box l1), Cons(x, box l2)))
       })
     (l, (Nil, Nil))
 }
@@ -206,7 +206,7 @@ fn clone(l) {
 fn upto(n) {
    tailrec (fun aux -> 
    fn (m, r) {
-      if m = 0 then r else aux (m - 1, Cons(m, ~r))
+      if m = 0 then r else aux (m - 1, Cons(m, box r))
    }) (n, Nil)
 }
      
