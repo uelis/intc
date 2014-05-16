@@ -58,9 +58,9 @@ to not unbox a term twice.
 Example:
 
 ```rust
-  type list<'a> = 
-          Nil of unit 
-        | Cons of 'a * box<list<'a>>
+type list<'a> = 
+        Nil of unit 
+      | Cons of 'a * box<list<'a>>
 
 let maprev = fun f ->
    tailrec (fun mapf ->
