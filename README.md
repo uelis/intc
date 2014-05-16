@@ -47,7 +47,7 @@ compiled to an executable `main` using the script `llvm_compile.sh`:
 
 ### Data Types in the Low-Level Language
 
-Instead of recursive value types, the implementated uses boxed types
+Instead of recursive value types, the implementation uses boxed types
 `box<A>` with a term `box(s) : box<A>` if `s: A` and a term 
 `unbox(t) : A` if `t : box<A>`. Evaluating `box(s)` makes a heap
 allocation and returns the address. The term `unbox(t)` reads from
