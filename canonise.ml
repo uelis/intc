@@ -117,8 +117,9 @@ let rec mkLets lt v =
   | [], _ -> v
   | Let((x, _), t) :: lt', _ when Term.is_value t -> 
     mkLets lt' (Term.subst t x v)
-  | Let((x, _), t) :: lt', Var z ->
-    if x = z then mkLets lt' t else mkLets lt' v
+  | Let((x, a), t) :: lt', Var z ->
+    if x = z then mkLets lt' t else 
+      mkLets lt' (mkTerm (BindW((t, a), (x, v))))
   | Let((x, a), t) :: lt', _ ->
     mkLets lt' (mkTerm (BindW((t, a), (x, v))))
 
