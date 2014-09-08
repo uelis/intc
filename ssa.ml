@@ -306,6 +306,24 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           Direct(src, z, lt, vt, label_of_dst w1)
         else
           assert false
+      | Circuit.Encode(w1) ->
+        if dst = w1.src then
+          let _, a = unTensorW w1.type_back in
+          let _, b = unTensorW w1.type_forward in
+          let lt, vt = 
+            to_ssa (mkPairW sigma ((Circuit.embed a b m)))
+              w1.type_forward in
+          Direct(src, z, lt, vt, label_of_dst w1) 
+        else assert false
+      | Circuit.Decode(w1) ->
+        if dst = w1.src then
+          let _, a = unTensorW w1.type_back in
+          let _, b = unTensorW w1.type_forward in
+          let lt, vt = 
+            to_ssa (mkPairW sigma ((Circuit.project b a m)))
+              w1.type_forward in
+          Direct(src, z, lt, vt, label_of_dst w1) 
+        else assert false
       | Circuit.Tensor(w1, w2, w3) ->
         if dst = w1.src then
           (* <sigma, v> @ w1       |-->  <sigma, inl(v)> @ w3 *)

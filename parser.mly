@@ -121,6 +121,7 @@ let clear_type_vars () = Hashtbl.clear type_vars
 
 %token LBRACE RBRACE LPAREN RPAREN LANGLE RANGLE
 %token PLUS MINUS TIMES DIV
+%token ENCODE DECODE
 %token HAT COMMA TILDE QUOTE DOUBLEQUOTE COLON
 %token SEMICOLON SHARP EQUALS TO VERTBAR
 %token FN LAMBDA TYPE UNIT PUSH POP BOX UNBOX CALL NAT 
@@ -325,6 +326,13 @@ term_atom:
        { mkTerm (ValW(Cintconst($1))) } 
     | PRINT term_atom
        { mkTerm (App(mkTerm (ConstW(Cintprint)), Type.newty Type.Var, $2)) }
+    | ENCODE term_atom
+       { let alpha = Basetype.newty Basetype.Var in
+         let beta = Basetype.newty Basetype.Var in
+          mkTerm (App(mkTerm (ConstW(Cencode(alpha, beta))), Type.newty Type.Var, $2)) }
+    | DECODE LPAREN basetype COMMA term RPAREN
+       { let alpha = Basetype.newty Basetype.Var in
+          mkTerm (App(mkTerm (ConstW(Cdecode(alpha, $3))), Type.newty Type.Var, $5)) }
     | PUSH LPAREN basetype COMMA term RPAREN
         { mkTerm (App(mkTerm (ConstW(Cpush($3))), Type.newty Type.Var, $5)) }
     | POP LPAREN basetype RPAREN

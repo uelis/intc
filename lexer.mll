@@ -41,7 +41,7 @@ rule main = parse
   | '<'        { LANGLE }
   | '>'        { RANGLE }
   | "fn"       { FN }
-  | "fun"      { LAMBDA }
+  | "λ"        { LAMBDA }
   | '+'        { PLUS }
   | '-'        { MINUS }
   | '*'        { TIMES }
@@ -59,6 +59,8 @@ rule main = parse
   | "unit"     { UNIT }
   | "push"     { PUSH }
   | "pop"      { POP }
+  | "encode"   { ENCODE }
+  | "decode"   { DECODE }
   | "box"      { BOX }
   | "unbox"    { UNBOX }
   | "call"     { CALL }

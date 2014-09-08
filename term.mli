@@ -27,6 +27,8 @@ type op_const =
   | Cpush of Basetype.t
   | Cpop of Basetype.t
   | Ccall of string * Basetype.t * Basetype.t
+  | Cencode of Basetype.t * Basetype.t
+  | Cdecode of Basetype.t * Basetype.t
 
 (* TODO: dokumentiere typannotationen (bei Box ist es der Inhalt) 
 - Konstruktoren BindW und LetW haben inkonsistente Typannotationen                                     

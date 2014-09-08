@@ -283,6 +283,10 @@ let string_of_op_const (c: Term.op_const) : string =
   | Cpop(_) -> "pop"
   | Ccall(f, a, b) -> "call(" ^ f ^ ": " ^ (string_of_basetype a) ^ 
                       " -> " ^ (string_of_basetype b) ^ ") "
+  | Cencode(a, b) -> "encode(" ^ (string_of_basetype a) ^ 
+                     ", " ^ (string_of_basetype b) ^ ") "
+  | Cdecode(a, b) -> "decode(" ^ (string_of_basetype a) ^ 
+                        ", " ^ (string_of_basetype b) ^ ") "
 
 let fprint_term (f: Format.formatter) (term: Term.t): unit =
   let open Term in

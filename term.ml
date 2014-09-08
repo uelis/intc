@@ -32,6 +32,8 @@ type op_const =
   | Cpush of Basetype.t
   | Cpop of Basetype.t
   | Ccall of string * Basetype.t * Basetype.t
+  | Cencode of Basetype.t * Basetype.t
+  | Cdecode of Basetype.t * Basetype.t
 
 type t = { 
   desc: t_desc;      
@@ -371,6 +373,10 @@ let freshen_type_vars t =
       { term with desc = ConstW(Cpop(fbase a)) }
     | ConstW(Ccall(s, a, b)) ->
       { term with desc = ConstW(Ccall(s, fbase a, fbase b)) }
+    | ConstW(Cencode(a, b)) ->
+      { term with desc = ConstW(Cencode(fbase a, fbase b)) }
+    | ConstW(Cdecode(a, b)) ->
+      { term with desc = ConstW(Cdecode(fbase a, fbase b)) }
     | ValW(Cintconst _) 
     | ConstW(Cintadd) 
     | ConstW(Cintsub)

@@ -33,6 +33,8 @@ let flip (w: wire) = {
 *  The type of the respective wires is indicated in the comments. *)
 type instruction =
   | Axiom of wire (* fn () -> f *) * (Term.var list * (Term.var * Term.t))
+  | Encode of wire (* A => B *)
+  | Decode of wire (* B => A *)
   | Tensor of wire (* X *) * wire (* Y *) * wire (* X \otimes Y *)
   | Der of wire (* \Tens A X *) * wire (* X *) * (Term.var list * Term.t)
   | Case of Basetype.Data.id * Basetype.t list * wire * (wire list)
@@ -40,7 +42,7 @@ type instruction =
   | Assoc of wire (* \Tens (A x B) X *) * wire (* \Tens A (\Tens B X) *) 
   | LWeak of wire (* \Tens A X *) * wire (* \Tens B X *) (* where B <= A *)
   | Bind of wire (* (\Tens A (1 => B))^* *) * wire (* A => B *)
-  | Seq of wire (* (A=>B)^* *) * wire (* (B=>C)^* *) * wire (* A=>C *)
+  | Seq of wire (* (A=>B)^* *) * wire (* (B=>C)^* *) * wire (* A=>C *)           
 
 type t = 
     { output : wire; 
@@ -50,7 +52,8 @@ type t =
 let rec wires (i: instruction list): wire list =
   match i with
     | [] -> []
-    | Axiom(w1, _) :: is -> w1 :: (wires is)
+    | Axiom(w1, _) :: is | Encode(w1) :: is | Decode(w1) :: is ->
+      w1 :: (wires is)
     | Der(w1, w2, _) :: is | Door(w1, w2) :: is | Assoc(w1, w2) :: is 
     | LWeak(w1, w2) :: is | Bind(w1, w2) :: is ->
       w1 :: w2 :: (wires is)
@@ -62,6 +65,8 @@ let map_wires_instruction (f: wire -> wire): instruction -> instruction =
   fun i -> 
     match i with
     | Axiom(w, t) -> Axiom(f w, t)
+    | Encode(w) -> Encode(f w)
+    | Decode(w) -> Decode(f w)
     | Tensor(w1, w2, w3) -> Tensor(f w1, f w2, f w3)
     | Der(w1, w2, t) -> Der(f w1, f w2, t)
     | Case(id, params, w1, ws) -> Case(id, params, f w1, List.map ~f:f ws)
@@ -286,6 +291,18 @@ let raw_circuit_of_termU  (sigma: Term.var list) (gamma: wire context) (t: Term.
       let w = fresh_wire () in
       let x = Term.variant_var_avoid "x" sigma in 
       w, [Axiom(w, (sigma, (x, Term.mkApp (Term.mkConstW c) (Term.mkVar x))))]
+    | Term.ConstW(Term.Cencode(a, b)) ->
+      let w = fresh_wire () in
+      let sigma = Basetype.newty Basetype.Var in
+      U.unify w.type_back (tensor sigma a);
+      U.unify w.type_forward (tensor sigma b);
+      w, [Encode(w)]
+    | Term.ConstW(Term.Cdecode(a, b)) ->
+      let w = fresh_wire () in
+      let sigma = Basetype.newty Basetype.Var in
+      U.unify w.type_back (tensor sigma a);
+      U.unify w.type_forward (tensor sigma b);
+      w, [Decode(w)]
     | Term.ExternalU _ ->
       failwith "circuit: term not canonized" 
   and compile_in_box (c: Term.var) (sigma: Term.var list) 
@@ -324,7 +341,8 @@ let solve_constraints (con: type_constraint list) : unit =
     end in
   let ineqs, eqs = separate con [] [] in
   (* unify equations first *)
-  (*  List.iter (fun e -> match e with
+  (*
+    List.iter ~f:(fun e -> match e with
       | (U.Type_eq(a,b,_)) -> Printf.printf "%s = %s\n" 
       (Printing.string_of_type a)
       (Printing.string_of_type b)
@@ -332,17 +350,19 @@ let solve_constraints (con: type_constraint list) : unit =
       (Printing.string_of_basetype a)
       (Printing.string_of_basetype b)
       ) eqs;
-      List.iter (fun (a,b) -> Printf.printf "%s <= %s\n" 
+      List.iter ~f:(fun (a,b) -> Printf.printf "%s <= %s\n" 
       (Printing.string_of_basetype a)
       (Printing.string_of_basetype b))
       ineqs;
-      Printf.printf "======\n";*)
+      Printf.printf "======\n"; *)
   U.unify_eqs eqs;
-  (*    Printf.printf "sol\n";
-        List.iter (fun (a,b) -> Printf.printf "%s <= %s\n" 
+    (*
+     Printf.printf "sol\n";
+        List.iter ~f:(fun (a,b) -> Printf.printf "%s <= %s\n" 
         (Printing.string_of_basetype a)
         (Printing.string_of_basetype b)) ineqs;
-        Printf.printf "======\n";*)
+        Printf.printf "======\n";
+    *)
 
   let cmp a b = Int.compare (Basetype.find a).id (Basetype.find b).id in
   (* All inequalities have the form A <= alpha for some variable alpha.
@@ -370,10 +390,8 @@ let solve_constraints (con: type_constraint list) : unit =
       let sol =
         if List.length xs > 1 || constraint_recursive then
           begin
-            (*
-            List.iter ~f:(fun a -> Printf.printf "%s,  " (Printing.string_of_basetype a)) xs;
-              Printf.printf "%s\n" (Printing.string_of_basetype alpha);
-            *)
+           (* List.iter ~f:(fun a -> Printf.printf "%s,  " (Printing.string_of_basetype a)) xs;
+              Printf.printf "%s\n" (Printing.string_of_basetype alpha);*)
             let recty = Basetype.Data.fresh_id "conty" in
             let params = List.filter fv_unique 
                            ~f:(fun beta -> not (Basetype.equals beta alpha)) in
@@ -397,7 +415,7 @@ let solve_constraints (con: type_constraint list) : unit =
                   (recty ^ "_" ^ (string_of_int i)) 
                   params 
                   arg_type);
-            (* Printf.printf "Declaring type: %s\n" (Printing.string_of_data recty); *)
+            Printf.printf "Declaring type: %s\n" (Printing.string_of_data recty); 
             sol 
           end
         else 
@@ -564,6 +582,22 @@ let infer_types (c : t) : unit =
       beq_constraint w1.type_back (tensor sigma alpha) ::
       beq_constraint w1.type_forward (tensor sigma beta) ::
       (constraints rest) 
+    | Encode(w1)::rest -> 
+      let sigma = Basetype.newty Basetype.Var in
+      let alpha = Basetype.newty Basetype.Var in
+      let beta = Basetype.newty Basetype.Var in
+      beq_constraint w1.type_back (tensor sigma alpha) ::
+      beq_constraint w1.type_forward (tensor sigma beta) ::
+      leq_constraint alpha beta ::
+      (constraints rest)
+    | Decode(w1)::rest -> 
+      let sigma = Basetype.newty Basetype.Var in
+      let alpha = Basetype.newty Basetype.Var in
+      let beta = Basetype.newty Basetype.Var in
+      beq_constraint w1.type_back (tensor sigma alpha) ::
+      beq_constraint w1.type_forward (tensor sigma beta) ::
+      leq_constraint beta alpha ::
+      (constraints rest)
     | Tensor(w1, w2, w3)::rest ->
       let sigma1 = Basetype.newty Basetype.Var in
       let alpha1 = Basetype.newty Basetype.Var in
@@ -734,6 +768,10 @@ let dot_of_circuit
     match ins with
     | Axiom(w1, _) -> 
       Printf.sprintf "\"Axiom({%i,%i})\"" w1.src w1.dst
+    | Encode(w1) -> 
+      Printf.sprintf "\"Encode({%i,%i})\"" w1.src w1.dst
+    | Decode(w1) -> 
+      Printf.sprintf "\"Decode({%i,%i})\"" w1.src w1.dst
     | Tensor(w1, w2, w3) -> 
       Printf.sprintf "\"Tensor({%i,%i},{%i,%i},{%i,%i})\"" 
         w1.src w1.dst w2.src w2.dst w3.src w3.dst
@@ -765,6 +803,8 @@ let dot_of_circuit
     let name =
       match ins with
       | Axiom(_, _) -> "axiom(...)"
+      | Encode(_) -> "encode(...)"
+      | Decode(_) -> "decode(...)"
       | Tensor(_, _, _) -> "&otimes;"
       | Der(_, _, _) -> "&pi;_..."
       | Case(_, _, _, _) -> "case"

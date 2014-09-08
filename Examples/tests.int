@@ -8,9 +8,9 @@ let main43 =
       let x = case c of True -> (print 1) | False -> () in print 3
    }
 
-let cons = fun x -> fun xs -> fn i { if i = 0 then x() else xs(i-1) }
-let head = fun xs -> fn u { xs 0 }
-let tail = fun xs -> fn i { xs (i+1) }
+let cons = λ x -> λ xs -> fn i { if i = 0 then x() else xs(i-1) }
+let head = λ xs -> fn u { xs 0 }
+let tail = λ xs -> fn i { xs (i+1) }
 
 fn tailrecimp(x) {
   case x of 
@@ -24,7 +24,7 @@ fn tailrecimp(x) {
 let tailrec = 
    direct(tailrecimp : {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
-let facaux = tailrec (fun facaux ->
+let facaux = tailrec (λ facaux ->
     fn (i, r) {
       if i=0 then r else facaux (i-1, r*i)
     }
@@ -47,7 +47,7 @@ fn trivial() {
    print u
 }
 
-let faclistaux= tailrec (fun faclistaux ->
+let faclistaux= tailrec (λ faclistaux ->
     fn (i, (r, l)) { 
        if i=1 then l else faclistaux (i-1, (r*i, Cons(r*i, box(l))))
     })
@@ -56,7 +56,7 @@ fn faclist(i) {
    faclistaux (i, (1, Nil()))
 }
 
-let printlist = tailrec (fun printlist ->
+let printlist = tailrec (λ printlist ->
     fn l { 
        case l of 
            Nil -> 
@@ -90,7 +90,7 @@ let fiximpl =
 
 let fix = direct(fiximpl: {box<list<'b>>} | {'b}|''a| -> ''a| -> ''a)
 
-let fib = fix (fun fib ->
+let fib = fix (λ fib ->
    copy fib as fib1, fib2 in
    fn i {
       if i < 2 then 1 else 
@@ -123,7 +123,7 @@ fn fixsimpl(x) {
 
 let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
-let fibs = fixs (fun fib ->
+let fibs = fixs (λ fib ->
    copy fib as fib1, fib2 in
    fn i {
       if i < 2 then 1
@@ -131,9 +131,9 @@ let fibs = fixs (fun fib ->
        fib1(i-1) + fib2(i-2)
    })
 
-let fibtr = fixs (fun fib ->
+let fibtr = fixs (λ fib ->
    fn i {
-      tailrec (fun tr ->
+      tailrec (λ tr ->
          fn (i, acc) {
             if i < 2 then acc else 
               tr (i-2, fib(i-1) + acc)
@@ -146,30 +146,30 @@ fn main() {
   print v
 }
 
-let t0 =fun f ->  fun g ->
+let t0 =λ f ->  λ g ->
       fn z {
             let (x, xs) = z in
             let v = f x in
             v
       }
 
-let t =fun f -> (fun mapf ->
+let t =λ f -> (λ mapf ->
       fn l {
         case l of
           Nil -> Nil()
         | Cons(x, xs) -> Cons(f x, box(mapf (unbox xs)))
       })
 
-let map = fun f ->
-   fixs (fun mapf ->
+let map = λ f ->
+   fixs (λ mapf ->
       fn l {
         case l of
           Nil -> Nil()
         | Cons(x, xs) -> Cons(f x, box(mapf (unbox xs)))
       })
 
-let maprev = fun f ->
-   tailrec (fun mapf ->
+let maprev = λ f ->
+   tailrec (λ mapf ->
       fn (l, r) {
         case l of
           Nil -> r
@@ -177,7 +177,7 @@ let maprev = fun f ->
       })
 
 let revaux =
-   tailrec (fun rev ->
+   tailrec (λ rev ->
       fn (l, r) {
         case l of
           Nil -> r
@@ -188,13 +188,13 @@ fn rev(l) {
   revaux (l, Nil())
 }
 
-let maptr = fun f -> 
+let maptr = λ f -> 
    fn l {
       rev (maprev f (l, Nil))
    }
 
 fn clone(l) {
-   tailrec (fun clone ->
+   tailrec (λ clone ->
       fn (l, (l1, l2)) {
         case l of
           Nil -> (rev l1, rev l2)
@@ -204,7 +204,7 @@ fn clone(l) {
 }
 
 fn upto(n) {
-   tailrec (fun aux -> 
+   tailrec (λ aux -> 
    fn (m, r) {
       if m = 0 then r else aux (m - 1, Cons(m, box r))
    }) (n, Nil)

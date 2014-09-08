@@ -544,8 +544,13 @@ let build_term
       | Term.Cpush _, _ 
       | Term.Cpop _, _ 
       | Term.Ccall _, _ 
+      | Term.Cencode _, _ 
+      | Term.Cdecode _, _ 
         -> assert false
     end
+  | Ssa.Const(Term.Cencode _, _) 
+  | Ssa.Const(Term.Cdecode _, _) ->
+    assert false
 
 let rec build_letbindings 
       (the_module : Llvm.llmodule)

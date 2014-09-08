@@ -67,7 +67,7 @@ let rec compile_passes (d: decls) : unit =
     let circuit = Circuit.circuit_of_termU t in
     Printf.printf "%s : %s\n" f  
       (Printing.string_of_type ~concise:(not !opt_print_type_details) b);
-    (* print_term t;  *)
+    (* Printing.print_term t;  *)
     if !opt_keep_circuits then
       begin
         let target = Printf.sprintf "%s.dot" f in

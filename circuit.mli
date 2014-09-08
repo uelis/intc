@@ -9,6 +9,8 @@ val map_wire : (int -> int) -> wire -> wire
 
 type instruction =
   | Axiom of wire (* fn () -> f *) * (Term.var list * (Term.var * Term.t))
+  | Encode of wire (* A => B *)
+  | Decode of wire (* B => A *)
   | Tensor of wire (* X *) * wire (* Y *) * wire (* X \otimes Y *)
   | Der of wire (* \Tens A X *) * wire (* X *) * (Term.var list * Term.t)
   | Case of Basetype.Data.id * Basetype.t list * wire * (wire list)
