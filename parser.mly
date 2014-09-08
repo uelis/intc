@@ -91,10 +91,12 @@ let elim_pattern p t =
       mkTerm (BindW((mkTerm (Var z),  Basetype.newty Basetype.OneW), (unusable_var, t)))
     | PatVar(z) -> z, t
     | PatPair(p1, p2) ->
+      let vs = Term.all_vars t in
+      let z = Vargen.mkVarGenerator "u" ~avoid:vs () in
       let z1, t1 = elim p1 t in     
       let z2, t2 = elim p2 t1 in
-      z1, Term.subst (mkSndW (mkVar z1)) z2 
-            (Term.subst (mkFstW (mkVar z1)) z1 t2) in
+      z, Term.subst (mkSndW (mkVar z)) z2 
+            (Term.subst (mkFstW (mkVar z)) z1 t2) in
   elim p t 
 
 let type_vars = String.Table.create () 
