@@ -67,7 +67,8 @@ let rec compile_passes (d: decls) : unit =
     let circuit = Circuit.circuit_of_termU t in
     Printf.printf "%s : %s\n" f  
       (Printing.string_of_type ~concise:(not !opt_print_type_details) b);
-    (* Printing.print_term t;  *)
+    flush stdout;
+    (* Printing.print_term t; *)
     if !opt_keep_circuits then
       begin
         let target = Printf.sprintf "%s.dot" f in
@@ -90,7 +91,7 @@ let rec compile_passes (d: decls) : unit =
           Printf.printf "*** Writing ssa-form program for %s to file '%s'\n" f target;
           write_file target (Ssa.string_of_func ssa_shortcut)
         end;
-      if !opt_llvm_compile then
+      if !opt_llvm_compile && (f = "main") then
         begin
           let target = Printf.sprintf "%s.bc" f in
           let llvm_module = Llvmcodegen.llvm_compile ssa_shortcut in

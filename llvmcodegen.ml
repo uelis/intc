@@ -197,63 +197,45 @@ type encoded_value = {
 *)
 
 let payload_size (a: Basetype.t) : int = 
-  let payload_size_memo = Int.Table.create ()in
   let rec p_s a = 
-    match Int.Table.find payload_size_memo (Basetype.find a).id with
-    | Some ps -> ps
-    | None ->
-      let size =
-        let open Basetype in
-        match finddesc a with
-        | Link _ -> assert false
-        | ZeroW | OneW -> 0
-        | Var -> 0
-        | NatW -> 1
-        | BoxW _ -> 1
-        | TensorW(a1, a2) -> p_s a1 + (p_s a2)
-        | DataW(id, ps) -> 
-          let cs = Basetype.Data.constructor_types id ps in
-          List.fold_right cs ~f:(fun c m -> max (p_s c) m) ~init:0
-      in
-      Int.Table.add_exn payload_size_memo 
-        ~key:(Basetype.find a).id ~data:size;
-      size
+    let open Basetype in
+    match finddesc a with
+    | Link _ -> assert false
+    | ZeroW | OneW -> 0
+    | Var -> 0
+    | NatW -> 1
+    | BoxW _ -> 1
+    | TensorW(a1, a2) -> p_s a1 + (p_s a2)
+    | DataW(id, ps) -> 
+      let cs = Basetype.Data.constructor_types id ps in
+      List.fold_right cs ~f:(fun c m -> max (p_s c) m) ~init:0
   in p_s a
 
 (* aufräumen *)       
 let attrib_size (a: Basetype.t) : profile =
-  let attrib_size_memo = Int.Table.create () in
   let rec a_s a = 
-    match Int.Table.find attrib_size_memo (Basetype.find a).id with
-    | Some s -> s
-    | None -> 
-      let size =
-        let open Basetype in
-        match finddesc a with
-        | Link _ -> assert false
-        | Var | ZeroW | OneW | NatW | BoxW _ -> M.empty
-        | TensorW(a1, a2) -> add_profiles (a_s a1) (a_s a2)
-        | DataW(id, ps) -> 
-          begin
-            let cs = Basetype.Data.constructor_types id ps in
-            let n = List.length cs in
+    let open Basetype in
+    match finddesc a with
+    | Link _ -> assert false
+    | Var | ZeroW | OneW | NatW | BoxW _ -> M.empty
+    | TensorW(a1, a2) -> add_profiles (a_s a1) (a_s a2)
+    | DataW(id, ps) -> 
+      begin
+        let cs = Basetype.Data.constructor_types id ps in
+        let n = List.length cs in
             (*
-            List.iter (fun a -> Printf.printf "%s, "
-                                  (Printing.string_of_basetype a)) cs;
+           List.iter (fun a -> Printf.printf "%s, "
+           (Printing.string_of_basetype a)) cs;
            Printf.printf " %i\n" n;*)
-            let mx = List.fold_right cs ~f:(fun c mx -> max_profiles (a_s c) mx) 
-                       ~init:M.empty in
-            if n = 1 || Basetype.Data.is_discriminated id = false then
-              mx
-            else
-              let i = log n in
-              let ni = M.find mx i |> Option.value ~default:0 in
-              M.add mx ~key:i ~data:(ni + 1)
-          end
-      in
-      Int.Table.add_exn attrib_size_memo 
-        ~key:(Basetype.find a).id ~data:size;
-      size
+        let mx = List.fold_right cs ~f:(fun c mx -> max_profiles (a_s c) mx) 
+                   ~init:M.empty in
+        if n = 1 || Basetype.Data.is_discriminated id = false then
+          mx
+        else
+          let i = log n in
+          let ni = M.find mx i |> Option.value ~default:0 in
+          M.add mx ~key:i ~data:(ni + 1)
+      end
   in a_s a
 
 (** Assertion to state tenc encodes a value of type a. *) 

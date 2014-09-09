@@ -415,7 +415,7 @@ let solve_constraints (con: type_constraint list) : unit =
                   (recty ^ "_" ^ (string_of_int i)) 
                   params 
                   arg_type);
-            Printf.printf "Declaring type: %s\n" (Printing.string_of_data recty); 
+            (* Printf.printf "Declaring type: %s\n" (Printing.string_of_data recty); *)
             sol 
           end
         else 
