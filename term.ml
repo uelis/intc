@@ -299,9 +299,8 @@ let head_subst (s: t) (x: var) (t: t) : t option =
       (* no capture *)
       (l, sub sigma t1) 
     else
-      (* if substitution actually happened, i.e. Not_found is not raised,
-       * then capture would occur, so we must rename *)
-      let avoid = fvs @ (List.map ~f:(apply sigma) (free_vars t1)) in
+      (* avoid capture *)
+      let avoid = fvs @ l @ (List.map ~f:(apply sigma) (free_vars t1)) in
       let l' = List.map ~f:(fun y -> variant_var_avoid y avoid) l in
       (l', sub ((List.zip_exn l l') @ sigma) t1) 
   in 
@@ -310,7 +309,7 @@ let head_subst (s: t) (x: var) (t: t) : t option =
 
 let subst (s: t) (x: var) (t: t) : t =
   (* rename x so that it is not free in s *)
-  let fv = free_vars s @ (free_vars t) in
+  let fv = free_vars s @ (all_vars t) in
   let x' = variant_var_avoid x fv in
   let t' = if x = x' then t else rename_vars 
                                    (fun z -> if z = x then x' else z) t in
