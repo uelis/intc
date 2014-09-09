@@ -17,29 +17,29 @@ fn fiximpl(x) {
 
 let fix = direct(fiximpl: {unit}| {'c}|''a| -> ''a| -> ''a)
 
-let cons = fun x -> fun xs -> 
+let cons = λ x -> λ xs -> 
    fn(i) { 
       if i = 0 then x() else xs(i-1)
    }
 
-let head = fun l -> fn () { l(0) }
+let head = λ l -> fn () { l(0) }
 
-let tail = fun l -> fn i { l(i+1) }
+let tail = λ l -> fn i { l(i+1) }
 
 let andalso = 
-   fun b1 -> fun b2 -> 
+   λ b1 -> λ b2 -> 
       fn() {
          if b1() then b2() else False
       }
 
 let orelse = 
-   fun b1 -> fun b2 -> 
+   λ b1 -> λ b2 -> 
       fn() {
          if b1() then True else b2()
       }
 
-let printlistaux = fun l ->
-   fix (fun printlist ->
+let printlistaux = λ l ->
+   fix (λ printlist ->
    fn (i, j) {
      if i = j then ()
      else
@@ -48,7 +48,7 @@ let printlistaux = fun l ->
         printlist (i+1, j)
    })
           
-let printlist = fun l -> 
+let printlist = λ l -> 
    fn i {
       printlistaux l (0, i)
    }
@@ -62,8 +62,8 @@ fn abs(x) {
 
 }
 
-let aux = fix (fun aux ->
-    fun n ->
+let aux = fix (λ aux ->
+    λ n ->
       fn i {
          let v = n() in
          cons (fn(){ 1 }) 
@@ -74,10 +74,10 @@ let aux = fix (fun aux ->
 
 let eContFrac = cons (fn(){ 2 }) (aux (fn(){ 2 }))                  
 
-let ratTrans = fix (fun ratTrans -> 
+let ratTrans = fix (λ ratTrans -> 
    copy ratTrans as ratTrans1, ratTrans2 in
-   fun abcd ->
-   fun xs ->
+   λ abcd ->
+   λ xs ->
    copy xs as xs1, xs23 in
    copy xs23 as xs2, xs3 in
    fn(i) {
@@ -95,8 +95,8 @@ let ratTrans = fix (fun ratTrans ->
                (tail xs3) i
    })
          
-let todigits = fix (fun todigits ->
-    fun l ->
+let todigits = fix (λ todigits ->
+    λ l ->
     copy l as l1, l2 in
     fn(i){
       if i = 0 then l1(i) else

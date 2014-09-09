@@ -18,7 +18,7 @@ fn fixsimpl(x) {
 
 let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
-let fibs = fixs (fun fib ->
+let fibs = fixs (λ fib ->
    copy fib as fib1, fib2 in
    fn i {
       if i < 2 then 1

@@ -17,7 +17,7 @@ let fiximpl =
 let fix = direct(fiximpl: {box<list<'b>>} | {'b}|''a| -> ''a| -> ''a)
 
 
-let fibs = fix (fun fib ->
+let fibs = fix (λ fib ->
    copy fib as fib1, fib2 in
    fn i {
       if i < 2 then 1

@@ -16,29 +16,29 @@ let fixsimpl = fn x {
 }
 let fix = direct(fixsimpl: {unit}| {'c}|''a| -> ''a| -> ''a)
 
-let val = fun n -> fun k -> k n
-let add = fun k -> k (fun n -> fun k1 -> 
+let val = λ n -> λ k -> k n
+let add = λ k -> k (λ n -> λ k1 -> 
                           fn () {
                             let nv = n() in
-                            k1 (fun m -> fun k2 -> 
+                            k1 (λ m -> λ k2 -> 
                                   fn () { 
                                     let mv = m() in
                                     k2 (fn() { nv+mv }) ()
                                   }) ()
                           })
-let if0 = fun x1 -> fun x2 -> fun k -> k (fun n -> fun k ->
+let if0 = λ x1 -> λ x2 -> λ k -> k (λ n -> λ k ->
                       fn () {
                         let b = n() = 0 in
                         (if b then x1 k else x2 k) ()
                       })
-let app = fun e1 -> fun e2 -> fun k -> e1 (fun x1 -> e2 (fun x2 -> x1 x2 k))
-let mem = fun f -> fun k ->  k (f (fun r -> r))
+let app = λ e1 -> λ e2 -> λ k -> e1 (λ x1 -> e2 (λ x2 -> x1 x2 k))
+let mem = λ f -> λ k ->  k (f (λ r -> r))
 
 let step =
-   fun f ->
+   λ f ->
    copy f as f1, f2 in
-     val (fun x -> 
-          mem (fun k ->
+     val (λ x -> 
+          mem (λ k ->
             fn () {
               let xv = x() in
               (if xv < 2 then 
@@ -47,10 +47,10 @@ let step =
                 app (app add (f1 (fn(){ xv - 1 }))) (f2 (fn(){ xv - 2 })) k) ()
             }))
 
-let fixv = fix (fun a -> step (fun x -> fun k -> a (fun b -> b x k))) 
+let fixv = fix (λ a -> step (λ x -> λ k -> a (λ b -> b x k))) 
 
 fn main() {
-   let v = app fixv (val (fn(){ 38 })) (fun r -> r) () in
+   let v = app fixv (val (fn(){ 38 })) (λ r -> r) () in
    print v
 }
 

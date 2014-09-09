@@ -31,9 +31,9 @@ fn fixsimpl(x) {
 
 let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
 
-let fibtr = fixs (fun fib ->
+let fibtr = fixs (λ fib ->
    fn i {
-      tailrec (fun tr ->
+      tailrec (λ tr ->
          fn (i, acc) {
             if i < 2 then acc else 
               tr (i-2, fib(i-1) + acc)

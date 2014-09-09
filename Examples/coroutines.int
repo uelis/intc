@@ -38,9 +38,9 @@ fn println(i) {
    print "\n"
 }
 
-let proc1 = fun yield ->
+let proc1 = λ yield ->
    fn () {
-     tailrec (fun proc1 ->
+     tailrec (λ proc1 ->
        fn j {
          print "p1: ";
          println j;
@@ -49,9 +49,9 @@ let proc1 = fun yield ->
        }) 3
    }
 
-let proc2 = fun yield ->
+let proc2 = λ yield ->
    copy yield as yield1, yield2 in
-   tailrec (fun proc2 ->
+   tailrec (λ proc2 ->
      fn j {
        print "p2: ";
        println j;

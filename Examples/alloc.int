@@ -13,22 +13,22 @@ let tailrec = direct(tailrecimp:
 /* Combinators in the style of Idealised Algol */
 
 fn skip() { () }
-let seq = fun c1 -> fun c2 -> fn() { c1(); c2() }
+let seq = λ c1 -> λ c2 -> fn() { c1(); c2() }
 
-let pr = fun e -> fn() { print (e()); print "\n" }
-let dec = fun e -> fn() { e() - 1 }
+let pr = λ e -> fn() { print (e()); print "\n" }
+let dec = λ e -> fn() { e() - 1 }
 
-let ispositive = fun e -> fn() { 0 < (e()) }
+let ispositive = λ e -> fn() { 0 < (e()) }
 
 let cif = 
-  fun e -> fun ct -> fun cf ->
+  λ e -> λ ct -> λ cf ->
     fn () {
       if e() then ct() else cf()
     }
 
 let while = 
-   fun e -> fun c ->
-    (tailrec (fun f ->
+   λ e -> λ c ->
+    (tailrec (λ f ->
         fn x {
           if e() then (c(); f x) else ()}))
 
@@ -48,8 +48,8 @@ fn allocimp(x) {
 let alloc = direct(allocimp:
   {int}|{'c}|'a -> unit| -> {'d}|unit -> 'a| -> (unit -> 'b) | -> ('a -> 'b))
 
-let main = alloc (fun write -> fun read ->
-   copy (fun e -> fn () { let v = e() in write(v) }) as write1, write2 in
+let main_ia = alloc (λ write -> λ read ->
+   copy (λ e -> fn () { let v = e() in write(v) }) as write1, write2 in
    copy read as read1, read23 in      
    copy read23 as read2, read3 in
      seq (write1 (fn(){ 12 }))
@@ -58,3 +58,14 @@ let main = alloc (fun write -> fun read ->
               (write2 (dec read3))
            )
          ))
+
+let main = alloc (λ write -> λ read ->
+   copy write as write1, write2 in
+   copy read as read1, read2 in {
+     let u = write1 12 in
+     while (ispositive read1) {
+       let v = read2() in
+       print v; print "\n";
+       write2(v-1)
+     } ()
+   })
