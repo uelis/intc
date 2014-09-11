@@ -133,7 +133,7 @@ let rec is_pure (term: t) : bool =
     is_pure t
 
 let rec free_vars (term: t) : var list =
-  let abs x l = List.filter l ~f:(fun z -> z <> x) in
+  let abs x l = List.filter l ~f:(fun z -> not (String.equal z x)) in
   match term.desc with
   | Var(v) -> [v]
   | ValW _ | ConstW(_) | UnitW | ExternalU _ -> []
@@ -235,7 +235,7 @@ let variant_with_name_supply (fresh_var: unit -> var) (t: t) : t =
 (* substitues s for the head occurrence of x.
  * return None if t does not contain x.
 *)
-let head_subst (s: t) (x: var) (t: t) : t option =
+let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
   (* Below sigma is always a permutation that maps bound 
    * variables of t to suitably fresh variables. *)
   let fvs = free_vars s in
@@ -246,7 +246,7 @@ let head_subst (s: t) (x: var) (t: t) : t option =
   let rec sub sigma term =
     match term.desc with
     | Var(y) -> 
-      if x = y && (not !substituted) then 
+      if x = y && ((not head) || (not !substituted)) then 
         (substituted := true; s) (* substitute only once *)
       else 
         { term with desc = Var(apply sigma y) } 
@@ -307,18 +307,13 @@ let head_subst (s: t) (x: var) (t: t) : t option =
   let result = sub [] t in
   if (!substituted) then Some result else None
 
+let head_subst (s: t) (x: var) (t: t) : t option =
+  substitute ~head:true s x t
+
 let subst (s: t) (x: var) (t: t) : t =
-  (* rename x so that it is not free in s *)
-  let fv = free_vars s @ (all_vars t) in
-  let x' = variant_var_avoid x fv in
-  let t' = if x = x' then t else rename_vars 
-                                   (fun z -> if z = x then x' else z) t in
-  let rec sub t = 
-    match head_subst s x' t with
-    | None -> t
-    | Some t' -> sub t'
-  in
-  sub t'
+  match substitute ~head:false s x t with
+  | None -> t
+  | Some t' -> t'
 
 (* Conveniencene function for n-ary let on WC level *)          
 let let_tupleW (x: var) ((sigma: var list), (f: t)) : t =

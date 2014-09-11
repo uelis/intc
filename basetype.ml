@@ -34,12 +34,12 @@ let get_mark t =
   t.mark
 
 let rec find (t : t) : t =
-    match t.desc with
-    | Link l -> 
-        let r = find l 
-        in t.desc <- Link r; 
-           r
-    | _ -> t
+  match t.desc with
+  | Link l -> 
+    let r = find l 
+    in t.desc <- Link r; 
+    r
+  | _ -> t
 
 let finddesc (t : t) = (find t).desc
 

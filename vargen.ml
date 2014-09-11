@@ -1,9 +1,22 @@
+open Core.Std
 
-let mkVarGenerator (basename: string) ~avoid:(avoid: string list) : unit -> string =
-  let next_var_index = ref 0 in
-  let rec gen () =
-    let i = !next_var_index in
-      next_var_index := i + 1; 
-      let v = basename ^ (string_of_int i) in
-        if List.mem v avoid then gen () else v
+let var_name basename i = 
+   basename ^ (string_of_int i)
+
+let index_of_varname basename name =
+   match String.chop_prefix ~prefix:basename name with
+    | None -> -1
+    | Some suffix ->
+      try int_of_string suffix with Failure int_of_string -> -1
+
+let mkVarGenerator (basename: string) ~avoid:(avoid: string list) 
+  : unit -> string =
+  let max_index =
+    List.fold avoid
+      ~init:(-1)
+      ~f:(fun acc v -> max acc (index_of_varname basename v)) in
+  let next_var_index = ref max_index in  
+  let gen () =
+    incr next_var_index;
+    var_name basename !next_var_index 
   in gen
