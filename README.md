@@ -62,8 +62,8 @@ type list<'a> =
         Nil of unit 
       | Cons of 'a * box<list<'a>>
 
-let maprev = fun f ->
-   tailrec (fun mapf ->
+let maprev = λ f ->
+   tailrec (λ mapf ->
       fn (l, r) {
         case l of
           Nil -> r
@@ -71,7 +71,7 @@ let maprev = fun f ->
       })
 
 let revaux =
-   tailrec (fun rev ->
+   tailrec (λ rev ->
       fn (l, r) {
         case l of
           Nil -> r
@@ -82,12 +82,12 @@ fn rev(l) {
   revaux (l, Nil())
 }
 
-let maptr = fun f -> 
+let maptr = λ f -> 
    fn l {
       rev (maprev f (l, Nil))
    }
 
-let printlist = tailrec (fun printlist ->
+let printlist = tailrec (λ printlist ->
     fn l { 
        case l of 
            Nil -> 
