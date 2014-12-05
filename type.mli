@@ -27,7 +27,7 @@ include Types.Repr
 val subst: (t -> t) -> (Basetype.t -> Basetype.t) -> t -> t
 
 val freshen: t -> t
-val freshen_index_types: t -> t
+val map_index_types: t -> (Basetype.t -> Basetype.t) -> t
 
 (* Given upper class type X, returns the pair (X^-, X^+). *)
 val question_answer_pair: t -> Basetype.t * Basetype.t

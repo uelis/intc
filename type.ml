@@ -101,15 +101,15 @@ let freshen t =
       y in
   subst f fbase t
 
-let rec freshen_index_types (a: t) : t =
+let rec map_index_types (a: t) (f: Basetype.t -> Basetype.t) : t =
     match (find a).desc with
       | Var | Base _ -> a
       | FunW(a, b1) ->
-        newty(FunW(a, freshen_index_types b1))
-      | FunU(_, b1, b2) ->
-        newty(FunU(Basetype.newty Basetype.Var,
-                   freshen_index_types b1,
-                   freshen_index_types b2))
+        newty(FunW(a, map_index_types b1 f))
+      | FunU(a, b1, b2) ->
+        newty(FunU(f a,
+                   map_index_types b1 f,
+                   map_index_types b2 f))
       | Link _ -> assert false
 
 let question_answer_pair (s: t) : Basetype.t * Basetype.t =

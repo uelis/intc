@@ -27,7 +27,7 @@ fn tailrecimp(x) =
        | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
 
 let tailrec =
-   direct(tailrecimp : {unit}( {'c}('a -> ['b]) -> 'a -> ['b] ) -> 'a -> ['b])
+   direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
    
 let facaux = tailrec (λ facaux ->
     fn (i, r) ->
@@ -65,7 +65,7 @@ let fiximpl =
     let () = store(a, Nil) in
     return Inl(a, Inr(q))
 
-let fix = direct(fiximpl: {box<list<'b>>} ( {'b}(''a) -> ''a) -> ''a)
+let fix = direct(fiximpl: /*{box<list<'b>>}*/ ( /*{'b}*/(''a) -> ''a) -> ''a)
 
 let fib = fix (λ fib ->
    copy fib as fib1, fib2 in

@@ -1,5 +1,4 @@
-(** Type inference
-*)
+(** Type inference *)
 open Core.Std
 open Term
 open Unify
@@ -80,8 +79,9 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
       match List.Assoc.find c v with
       | Some a -> a
       | None ->
-        raise (Typing_error (Some t, "Variable '" ^ v ^
-                                     "' not bound or not of value type."))
+        raise (Typing_error
+                 (Some t, "Variable '" ^ v ^
+                          "' not bound or not of value type."))
     end
   | ConstV(Cintconst(_)) ->
     Basetype.newty Basetype.NatW
@@ -89,22 +89,6 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
     a
   | UnitV ->
     Basetype.newty Basetype.OneW
-      (*
-        TODO
-        | Box(t1, a1) ->
-    let phi1, _ = take_subcontext phi t1 in
-    let b1 = ptW c phi1 t1 in
-    beq_expected_constraint t1 ~actual:b1 ~expected:a1;
-    Basetype.newty (Basetype.BoxW(a1))
-  | Unbox(t1, a1) ->
-    let phi1, _ = take_subcontext phi t1 in
-    let b1 = ptW c phi1 t1 in
-    let alpha = Basetype.newtyvar () in
-    let boxalpha = Basetype.newty (Basetype.BoxW(alpha)) in
-    beq_expected_constraint t ~actual:b1 ~expected:boxalpha;
-    beq_expected_constraint t1 ~actual:alpha ~expected:a1;
-    alpha
-*)
   | PairV((t1, a1), (t2, a2)) ->
       let b1 = ptV c t1 in
       let b2 = ptV c t2 in
@@ -150,7 +134,7 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
     beq_expected_constraint t1 ~actual:a1 ~expected:a;
     beq_expected_constraint t2 ~actual:a2 ~expected:beta;
     a2*)
-  | App _ | Case _
+  | App _ |Case _
   | Fn _ | Fun _ | CopyU _ | HackU _ | TypeAnnot _
   | Return _ | Bind _
   | Const _  | ExternalU _
@@ -307,8 +291,18 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     beta
   | HackU(b, t1) ->
     let a1 = pt c [] t1 in
+    let b' = Type.map_index_types b
+               (fun a ->
+                  begin
+                    match Basetype.finddesc a with
+                    | Basetype.Var -> ()
+                    | _ -> print_string
+                             ("Warning: Non-variable index type annotations " ^
+                              "are ignored.\n")
+                  end;
+                  Basetype.newtyvar()) in
     let b_minus, b_plus =
-      Type.question_answer_pair (Type.freshen_index_types b) in
+      Type.question_answer_pair b' in
     eq_expected_constraint t
       ~actual:a1
       ~expected:(Type.newty
