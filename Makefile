@@ -4,7 +4,7 @@ byte:
 	corebuild -j 0 -cflags "-g" intc.byte
 
 opt:
-	corebuild -quiet -j 0 -cflags "-g" intc.native
+	corebuild -j 0 -cflags "-g" intc.native
 
 tags:
 	otags *.ml *.mli

@@ -141,8 +141,9 @@ let string_of_basetype (ty: Basetype.t): string =
           | ZeroW -> Buffer.add_char buf '0'
           | OneW -> Buffer.add_string buf "unit"
           | BoxW(b) ->
-            Buffer.add_char buf '~';
+            Buffer.add_string buf "box<";
             s_atom b;
+            Buffer.add_char buf '>';
           | DataW _ | TensorW _  ->
             Buffer.add_char buf '(';
             s_basetype t;
@@ -201,9 +202,7 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
                 Buffer.add_char buf '}';
                 Buffer.add_string buf "\027[30m"
               end;
-            Buffer.add_string buf "|";
-            s_type t1;
-            Buffer.add_string buf "| -> ";
+            s_atom t1;
             s_type t2
           | Type.Var | Type.Base _  ->
             s_atom t
@@ -220,13 +219,13 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
       | None ->
         begin
           match Type.finddesc t with
-          | Type.Base(a) ->
-            Buffer.add_string buf "T(";
-            Buffer.add_string buf (string_of_basetype a);
-            Buffer.add_string buf ")"
           | Type.Var ->
             Buffer.add_string buf "\'\'";
             Buffer.add_string buf (name_of_typevar t)
+          | Type.Base(a) ->
+            Buffer.add_string buf "[";
+            Buffer.add_string buf (string_of_basetype a);
+            Buffer.add_string buf "]"
           | Type.FunW _
           | Type.FunU _ ->
             Buffer.add_char buf '(';
@@ -304,53 +303,34 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
   let open Format in
   let rec s_term (t: Term.t): unit =
     match t.desc with
-    | Return(t, a) ->
-      fprintf f "return (@[";
-      s_term t; (* TODO: check grammar! *)
-      fprintf f "@] : %s" (string_of_basetype a);
-    | Fn((x, a), t1) ->
-      fprintf f "@[<hv 2>fn (%s: %s) {@;" x (string_of_basetype a);
+    | Return(t, _) ->
+      fprintf f "return @[";
+      s_term t; 
+      fprintf f "@]"
+    | Fn((x, _), t1) ->
+      fprintf f "@[<hv 2>fn (%s) {@;" x;
       s_term t1;
       fprintf f "}@]"
-    | Fun((x, _, ty), t1) ->
-      fprintf f "@[<hv 2>fun (%s: %s) ->@;" x (string_of_type ty);
+    | Fun((x, _, _), t1) ->
+      fprintf f "@[<hv 2>fun (%s) ->@;" x;
       s_term t1;
       fprintf f "@]"
-    | HackU(a, t) ->
-      fprintf f "@[<hv 2>hack@ ";
-      s_term t;
-      fprintf f "@ as %s@]" (string_of_type a)
-    | ExternalU((e, a), _) ->
-      fprintf f "@[<hv 2>external(%s: %s)@]" e (string_of_type a)
     | CopyU(t1, (x, y, t2)) ->
-      fprintf f "copy @[ ";
+      fprintf f "copy @[";
       s_term t1;
       fprintf f "@] as %s,%s in@ @[" x y;
       s_term t2;
       fprintf f "@]"
-    | FstV(t1, a, b) ->
-      fprintf f "@[fst(";
-      s_term t1;
-      fprintf f ": %s * %s)@]" (string_of_basetype a)
-        (string_of_basetype b)
-    | SndV(t1, _, _) ->
-      fprintf f "@[snd(";
-      s_term t1;
-      fprintf f ")@]"
-    | Bind((t1, a), (x, t2)) ->
-      fprintf f "@[<hv 2>let (%s: %s) =@ " x (string_of_basetype a);
+    | Bind((t1, _), (x, t2)) ->
+      fprintf f "@[<hv 2>let %s =@ " x;
       s_term t1;
       fprintf f "@] in@ @[";
       s_term t2;
       fprintf f "@]"
-    | Select(_, _, t1, i) ->
-      fprintf f "@[<hv>select(";
-      s_term t1;
-      fprintf f ", %i)@]" i
-    | Case(id, a, t1, l) ->
+    | Case(id, _, t1, l) ->
       fprintf f "@[<hv>case ";
       s_term t1;
-      fprintf f ": %s of " (String.concat (List.map a ~f:string_of_basetype));
+      fprintf f " of ";
       let k = ref 0 in
       List.iter l
         ~f:(fun (x, t) ->
@@ -367,8 +347,8 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "%s(@[" cname;
       s_term_atom t1;
       fprintf f ")@]"
-    | App _ | Var _ | ConstV _ | Const _ | UnitV
-    | PairV _ | TypeAnnot _
+    | App _ | Var _ | ConstV _ | Const _ | UnitV | FstV _ | SndV _ | Select _
+    | PairV _ | TypeAnnot _ | HackU _ | ExternalU _
       -> s_term_app t
   and s_term_app (t: Term.t) =
     match t.desc with
@@ -389,19 +369,36 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "()"
     | ConstV(s) ->
       fprintf f "%s" (string_of_val_const s)
-    | Const(s) ->
-      fprintf f "%s" (string_of_op_const s)
+    | FstV(t1, _, _) ->
+      fprintf f "@[fst(";
+      s_term t1;
+      fprintf f ")@]"
+    | SndV(t1, _, _) ->
+      fprintf f "@[snd(";
+      s_term t1;
+      fprintf f ")@]"
     | PairV((t1, _), (t2, _)) ->
       fprintf f "(@[";
       s_term t1;
       fprintf f "@], @[";
       s_term t2;
       fprintf f "@])";
+    | Select(_, _, t1, i) ->
+      fprintf f "@[<hv>select(";
+      s_term t1;
+      fprintf f ", %i)@]" i
+    | Const(s) ->
+      fprintf f "%s" (string_of_op_const s)
+    | HackU(a, t) ->
+      fprintf f "@[<hv 2>direct(";
+      s_term t;
+      fprintf f " : %s@])" (string_of_type a)
+    | ExternalU((e, a), _) ->
+      fprintf f "@[<hv 2>external(%s: %s)@]" e (string_of_type a)
     | TypeAnnot(t, _) ->
       s_term_atom t
-    | App _ | InV _ | FstV _ | SndV _
-    | Return _ | Bind _ | Case _ | Select _
-    | Fn _ | Fun _ | CopyU _ | HackU _ | ExternalU _->
+    | App _ | InV _ | Return _ | Bind _ | Case _ 
+    | Fn _ | Fun _ | CopyU _ ->
       fprintf f "(@[";
       s_term t;
       fprintf f "@])"

@@ -1,57 +1,52 @@
 type list<'a> = Nil of unit | Cons of 'a * box<list<'a>>
 
-let f1 = fn(c){ print c }
-let f1' = fn(c){ return () }
-let f2 = fn c { let x = return c in print x }
-let f3 = fn(c){ let c = return False in print 3}
+let f1 = fn c -> print c 
+let f1' = fn c -> return () 
+let f2 = fn c -> let x = return c in print x 
+let f3 = fn c -> let c = return False in print 3
 let main43 =
-   fn c {
+   fn c ->
       case c of True -> (print 1) | False -> return ()
-   }
+   
 
-let head = λ xs -> fn u { xs 0 }
-let cons = λ x -> λ xs -> fn i { let b = (i = 0) in if b then x() else xs(i-1) }
-let tail = λ xs -> fn i { xs (i+1) }
+let head = λ xs -> fn u -> xs 0 
+let cons = λ x -> λ xs -> fn i -> let b = (i = 0) in if b then x() else xs(i-1) 
+let tail = λ xs -> fn i -> xs (i+1) 
 
-fn f3(x) {
+fn f3(x) =
   case x of
     Inl(a) -> let a1 = return 3 in return Inl((), a)
   | Inr(x) -> return Inr((), 3)
-}
 
-fn tailrecimp(x) {
+fn tailrecimp(x) =
   case x of
     Inr(a, ()) -> return Inl((), Inr(a, ()))
   | Inl(u, s) ->
       case s of
          Inr(b) -> return Inr(b)
        | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
-}
 
 let tailrec =
    direct(tailrecimp : {unit}( {'c}('a -> ['b]) -> 'a -> ['b] ) -> 'a -> ['b])
    
 let facaux = tailrec (λ facaux ->
-    fn (i, r) {
+    fn (i, r) ->
       let b = (i = 0) in
       if b then return r else
         let i' = i - 1 in
 	let r' = r * i in
         facaux (i', r')
-    }
 )
 
-fn fac(i) {
+fn fac(i) =
    facaux (i, 1)
-}
 
-fn main1() {
+fn main1() =
    let v = fac 10 in
      print v
-}
 
 let fiximpl =
- fn x {
+ fn x ->
   case x of
    Inl(l, x) ->
        (case x of
@@ -69,31 +64,29 @@ let fiximpl =
     let a = alloc() in
     let () = store(a, Nil) in
     return Inl(a, Inr(q))
- }
 
 let fix = direct(fiximpl: {box<list<'b>>} ( {'b}(''a) -> ''a) -> ''a)
 
 let fib = fix (λ fib ->
    copy fib as fib1, fib2 in
-   fn i {
-      let t = (i < 2) in
+   fn i ->
+      let t = intslt(i, 2) in
       if t then
         return 1
       else
 	let f1 =
-            let i1 = i - 1 in
+            let i1 = intsub(i, 1) in
 	    fib1 i1 in
 	let f2 =
-            let i2 = i - 2 in
+            let i2 = intsub(i, 2) in
 	    fib2 i2 in
 	let s = f1 + f2 in
 	return s
-   })
+   )
 
-fn main() {
+fn main() =
   let v = fib 38 in
   print v
-}
 
 /*
 

@@ -57,7 +57,8 @@ let trace_block blocks i0 =
               lets := Let((x', a), t') :: !lets
           end
         (* quick hack to eliminate Alloc,Store,Load,Free sequences
-          immediately *)
+           immediately *)
+          (* TODO: 
         | Load(addr1, _), Let((z1, a1), Store(addr2, v, _)) :: rest 
           when addr1 = addr2 ->
           String.Table.replace rho ~key:x ~data:v;
@@ -66,6 +67,7 @@ let trace_block blocks i0 =
           when addr1 = Var addr2 ->
           String.Table.replace rho ~key:x ~data:Unit;
           lets := rest @ [Let((addr2, anat), Val(IntConst(0)))] 
+          *)
         | _ ->
           let x' = fresh_var () in
           String.Table.replace rho ~key:x ~data:(Var x');

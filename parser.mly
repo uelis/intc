@@ -125,6 +125,7 @@ let clear_type_vars () = Hashtbl.clear type_vars
 %token HAT COMMA TILDE QUOTE DOUBLEQUOTE COLON
 %token SEMICOLON SHARP EQUALS TO VERTBAR
 %token FN LAMBDA TYPE UNIT PUSH POP BOX ALLOC FREE LOAD STORE CALL NAT
+%token INTADD INTSUB INTMUL INTDIV INTEQ INTSLT
 %token IF THEN ELSE PRINT HACK LET AS OF IN RETURN
 %token COPY CASE EXTERNAL
 %token <int> NUM
@@ -170,7 +171,7 @@ decl:
           | PatVar(x) -> TermDecl(x, mkTerm (TypeAnnot($6, $4)))
           | _ -> illformed "Variable declaration expected."
         }
-    | FN identifier pattern LBRACE term RBRACE
+    | FN identifier pattern EQUALS term
         { clear_type_vars ();
           let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $3 $5 in
@@ -192,7 +193,7 @@ term:
     | LAMBDA LPAREN identifier COLON inttype RPAREN TO term
         { let alpha = Basetype.newty Basetype.Var in
           mkTerm (Fun (($3, alpha, $5), $8)) }
-    | FN pattern LBRACE term RBRACE
+    | FN pattern TO term 
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $2 $4 in
           mkTerm (Fn((x, alpha), t)) }
@@ -323,10 +324,34 @@ term_atom:
        { mkTerm (ConstV(Cintconst($1))) }
     | PRINT term_atom
        { mkTerm (App(mkTerm (Const(Cintprint)), Type.newty Type.Var, $2)) }
-    | ENCODE term_atom
+    | INTADD
+       { mkTerm (Const(Cintadd))}
+    | INTSUB
+       { mkTerm (Const(Cintsub))}
+    | INTMUL
+       { mkTerm (Const(Cintmul))}
+    | INTDIV
+       { mkTerm (Const(Cintdiv))}
+    | INTEQ
+       { mkTerm (Const(Cinteq))}
+    | INTSLT
+       { mkTerm (Const(Cintslt))}
+    | ALLOC
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Const(Calloc(alpha)))}
+    | FREE
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Const(Cfree(alpha))) }
+    | LOAD
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Const(Cload(alpha))) }
+    | STORE
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Const(Cstore(alpha))) }
+    | ENCODE 
        { let alpha = Basetype.newty Basetype.Var in
          let beta = Basetype.newty Basetype.Var in
-          mkTerm (App(mkTerm (Const(Cencode(alpha, beta))), Type.newty Type.Var, $2)) }
+          mkTerm (Const(Cencode(alpha, beta))) }
     | DECODE LPAREN basetype COMMA term RPAREN
        { let alpha = Basetype.newty Basetype.Var in
           mkTerm (App(mkTerm (Const(Cdecode(alpha, $3))), Type.newty Type.Var, $5)) }
@@ -334,18 +359,6 @@ term_atom:
         { mkTerm (App(mkTerm (Const(Cpush($3))), Type.newty Type.Var, $5)) }
     | POP LPAREN basetype RPAREN
         { mkTerm (App(mkTerm (Const(Cpop($3))), Type.newty Type.Var, mkTerm UnitV)) }
-    | ALLOC term_atom
-       { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm (Const(Calloc(alpha))), Type.newty Type.Var, $2)) }
-    | FREE term_atom
-       { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm (Const(Cfree(alpha))), Type.newty Type.Var, $2)) }
-    | LOAD term_atom
-       { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm (Const(Cload(alpha))), Type.newty Type.Var, $2)) }
-    | STORE term_atom
-       { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm (Const(Cstore(alpha))), Type.newty Type.Var, $2)) }
     | CALL LPAREN identifier COLON basetype TO basetype COMMA term RPAREN
         { mkTerm (App(mkTerm (Const(Ccall($3, $5, $7))), Type.newty Type.Var, $9)) }
     | HACK LPAREN term COLON inttype RPAREN
@@ -447,8 +460,6 @@ inttype:
       { $1 }
     | LBRACE basetype RBRACE inttype_atom TO inttype
       { Type.newty (Type.FunU($2, $4, $6)) }
-  /*  | VERTBAR inttype VERTBAR TO inttype
-      { Type.newty (Type.FunU(Basetype.newtyvar(), $2, $5)) } */
     | inttype_factor TO inttype
       { Type.newty (Type.FunU(Basetype.newty Basetype.Var, $1, $3)) }
     | basetype TO inttype

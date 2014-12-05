@@ -60,20 +60,26 @@ rule main = parse
   | "return"   { RETURN }
   | "type"     { TYPE }
   | "unit"     { UNIT }
-  | "push"     { PUSH }
-  | "pop"      { POP }
-  | "encode"   { ENCODE }
-  | "decode"   { DECODE }
   | "box"      { BOX }
+  | "print"    { PRINT }
+  | "intadd"   { INTADD }
+  | "intsub"   { INTSUB }
+  | "intmul"   { INTMUL }
+  | "intdiv"   { INTDIV }
+  | "inteq"    { INTEQ }
+  | "intslt"   { INTSLT }
   | "alloc"    { ALLOC }
   | "free"     { FREE }
   | "load"     { LOAD }
   | "store"    { STORE }
+  | "push"     { PUSH }
+  | "pop"      { POP }
   | "call"     { CALL }
+  | "encode"   { ENCODE }
+  | "decode"   { DECODE }
   | "if"       { IF }
   | "then"     { THEN }
   | "else"     { ELSE }
-  | "print"    { PRINT }
   | "int"      { NAT }
   | "direct"   { HACK }
   | "copy"     { COPY }
