@@ -97,11 +97,15 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
       Basetype.newty (Basetype.TensorW(b1, b2))
   | FstV(t1, a, b) ->
     let a1 = ptV c t1 in
-    beq_expected_constraint t1 ~actual:a1 ~expected:(Basetype.newty (Basetype.TensorW(a, b)));
+    beq_expected_constraint t1
+      ~actual:a1
+      ~expected:(Basetype.newty (Basetype.TensorW(a, b)));
     a
   | SndV(t1, a, b) ->
     let a1 = ptV c t1 in
-    beq_expected_constraint t1 ~actual:a1 ~expected:(Basetype.newty (Basetype.TensorW(a, b)));
+    beq_expected_constraint t1
+      ~actual:a1
+      ~expected:(Basetype.newty (Basetype.TensorW(a, b)));
     b
   | InV((id, k, t1), a) ->
     let a1 = ptV c t1 in
@@ -109,7 +113,12 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
     let params = fresh_tyVars n in
     let data = Basetype.newty (Basetype.DataW(id, params)) in
     (* TODO: check that constructor exists? *)
-    let argtype = List.nth_exn (Basetype.Data.constructor_types id params) k in
+    let argtype =
+      match List.nth (Basetype.Data.constructor_types id params) k with
+      | Some a -> a
+      | None ->
+        let msg = "No such constructor" in
+        raise (Typing_error (Some t, msg)) in
     let fresh_data, fresh_argtype = data, argtype in
     (*
       match Basetype.freshen_list [data; argtype] with
@@ -126,19 +135,9 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
     let ai = List.nth_exn ctypes i in
     beq_expected_constraint s ~actual:a1 ~expected:data;
     ai
-    (*
-  | Bind((t1, a), (xc, t2)) ->
-    let a1 = ptV c t1 in
-    let a2 = ptV ((xc, a)::c) t2 in
-    let beta = Basetype.newty Basetype.Var in
-    beq_expected_constraint t1 ~actual:a1 ~expected:a;
-    beq_expected_constraint t2 ~actual:a2 ~expected:beta;
-    a2*)
-  | App _ |Case _
-  | Fn _ | Fun _ | CopyU _ | HackU _ | TypeAnnot _
-  | Return _ | Bind _
-  | Const _  | ExternalU _
-    -> raise (Typing_error (Some t, "Interactive term not expected here."))
+  | Return _ | Bind _ | Fn _ | Fun _ | App _ |Case _
+  | CopyU _ | HackU _ | TypeAnnot _ | Const _  | ExternalU _
+    -> raise (Typing_error (Some t, "Value term expected."))
 and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
   : Type.t =
   match t.Term.desc with
@@ -357,7 +356,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     a
   | ConstV _ | UnitV | PairV _ | InV _ | FstV _ | SndV _ | Select _
     ->
-    raise (Typing_error (Some t, "Value term not expected here."))
+    raise (Typing_error (Some t, "Interactive term expected."))
 
 let principal_type_value (c: Basetype.t context) (t: Term.t) : Basetype.t =
   try
