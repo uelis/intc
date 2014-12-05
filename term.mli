@@ -24,6 +24,10 @@ type op_const =
   | Cinteq
   | Cintslt
   | Cintprint
+  | Calloc of Basetype.t
+  | Cfree of Basetype.t
+  | Cload of Basetype.t
+  | Cstore of Basetype.t
   | Cpush of Basetype.t
   | Cpop of Basetype.t
   | Ccall of string * Basetype.t * Basetype.t
@@ -38,21 +42,23 @@ type t = {
   loc: Location.t 
 } and t_desc =
   | Var of var
-  | ValW of value_const 
-  | ConstW of op_const 
-  | UnitW 
-  | PairW of (t * Basetype.t) * (t * Basetype.t)
-  | FstW of t * Basetype.t * Basetype.t
-  | SndW of t * Basetype.t * Basetype.t
-  | InW of (Basetype.Data.id * int * t) * Basetype.t
-  | BindW of (t * Basetype.t) * (var * t)
-  | App of t * Type.t * t
-  | Box of t * Basetype.t
-  | Unbox of t * Basetype.t
-  | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
+  (* complex value terms *)
+  | ConstV of value_const
+  | UnitV 
+  | PairV of (t * Basetype.t) * (t * Basetype.t)
+  | FstV of t * Basetype.t * Basetype.t
+  | SndV of t * Basetype.t * Basetype.t
+  | InV of (Basetype.Data.id * int * t) * Basetype.t
   | Select of Basetype.Data.id * (Basetype.t list) * t * int
-  | LambdaW of (var * Basetype.t) * t
-  | LambdaU of (var * Basetype.t * Type.t) * t
+  (* interaction terms *)
+  | Const of op_const
+  | Return of t * Basetype.t
+  | Bind of (t * Basetype.t) * (var * t)
+  | App of t * Type.t * t
+  | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
+  (* TODO: Ist select Wert wie FstV? *)
+  | Fn of (var * Basetype.t) * t
+  | Fun of (var * Basetype.t * Type.t) * t
   | CopyU of t * (var * var * t)
   | HackU of Type.t * t
   | ExternalU of (string * Type.t (* type schema *)) * Type.t
@@ -62,24 +68,26 @@ type t = {
    annotations. *)
 val mkTerm : t_desc -> t
 val mkVar : var -> t
-val mkConstW : op_const -> t
-val mkUnitW : t
-val mkPairW : t -> t -> t
-val mkFstW : t -> t
-val mkSndW : t -> t
-val mkInW : Basetype.Data.id -> int -> t -> t
-val mkInlW : t -> t
-val mkInrW : t -> t
+val mkConstV : value_const -> t
+val mkConst : op_const -> t
+val mkUnitV : t
+val mkPairV : t -> t -> t
+val mkFstV : t -> t
+val mkSndV : t -> t
+val mkInV : Basetype.Data.id -> int -> t -> t
+val mkInlV : t -> t
+val mkInrV : t -> t
 val mkCase : Basetype.Data.id -> t -> (var * t) list -> t
 val mkApp : t -> t -> t
-val mkBox : t -> t
-val mkUnbox : t -> t
-val mkLambdaW : (var * Basetype.t) * t -> t
-val mkBindW : t -> (var * t) -> t
-val mkLambdaU : (var * Basetype.t * Type.t) * t -> t
+val mkFn : (var * Basetype.t) * t -> t
+val mkReturn : t -> t
+val mkBind : t -> (var * t) -> t
+val mkFun : (var * Basetype.t * Type.t) * t -> t
 val mkCopyU : t -> (var * var) * t -> t
 val mkHackU : Type.t -> t -> t
 val mkTypeAnnot : t -> Type.t -> t
+val mkBox : t -> t
+val mkUnbox : t -> t
 
 val let_tupleW : var -> (var list) * t -> t
 

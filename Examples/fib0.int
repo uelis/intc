@@ -26,6 +26,6 @@ let fibs = fix (λ fib ->
    })
 
 fn main() {
-  let v = fibs 38 in
+  let v = fibs 37 in
   print v
 }

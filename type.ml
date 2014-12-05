@@ -7,7 +7,8 @@ type t =
 and desc =
   | Link of t
   | Var
-  | FunW of Basetype.t * Basetype.t
+  | Base of Basetype.t
+  | FunW of Basetype.t * t
   | FunU of Basetype.t * t * t
 with sexp
 
@@ -43,14 +44,16 @@ type type_t = t with sexp
 
 let children a =
   match finddesc a with
-  | Var | FunW _ -> []
+  | Var | Base _ -> []
+  | FunW(_, b) -> [b]
   | FunU(_, b1, b2) -> [b1; b2]
   | Link _ -> assert false
 
 let rec subst (f: t -> t) (fbase: Basetype.t -> Basetype.t) (b: t) : t =
   match (find b).desc with
     | Var -> f (find b)
-    | FunW(b1, b2) -> newty (FunW(Basetype.subst fbase b1, Basetype.subst fbase b2))
+    | Base(a) -> newty (Base(Basetype.subst fbase a))
+    | FunW(b1, b2) -> newty (FunW(Basetype.subst fbase b1, subst f fbase b2))
     | FunU(a1, b1, b2) -> newty(FunU(Basetype.subst fbase a1, subst f fbase b1, subst f fbase b2))
     | Link _ -> assert false
 
@@ -61,14 +64,16 @@ let rec equals (u: t) (v: t) : bool =
     else
       match ur.desc, vr.desc with
         | Var, Var ->
-            false
+          false
+        | Base(a1), Base(a2) ->
+          Basetype.equals a1 a2
         | FunW(u1, u2), FunW(v1, v2) ->
-            (Basetype.equals u1 v1) && (Basetype.equals u2 v2)
+          (Basetype.equals u1 v1) && (equals u2 v2)
         | FunU(u1, u2, u3), FunU(v1, v2, v3) ->
-            (Basetype.equals u1 v1) && (equals u2 v2) && (equals u3 v3)
+          (Basetype.equals u1 v1) && (equals u2 v2) && (equals u3 v3)
         | Link _, _ | _, Link _ -> assert false
-        | Var, _ | FunW _, _ | FunU _, _ ->
-            false
+        | Var, _ | Base _, _ | FunW _, _ | FunU _, _ ->
+          false
 
 module Typetbl = Hashtbl.Make(
 struct
@@ -98,14 +103,16 @@ let freshen t =
 
 let rec freshen_index_types (a: t) : t =
     match (find a).desc with
-      | Var | FunW _ -> a
+      | Var | Base _ -> a
+      | FunW(a, b1) ->
+        newty(FunW(a, freshen_index_types b1))
       | FunU(_, b1, b2) ->
         newty(FunU(Basetype.newty Basetype.Var,
                    freshen_index_types b1,
                    freshen_index_types b2))
       | Link _ -> assert false
 
-let question_answer_pair s : Basetype.t * Basetype.t =
+let question_answer_pair (s: t) : Basetype.t * Basetype.t =
   let vm = Typetbl.create () in
   let rec qap t =
     match (find t).desc with
@@ -119,7 +126,14 @@ let question_answer_pair s : Basetype.t * Basetype.t =
             Typetbl.replace vm ~key:(find t) ~data:(betam, betap);
             betam, betap
           end
-      | FunW(b1, b2) -> b1, b2
+      | Base(a) -> 
+        Basetype.newty Basetype.OneW,
+        a
+      | FunW(a, b2) -> 
+        let bm2, bp2 = qap b2 in
+        let open Basetype in
+        newty (TensorW(a, bm2)),
+        bp2
       | FunU(a, b1, b2) ->
           let bm1, bp1 = qap b1 in
           let bm2, bp2 = qap b2 in

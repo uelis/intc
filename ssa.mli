@@ -15,10 +15,6 @@ type value =
   | IntConst of int
 type term =
   | Val of value
-  | Alloc of Basetype.t
-  | Free of value * Basetype.t
-  | Load of value * Basetype.t
-  | Store of value * value * Basetype.t
   | Const of Term.op_const * value 
 
 val subst_value: (Term.var -> value) -> value -> value

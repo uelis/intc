@@ -7,7 +7,7 @@ let index_of_varname basename name =
    match String.chop_prefix ~prefix:basename name with
     | None -> -1
     | Some suffix ->
-      try int_of_string suffix with Failure int_of_string -> -1
+      try int_of_string suffix with Failure "int_of_string" -> -1
 
 let mkVarGenerator (basename: string) ~avoid:(avoid: string list) 
   : unit -> string =

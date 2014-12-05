@@ -7,7 +7,7 @@ exception Typing_error of Term.t option * string
 
 (* Principal types. *)
 (* raises Typing_error, unifies types as a side effect *)
-val principal_typeW: Basetype.t context -> Type.t context -> Term.t -> Basetype.t
+val principal_type_value: Basetype.t context -> Term.t -> Basetype.t
 
 (* raises Typing_error, unifies types as a side effect *)
 val principal_type: Basetype.t context -> Type.t context -> Term.t -> Type.t

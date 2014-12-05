@@ -38,6 +38,8 @@ rule main = parse
   | ')'        { RPAREN }
   | '{'        { LBRACE }
   | '}'        { RBRACE }
+  | '['        { LBRACKET }
+  | ']'        { RBRACKET }
   | '<'        { LANGLE }
   | '>'        { RANGLE }
   | "fn"       { FN }
@@ -55,6 +57,7 @@ rule main = parse
   | ';'        { SEMICOLON }
   | '#'        { SHARP }
   | '='        { EQUALS }
+  | "return"   { RETURN }
   | "type"     { TYPE }
   | "unit"     { UNIT }
   | "push"     { PUSH }
@@ -62,7 +65,10 @@ rule main = parse
   | "encode"   { ENCODE }
   | "decode"   { DECODE }
   | "box"      { BOX }
-  | "unbox"    { UNBOX }
+  | "alloc"    { ALLOC }
+  | "free"     { FREE }
+  | "load"     { LOAD }
+  | "store"    { STORE }
   | "call"     { CALL }
   | "if"       { IF }
   | "then"     { THEN }

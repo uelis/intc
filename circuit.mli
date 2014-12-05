@@ -8,17 +8,19 @@ type wire = {
 val map_wire : (int -> int) -> wire -> wire                 
 
 type instruction =
-  | Axiom of wire (* fn () -> f *) * (Term.var list * (Term.var * Term.t))
+  | Base of wire (* TA *) * (Term.var list * Term.t)
+  | Seq of wire (* (TA)^* *) * wire (* \Tens A (TB)^* *) * wire (* TB *)
   | Encode of wire (* A => B *)
   | Decode of wire (* B => A *)
   | Tensor of wire (* X *) * wire (* Y *) * wire (* X \otimes Y *)
   | Der of wire (* \Tens A X *) * wire (* X *) * (Term.var list * Term.t)
   | Case of Basetype.Data.id * Basetype.t list * wire * (wire list)
   | Door of wire (* X *) * wire (* \Tens A X *)
-  | Assoc of wire (* \Tens (A x B) X *) * wire (* \Tens A (\Tens B X) *) 
+  | Assoc of wire (* \Tens (A x B) X *) * wire (* \Tens A (\Tens B X) *)
   | LWeak of wire (* \Tens A X *) * wire (* \Tens B X *) (* where B <= A *)
-  | Bind of wire (* (\Tens A (1 => B))^* *) * wire (* A => B *)
-  | Seq of wire (* (A=>B)^* *) * wire (* (B=>C)^* *) * wire (* A=>C *)
+  | Bind of wire (* \Tens A X *) * wire (* (A => X) *)
+  | App of wire (* (A => X) *) * (Term.var list * Term.t) * wire (* X *)
+  | Direct of wire (* (X- => TX+)^* *) * wire (* X *)
 
 val map_instruction : (int -> int) -> instruction -> instruction                  
 val wires : instruction list -> wire list

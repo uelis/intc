@@ -34,6 +34,15 @@ let if0 = λ x1 -> λ x2 -> λ k -> k (λ n -> λ k ->
 let app = λ e1 -> λ e2 -> λ k -> e1 (λ x1 -> e2 (λ x2 -> x1 x2 k))
 let mem = λ f -> λ k ->  k (f (λ r -> r))
 
+let tt = λ f1 -> λ f2 -> (λ x -> 
+          mem (λ k ->
+            fn () {
+              let xv = x() in
+              (if xv < 2 then 
+                 val (fn() { 1 }) k 
+              else
+                app (app add (f1 (fn(){ xv - 1 }))) (f2 (fn(){ xv - 2 })) k) ()
+            }))
 let step =
    λ f ->
    copy f as f1, f2 in
@@ -47,7 +56,7 @@ let step =
                 app (app add (f1 (fn(){ xv - 1 }))) (f2 (fn(){ xv - 2 })) k) ()
             }))
 
-let fixv = fix (λ a -> step (λ x -> λ k -> a (λ b -> b x k))) 
+let fixv = λ step -> fix (λ a -> λstep -> step (λ x -> λ k -> a (λ b -> b x k))) step
 
 fn main() {
    let v = app fixv (val (fn(){ 38 })) (λ r -> r) () in

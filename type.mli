@@ -17,7 +17,8 @@ type t =
 and desc = 
   | Link of t
   | Var
-  | FunW of Basetype.t * Basetype.t
+  | Base of Basetype.t
+  | FunW of Basetype.t * t
   | FunU of Basetype.t * t * t
 
 include Types.Repr 

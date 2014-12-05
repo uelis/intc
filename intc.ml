@@ -11,8 +11,8 @@ let read_file filename =
   close_in ic;
   s
 
-let write_file filename s = 
-  let oc = open_out filename in 
+let write_file filename s =
+  let oc = open_out filename in
   Printf.fprintf oc "%s" s;
   close_out oc
 
@@ -23,49 +23,49 @@ let parse_error_loc lexbuf =
 
 let error_msg loc msg = loc ^ " " ^ msg
 let print_error loc msg = print_string (error_msg loc msg)
-let line_column_loc (line : int) (column : int ) = 
-  Printf.sprintf "line %i, column %i:" line column  
+let line_column_loc (line : int) (column : int ) =
+  Printf.sprintf "line %i, column %i:" line column
 
 let parse (s: string) : decls =
   let lexbuf = Lexing.from_string s in
-  try 
+  try
     Parser.decls Lexer.main lexbuf
-  with 
-  | Parsing.Parse_error -> 
+  with
+  | Parsing.Parse_error ->
     failwith (error_msg (parse_error_loc lexbuf) "Parse error")
-  | Decls.Non_Wellformed(msg, l, c) -> 
+  | Decls.Non_Wellformed(msg, l, c) ->
     failwith (error_msg (line_column_loc l c) ("Syntax error. " ^ msg))
 
 (* For error reporting: compute a string of where the error occurred *)
-let term_loc (s : Term.t option) = 
+let term_loc (s : Term.t option) =
   match s with
     | None -> ""
     | Some s ->
         match s.loc with
-          | Some(loc) when loc.start_pos.line = loc.end_pos.line -> 
-              Printf.sprintf "line %i, columns %i-%i:" 
+          | Some(loc) when loc.start_pos.line = loc.end_pos.line ->
+              Printf.sprintf "line %i, columns %i-%i:"
                 loc.start_pos.line loc.start_pos.column loc.end_pos.column
-          | Some(loc) -> 
-              Printf.sprintf "line %i, column %i to line %i, column %i:" 
+          | Some(loc) ->
+              Printf.sprintf "line %i, column %i to line %i, column %i:"
                 loc.start_pos.line loc.start_pos.column
                 loc.end_pos.line loc.end_pos.column
-          | None -> "Term " ^ (Printing.string_of_term s) 
+          | None -> "Term " ^ (Printing.string_of_term s)
 
-let rec compile_passes (d: decls) : unit = 
+let rec compile_passes (d: decls) : unit =
   match d with
   | [] -> ()
   | TermDecl(f, t) :: r ->
     let t = Term.freshen_type_vars t in
-    let b = 
+    let b =
       try
-        Typing.principal_type [] [] t 
+        Typing.principal_type [] [] t
       with Typing.Typing_error(s, err) ->
         let msg = "Typing error when checking upper " ^
                   "class declaration of '" ^ f ^ "'.\n" ^ err ^ "\n" in
-        raise (Failure (error_msg (term_loc s) msg)) in 
-    let t = Canonise.canonise t in
+        raise (Failure (error_msg (term_loc s) msg)) in
+    (* let t = Canonise.canonise t in *)
     let circuit = Circuit.circuit_of_termU t in
-    Printf.printf "%s : %s\n" f  
+    Printf.printf "%s : %s\n" f
       (Printing.string_of_type ~concise:(not !opt_print_type_details) b);
     flush stdout;
     (* Printing.print_term t; *)
@@ -100,41 +100,41 @@ let rec compile_passes (d: decls) : unit =
     end;
     compile_passes r
 
-let arg_spec =     
-  [("--type-details", 
-    Arg.Unit (fun _ -> opt_print_type_details := true), 
+let arg_spec =
+  [("--type-details",
+    Arg.Unit (fun _ -> opt_print_type_details := true),
     "Print full type details, including subexponentials.");
-   ("--circuits", 
-    Arg.Unit (fun _ -> opt_keep_circuits := true), 
+   ("--circuits",
+    Arg.Unit (fun _ -> opt_keep_circuits := true),
     "Keep circuit for each declaration (f.dot).");
-   ("--ssa", 
-    Arg.Unit (fun _ -> opt_keep_ssa := true), 
+   ("--ssa",
+    Arg.Unit (fun _ -> opt_keep_ssa := true),
     "Keep ssa program for each declaration (f.ssa).");
-   ("--llvm", 
-    Arg.Unit (fun _ -> opt_llvm_compile := true), 
+   ("--llvm",
+    Arg.Unit (fun _ -> opt_llvm_compile := true),
     "Keep llvm bitcode for each declaration (f.bc).");
   ]
 
-let usage_msg = "Usage: intc input.int\nOptions:"  
+let usage_msg = "Usage: intc input.int\nOptions:"
 
-let main = 
-  try 
+let main =
+  try
     let file_name = ref "" in
     Arg.parse arg_spec (fun s -> file_name := s) usage_msg;
-    if !file_name = "" then 
+    if !file_name = "" then
       Printf.printf "No input file.\n"
-    else 
+    else
       begin
-        if !opt_keep_ssa then 
+        if !opt_keep_ssa then
           Printf.printf "*** Writing ssa files.\n";
-        if !opt_llvm_compile then 
+        if !opt_llvm_compile then
           Printf.printf "*** Writing llvm bitcode files.\n";
         let input = read_file !file_name in
         let decls = parse input in
         let substituted_decls = subst_decls decls in
         compile_passes substituted_decls
       end
-  with 
+  with
   | Failure msg -> Printf.printf "%s\n" msg
   | Typing.Typing_error(t, msg)-> print_error (term_loc t) msg
 
