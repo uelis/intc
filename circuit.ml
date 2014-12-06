@@ -921,7 +921,6 @@ let infer_types (c : t) : unit =
 
 
 let circuit_of_termU (t : Term.t) : t =
-  Printing.print_term t;
   let c = raw_circuit_of_termU [] [] t in
   let _ = infer_types c in
   c

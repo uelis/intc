@@ -309,9 +309,9 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       s_term t; 
       fprintf f "@]"
     | Fn((x, _), t1) ->
-      fprintf f "@[<hv 2>fn (%s) {@;" x;
+      fprintf f "@[<hv 2>fn (%s) ->@;" x;
       s_term t1;
-      fprintf f "}@]"
+      fprintf f "@]"
     | Fun((x, _, _), t1) ->
       fprintf f "@[<hv 2>fun (%s) ->@;" x;
       s_term t1;
