@@ -1,65 +1,49 @@
-let fixsimpl = fn x {
+fn fiximpl(x) =
     case x of 
     Inl(l, x) -> 
         (case x of
            Inl(b, q) ->
              push(unit + 'b, Inr(b));
-             Inl((), Inr(q))
+             return Inl((), Inr(q))
          | Inr(a) ->
-             (case pop(unit + 'b) of 
-                Inl -> Inr(a)
+	     let u = pop(unit + 'b) in
+             (case u of 
+                Inl -> return Inr(a)
               | Inr(hd) ->
-                   Inl((), Inl(hd, a))))
+                   return Inl((), Inl(hd, a))))
   | Inr(q) -> 
      push(unit + 'b, Inl());
-     Inl((), Inr(q))
-}
-let fix = direct(fixsimpl: {unit}| {'c}|''a| -> ''a| -> ''a)
+     return Inl((), Inr(q))
+
+let fix = direct(fiximpl:(''a -> ''a) -> ''a)
 
 let val = λ n -> λ k -> k n
 let add = λ k -> k (λ n -> λ k1 -> 
-                          fn () {
-                            let nv = n() in
+                            let nv = n in
                             k1 (λ m -> λ k2 -> 
-                                  fn () { 
-                                    let mv = m() in
-                                    k2 (fn() { nv+mv }) ()
-                                  }) ()
-                          })
-let if0 = λ x1 -> λ x2 -> λ k -> k (λ n -> λ k ->
-                      fn () {
-                        let b = n() = 0 in
-                        (if b then x1 k else x2 k) ()
-                      })
+                                    let mv = m in
+                                    k2 (nv+mv) 
+                               )
+                   )
 let app = λ e1 -> λ e2 -> λ k -> e1 (λ x1 -> e2 (λ x2 -> x1 x2 k))
 let mem = λ f -> λ k ->  k (f (λ r -> r))
 
-let tt = λ f1 -> λ f2 -> (λ x -> 
-          mem (λ k ->
-            fn () {
-              let xv = x() in
-              (if xv < 2 then 
-                 val (fn() { 1 }) k 
-              else
-                app (app add (f1 (fn(){ xv - 1 }))) (f2 (fn(){ xv - 2 })) k) ()
-            }))
 let step =
    λ f ->
    copy f as f1, f2 in
      val (λ x -> 
           mem (λ k ->
-            fn () {
-              let xv = x() in
-              (if xv < 2 then 
-                 val (fn() { 1 }) k 
+              let xv = x in
+	      let b = intslt(xv, 2) in
+              (if b then 
+                 val (return 1) k 
               else
-                app (app add (f1 (fn(){ xv - 1 }))) (f2 (fn(){ xv - 2 })) k) ()
-            }))
+                app (app add (f1 (xv - 1))) (f2 (xv - 2)) k)
+            )
+         )
+let fixv = fix (λ a -> step (λ x -> λ k -> a (λ b -> b x k))) 
 
-let fixv = λ step -> fix (λ a -> λstep -> step (λ x -> λ k -> a (λ b -> b x k))) step
-
-fn main() {
-   let v = app fixv (val (fn(){ 38 })) (λ r -> r) () in
+let main =
+   let v = app fixv (val (return 38)) (λ r -> r) in
    print v
-}
 
