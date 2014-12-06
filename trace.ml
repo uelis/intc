@@ -99,8 +99,6 @@ let trace_block blocks i0 =
           trace_lets lets;
           let vr' = subst_value (String.Table.find_exn rho) vr in
           trace_block dst.name vr'
-        | InDirect _ ->
-          failwith "todo"
         | Branch(_, x, lets, (id, params, vc, cases)) ->
           String.Table.replace rho ~key:x ~data:v;
           trace_lets lets;
@@ -188,7 +186,6 @@ let shortcut_block blocks i0 =
             end
           | Unreachable _
           | Direct _
-          | InDirect _ 
           | Branch _ 
           | Return _ ->
             i, v
@@ -206,7 +203,6 @@ let shortcut_block blocks i0 =
                      (y, vd', dst')) in 
     Branch(l, x, lets, (id, params, vc, cases'))
   | Unreachable _
-  | InDirect _ 
   | Return _ -> block
 
 let shortcut_jumps (func : Ssa.t) =

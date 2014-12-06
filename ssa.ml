@@ -88,7 +88,6 @@ type let_bindings = let_binding list
 type block =
     Unreachable of label
   | Direct of label * Term.var * let_bindings * value * label
-  | InDirect of label * Term.var * let_bindings * value * (label list)
   | Branch of label * Term.var * let_bindings *
               (Basetype.Data.id * Basetype.t list * value *
                (Term.var * value * label) list)
@@ -109,7 +108,6 @@ let label_of_block (b : block) : label =
   match b with
   | Unreachable(l)
   | Direct(l, _, _, _, _)
-  | InDirect(l, _, _ ,_ ,_)
   | Branch(l, _ , _, _)
   | Return(l, _, _, _, _) -> l
 
@@ -117,9 +115,77 @@ let targets_of_block (b : block) : label list =
   match b with
   | Unreachable(_) -> []
   | Direct(_, _, _, _, l) -> [l]
-  | InDirect(_, _, _ ,_ , ls) -> ls
   | Branch(_, _ , _, (_, _, _, cases)) -> List.map cases ~f:(fun (_, _, l) -> l)
   | Return(_, _, _, _, _) -> []
+
+(* TODO: proper printing *)
+
+
+let string_of_term t =
+  match t with
+  | Val(v) -> "Val(" ^ (string_of_value v) ^ ")"
+  | Const(c, v) ->
+    (Printing.string_of_op_const c) ^ "(" ^
+    (string_of_value v) ^ ")"
+
+let string_of_letbndgs bndgs =
+  String.concat ~sep:""
+    (List.map (List.rev bndgs)
+       ~f:(fun b -> match b with
+         | Let((x, a), t) ->
+           Printf.sprintf "   let %s: %s = %s\n"
+             x (Printing.string_of_basetype a) (string_of_term t))
+    )
+
+let string_of_block b =
+  match b with
+    | Unreachable(l) ->
+        Printf.sprintf " l%i(x : %s) = unreachable"
+          l.name
+          (Printing.string_of_basetype l.message_type)
+    | Direct(l, x, bndgs, body, goal) ->
+        (Printf.sprintf " l%i(%s : %s) =\n"
+          l.name x (Printing.string_of_basetype l.message_type)) ^
+        (string_of_letbndgs bndgs) ^
+        (Printf.sprintf "   in l%i(%s) end\n" goal.name (string_of_value body))
+    | Branch(la, x, bndgs, (id, params, cond, cases)) ->
+      let case_types = Basetype.Data.constructor_types id params in
+        (Printf.sprintf " l%i(%s : %s) =\n"
+          la.name x (Printing.string_of_basetype la.message_type)) ^
+        (string_of_letbndgs bndgs) ^
+        (Printf.sprintf "    case %s of\n      | " (string_of_value cond)) ^
+        (String.concat ~sep:"      | "
+           (List.map
+              (List.zip_exn (List.zip_exn (Basetype.Data.constructor_names id) case_types) cases)
+              ~f:(fun ((cname, _), (l, lb, lg)) ->
+              Printf.sprintf "%s(%s) -> l%i(%s)\n"
+                cname (*(Printing.string_of_basetype a)*) l lg.name (string_of_value lb))
+
+           ))
+    | Return(l, x, bndgs, body, _) ->
+        (Printf.sprintf " l%i(%s : %s) =\n"
+          l.name x (Printing.string_of_basetype l.message_type)) ^
+        (string_of_letbndgs bndgs) ^
+        (Printf.sprintf "   return %s\n end\n"
+           (string_of_value body)
+ (*           (Printing.string_of_type retty)*))
+
+let string_of_func func =
+  let buf = Buffer.create 80 in
+    Buffer.add_string buf
+      (Printf.sprintf "%s(x : %s) : %s = l%i(x)\n\n"
+         func.func_name
+         (Printing.string_of_basetype func.entry_label.message_type)
+         (Printing.string_of_basetype func.return_type)
+         func.entry_label.name);
+    List.iter func.blocks
+      ~f:(fun block ->
+        Buffer.add_string buf (string_of_block block);
+        Buffer.add_string buf "\n"
+      );
+  Buffer.contents buf
+
+
 
 let check_blocks_invariant entry_label blocks =
   let defined_labels = Int.Table.create () in
@@ -147,6 +213,172 @@ let make
     blocks = blocks;
     return_type = return_type }
 
+let rec typeof_value
+          (gamma: Basetype.t Typing.context)
+          (v: value)
+  : Basetype.t =
+  let open Basetype in
+  match v with
+  | Var(x) ->
+    begin
+      match List.Assoc.find gamma x with
+      | Some b -> b
+      | None -> assert false
+    end
+  | Unit ->
+    newty OneW
+  | Pair(v1, v2) ->
+    let a1 = typeof_value gamma v1 in
+    let a2 = typeof_value gamma v2 in
+    newty (TensorW(a1, a2))
+  | In((id, n, v), a) ->
+    let b = typeof_value gamma v in
+    begin
+      match finddesc a with
+      | DataW(id', params) ->
+        let constructor_types = Data.constructor_types id' params in
+        assert (id = id');
+        (match List.nth constructor_types n with
+         | Some b' -> assert (equals b b')
+         | None -> assert false)
+      | _ ->
+        assert false
+    end;
+    a
+  | Fst(v, b1, b2) ->
+    let a1 = typeof_value gamma v in
+    assert (equals a1 (newty (TensorW(b1, b2))));
+    b1
+  | Snd(v, b1, b2) ->
+    let a2 = typeof_value gamma v in
+    assert (equals a2 (newty (TensorW(b1, b2))));
+    b2
+  | Select(v, (id, params), n) ->
+    let a1 = typeof_value gamma v in
+    let a = newty (DataW(id, params)) in
+    assert (equals a a1);
+    let constructor_types = Data.constructor_types id params in
+    begin
+      match List.nth constructor_types n with
+      | Some b -> b
+      | None -> assert false
+    end
+  | Undef(a) ->
+    a
+  | IntConst(_) ->
+    newty NatW
+      
+let typecheck_term
+      (gamma: Basetype.t Typing.context)
+      (t: term)
+      (a: Basetype.t)
+  : unit =
+  let open Basetype in
+  match t with
+  | Val(v) ->
+    let b = typeof_value gamma v in
+    assert (equals a b)
+  | Const(Term.Cprint(_), v) ->
+    let b = typeof_value gamma v in
+    assert (equals b (newty OneW));
+    assert (equals a (newty OneW))
+  | Const(Term.Cintadd, v) 
+  | Const(Term.Cintsub, v)
+  | Const(Term.Cintmul, v)
+  | Const(Term.Cintdiv, v) ->
+    let b = typeof_value gamma v in
+    let intty = newty NatW in
+    assert (equals b (newty (TensorW(intty, intty))));
+    assert (equals a intty)
+  | Const(Term.Cinteq, v)
+  | Const(Term.Cintslt, v) ->
+    let b = typeof_value gamma v in
+    let intty = newty NatW in
+    let boolty = Basetype.newty (Basetype.DataW(Basetype.Data.boolid, [])) in
+    assert (equals b (newty (TensorW(intty, intty))));
+    assert (equals a boolty)
+  | Const(Term.Cintprint, v) ->
+    let b = typeof_value gamma v in
+    let intty = newty NatW in
+    assert (equals b intty);
+    assert (equals a (newty OneW))
+  | Const(Term.Calloc(b), v) ->
+    let c = typeof_value gamma v in
+    assert (equals c (newty OneW));
+    assert (equals a (newty (BoxW b)))
+  | Const(Term.Cfree(b), v) ->
+    let c = typeof_value gamma v in
+    assert (equals c (newty (BoxW b)));
+    assert (equals a (newty OneW))
+  | Const(Term.Cload(b), v) ->
+    let c = typeof_value gamma v in
+    assert (equals c (newty (BoxW b)));
+    assert (equals a b)
+  | Const(Term.Cstore(b), v) ->
+    let c = typeof_value gamma v in
+    assert (equals c (newty (TensorW(newty (BoxW b), b))));
+    assert (equals a (newty OneW))
+  | Const(Term.Cpush(b), v) ->
+    let c = typeof_value gamma v in
+    assert (equals c b);
+    assert (equals a (newty OneW))
+  | Const(Term.Cpop(b), v) ->
+    let c = typeof_value gamma v in
+    assert (equals c (newty OneW));
+    assert (equals a b)
+  | Const(Term.Ccall(_, b1, b2), v)
+  | Const(Term.Cencode(b1, b2), v) 
+  | Const(Term.Cdecode(b1, b2), v) ->
+    let c = typeof_value gamma v in
+    assert (equals c b1);
+    assert (equals a b2)
+
+let rec typecheck_let_bindings
+      (gamma: Basetype.t Typing.context)
+      (l: let_bindings)
+  : Basetype.t Typing.context =
+  match l with
+  | [] ->
+    gamma 
+  | Let((v, a), t) :: ls ->
+    let gamma1 = typecheck_let_bindings gamma ls in
+    typecheck_term gamma1 t a;
+    (v, a) :: gamma1
+
+let typecheck_block (b: block) : unit =
+  match b with
+  | Unreachable(_) -> ()
+  | Direct(s, x, l, v, d) ->
+    let gamma0 = [(x, s.message_type)] in
+    let gamma = typecheck_let_bindings gamma0 l in
+    let a = typeof_value gamma v in
+    assert (Basetype.equals a (d.message_type))
+  | Branch(s, x, l, (id, params, v, ds)) ->
+    let constructor_types = Basetype.Data.constructor_types id params in
+    let bs = List.zip ds constructor_types in
+    begin
+      match bs with
+      | Some bs ->
+        let gamma0 = [(x, s.message_type)] in
+        let gamma = typecheck_let_bindings gamma0 l in
+        let va = typeof_value gamma v in
+        assert (Basetype.equals va (Basetype.newty (Basetype.DataW(id, params))));
+        List.iter bs
+          ~f:(fun ((x, v, d), a) ->
+            let b = typeof_value ((x, a) :: gamma) v in
+            assert (Basetype.equals (d.message_type) b))
+      | None ->
+        assert false
+    end
+  | Return(s, x, l, v, a) ->
+    let gamma0 = [(x, s.message_type)] in
+    let gamma = typecheck_let_bindings gamma0 l in
+    let b = typeof_value gamma v in
+    assert (Basetype.equals a b)
+
+let typecheck (p: t) : unit =
+  List.iter p.blocks ~f:typecheck_block
+
 (* TODO: NAMING! document naming assumptions *)
 
 let fresh_var = Vargen.mkVarGenerator "x" ~avoid:[]
@@ -155,16 +387,6 @@ let unTensorW a =
   match Basetype.finddesc a with
   | Basetype.TensorW(a1, a2) -> a1, a2
   | _ -> assert false
-
-(*
-let defined_cases cases =
-  let is_defined (_, (_, t)) =
-    match t.Term.desc with
-    | Term.ConstV(Term.Cundef _) -> false
-    | _ -> true in
-  List.mapi cases ~f:(fun i c -> i, c)
-  |>  List.filter ~f:is_defined
-*)
 
 let term_value_to_ssa (t: Term.t)
   : let_bindings * value =
@@ -295,8 +517,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
       print_string (Printing.string_of_term t);
       *)
       let a = Typing.principal_type [(z, src.message_type)] [] t in
-      U.unify_eqs [U.Type_eq(a, (Type.newty (Type.Base target_type)),
-                             None)];
+      U.unify_eqs [U.Type_eq(a, (Type.newty (Type.Base target_type)), None)];
       begin
         match Type.finddesc a with
         | Type.Base a0 -> U.unify a0 target_type
@@ -421,8 +642,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           let b = mkSnd m in
           let lt, vt = to_ssa (mkPair sigma b) w2.type_forward in
           Direct(src, z, lt, vt, label_of_dst w2)
-        else if
-          dst = w2.src then
+        else if dst = w2.src then
           let lt, vt =
             to_ssa (mkPair sigma m) w1.type_forward in
           Direct(src, z, lt, vt, label_of_dst w1)
@@ -449,9 +669,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
         else assert false
       | Circuit.Direct(w1 (* (X- => TX+)^* *), w2 (* X *)) ->
         if dst = w1.src then
-          let lt, vt =
-            to_ssa (mkPair sigma m)
-              w2.type_forward in
+          let lt, vt = to_ssa (mkPair sigma m) w2.type_forward in
           Direct(src, z, lt, vt, label_of_dst w2)
         else if dst = w2.src then
           let lt, vt =
@@ -583,7 +801,7 @@ let add_entry_exit_code (f: t) : t =
 
   let exit_label = {
     name = max_label_name + 2;
-    message_type = ret_type} in
+    message_type = Basetype.newty (Basetype.TensorW(Basetype.newty Basetype.OneW, ret_type))} in
   let exit_block =
     let z = fresh_var() in
     let v = Snd(Var z, Basetype.newty Basetype.OneW, ret_type) in
@@ -602,84 +820,9 @@ let add_entry_exit_code (f: t) : t =
     ~blocks: (entry_block :: blocks' @ [exit_block])
     ~return_type: ret_type
 
+
 let circuit_to_ssa (name: string) (c: Circuit.t) : t =
   let body = circuit_to_ssa_body name c in
-   add_entry_exit_code body
-
-
-(* TODO: proper printing *)
-
-
-let string_of_term t =
-  match t with
-  | Val(v) -> "Val(" ^ (string_of_value v) ^ ")"
-  | Const(c, v) ->
-    (Printing.string_of_op_const c) ^ "(" ^
-    (string_of_value v) ^ ")"
-
-let string_of_letbndgs bndgs =
-  String.concat ~sep:""
-    (List.map (List.rev bndgs)
-       ~f:(fun b -> match b with
-         | Let((x, a), t) ->
-           Printf.sprintf "   let %s: %s = %s\n"
-             x (Printing.string_of_basetype a) (string_of_term t))
-    )
-
-let string_of_block b =
-  match b with
-    | Unreachable(l) ->
-        Printf.sprintf " l%i(x : %s) = unreachable"
-          l.name
-          (Printing.string_of_basetype l.message_type)
-    | Direct(l, x, bndgs, body, goal) ->
-        (Printf.sprintf " l%i(%s : %s) =\n"
-          l.name x (Printing.string_of_basetype l.message_type)) ^
-        (string_of_letbndgs bndgs) ^
-        (Printf.sprintf "   in l%i(%s) end\n" goal.name (string_of_value body))
-    | InDirect(l, x, bndgs, body, goals) ->
-        (Printf.sprintf " l%i(%s : %s) =\n"
-          l.name x (Printing.string_of_basetype l.message_type)) ^
-        (string_of_letbndgs bndgs) ^
-        (Printf.sprintf "   in %s -> [%s] end\n"
-           (string_of_value body)
-           (String.concat ~sep:","
-              (List.map goals ~f:(fun l -> Printf.sprintf "l%i" l.name)))
-        )
-    | Branch(la, x, bndgs, (id, params, cond, cases)) ->
-      let case_types = Basetype.Data.constructor_types id params in
-        (Printf.sprintf " l%i(%s : %s) =\n"
-          la.name x (Printing.string_of_basetype la.message_type)) ^
-        (string_of_letbndgs bndgs) ^
-        (Printf.sprintf "    case %s of\n      | " (string_of_value cond)) ^
-        (String.concat ~sep:"      | "
-           (List.map
-              (List.zip_exn (List.zip_exn (Basetype.Data.constructor_names id) case_types) cases)
-              ~f:(fun ((cname, _), (l, lb, lg)) ->
-              Printf.sprintf "%s(%s) -> l%i(%s)\n"
-                cname (*(Printing.string_of_basetype a)*) l lg.name (string_of_value lb))
-
-           ))
-    | Return(l, x, bndgs, body, _) ->
-        (Printf.sprintf " l%i(%s : %s) =\n"
-          l.name x (Printing.string_of_basetype l.message_type)) ^
-        (string_of_letbndgs bndgs) ^
-        (Printf.sprintf "   in %s\n end\n"
-           (string_of_value body)
- (*           (Printing.string_of_type retty)*))
-
-let string_of_func func =
-  let buf = Buffer.create 80 in
-    Buffer.add_string buf
-      (Printf.sprintf "%s(x : %s) : %s = l%i(x)\n\n"
-         func.func_name
-         (Printing.string_of_basetype func.entry_label.message_type)
-         (Printing.string_of_basetype func.return_type)
-         func.entry_label.name);
-    List.iter func.blocks
-      ~f:(fun block ->
-        Buffer.add_string buf (string_of_block block);
-        Buffer.add_string buf "\n"
-      );
-  Buffer.contents buf
-
+  let p = add_entry_exit_code body in
+  typecheck p;
+  p

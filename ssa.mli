@@ -27,7 +27,6 @@ type let_bindings = let_binding list
 type block = 
     Unreachable of label
   | Direct of label * Term.var * let_bindings * value * label
-  | InDirect of label * Term.var * let_bindings * value * (label list)
   | Branch of label * Term.var * let_bindings * 
               (Basetype.Data.id * Basetype.t list * value * 
                (Term.var * value * label) list)

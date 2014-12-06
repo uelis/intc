@@ -1,9 +1,7 @@
 (** Compilation to circuits
   * TODO: 
   *  - simplify boilerplate
-  *  - construct with types
-  * TODO: dokumentiere, welche terme in den Circuits vorkomment
-  * koennen
+  *  - construct circuit with the correct types right away
   * TODO: ueberpruefe, dass die neu inferrierten typen auch mit den
   * annotationen uebereinstimmen
 *)
@@ -750,8 +748,7 @@ let infer_types (c : t) : unit =
       beq_constraint
         w2.type_forward (tensor sigma2 beta2) ::
       beq_constraint
-        w3.type_back
-        (tensor sigma2 (sum alpha2 beta2)) ::
+        w3.type_back (tensor sigma2 (sum alpha2 beta2)) ::
       (constraints rest)
     | Der(w1, w2, (s, f))::rest ->
       let sigma1 = Basetype.newty Basetype.Var in

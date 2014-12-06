@@ -110,7 +110,8 @@ let mkBox t =
   let alpha = Basetype.newtyvar() in
   let addr = "addr" in
   mkBind (mkApp (mkConst (Calloc alpha)) mkUnitV)
-    (addr, mkApp (mkConst (Cstore alpha)) (mkPairV (mkVar addr) t))
+    (addr, mkBind (mkApp (mkConst (Cstore alpha)) (mkPairV (mkVar addr) t))
+             (unusable_var, mkReturn (mkVar addr)))
 let mkUnbox t =
   let alpha = Basetype.newtyvar() in
   let v = "val" in

@@ -236,8 +236,12 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     beq_expected_constraint (Term.mkVar x) ~actual:alpha ~expected:a;
     Type.newty (Type.FunW(alpha, b1))
   | App(s, a, t) ->
+    let t_is_int_var =
+      match t.desc with
+      | Var v -> List.Assoc.mem phi v
+      | _ -> false in
     begin
-      if Term.is_value t then
+      if Term.is_value t && (not t_is_int_var) then
         begin
         let beta = Type.newty Type.Var in
         let a1 = ptV c t in
@@ -369,4 +373,3 @@ let principal_type (c: Basetype.t context) (phi: Type.t context) (t: Term.t) : T
     pt c phi t
   with
     | U.Not_Unifiable failed_cnstrnt -> raise_error failed_cnstrnt
-

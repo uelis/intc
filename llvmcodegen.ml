@@ -620,31 +620,6 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
         let src_block = Llvm.insertion_block builder in
         ignore (Llvm.build_br (get_block dst.name) builder);
         connect_to src_block ev dst.name
-      | InDirect _  ->
-        failwith "unimplemented: InDirect"
-           (*
-         Llvm.position_at_end (get_block src.name) builder;
-         let senc = Hashtbl.find phi_nodes src.name in
-         let alpha = Type.newty Type.Var in
-         let contalpha = Type.newty (Type.ContW alpha) in
-         let message_type = Type.newty Type.Var in
-         let ev = build_body the_module get_dynamic_dest_block
-         [(x, senc)] lets body in
-         let dst = unpack_cont_dest ev in
-         let src_block = Llvm.insertion_block builder in
-         let branch = Llvm.build_indirect_br dst (List.length dsts) builder in
-         List.iter (fun dst ->
-         Llvm.add_destination branch (get_dynamic_dest_block dst.name);
-         let v_type =
-         match Type.finddesc dst.message_type with
-         | Basetype.TensorW(sigma, v) -> v
-         | _ -> assert false in
-         let v = build_truncate_extend ev
-         (Basetype.newty (Basetype.TensorW(contalpha, v_type))) in
-         dynamic_connect_to src_block v dst.name;
-         build_coercion_block dst
-         ) dsts
-      *)
       | Branch(src, x, lets, (id, params, body, cases)) (* (xl, bodyl, dst1), (xr, bodyr, dst2)) *) ->
         begin
           Llvm.position_at_end (get_block src.name) builder;

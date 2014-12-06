@@ -203,6 +203,7 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
                 Buffer.add_string buf "\027[30m"
               end;
             s_atom t1;
+            Buffer.add_string buf " -> ";
             s_type t2
           | Type.Var | Type.Base _  ->
             s_atom t
