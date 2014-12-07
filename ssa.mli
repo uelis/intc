@@ -1,3 +1,5 @@
+open Core.Std
+      
 type label = { 
   name: int; 
   message_type: Basetype.t
@@ -55,8 +57,8 @@ val make:
 
 val circuit_to_ssa: string -> Circuit.t -> t                                      
 
-val string_of_value : value -> string
-val string_of_term : term -> string
-val string_of_letbndgs : let_bindings -> string
-val string_of_block : block -> string
-val string_of_func : t -> string
+val fprint_value : Out_channel.t -> value -> unit
+val fprint_term : Out_channel.t -> term -> unit
+val fprint_letbndgs : Out_channel.t -> let_bindings -> unit
+val fprint_block : Out_channel.t -> block -> unit
+val fprint_func : Out_channel.t -> t -> unit

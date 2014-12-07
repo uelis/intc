@@ -1,11 +1,8 @@
 open Core.Std
 open Unify
 (* TODO:
-   - type checking
    - better printing
 *)
-
-module U = Unify(struct type t = unit end)
 
 type label = {
   name: int;
@@ -25,27 +22,41 @@ type value =
 type term =
   | Val of value
   | Const of Term.op_const * value
-
-let rec string_of_value v =
+             
+let rec fprint_value (oc: Out_channel.t) (v: value) : unit =
   match v with
-  | Var(x) -> x
-  | Unit -> "()"
+  | Var(x) ->
+    Printf.fprintf oc "%s" x
+  | Unit -> 
+    Printf.fprintf oc "()"
   | Pair(v1, v2) ->
-    "(" ^ (string_of_value v1) ^ ", " ^ (string_of_value v2) ^ ")"
+    Out_channel.output_string oc "(";
+    fprint_value oc v1;
+    Out_channel.output_string oc ", ";
+    fprint_value oc v2;
+    Out_channel.output_string oc ")"
   | In((id, k, t), _) ->
     let cname = List.nth_exn (Basetype.Data.constructor_names id) k in
-    cname ^ "(" ^ string_of_value t ^ ") " (* ^ ") : " ^
-    (Printing.string_of_basetype a) *)
+    Out_channel.output_string oc cname;
+    Out_channel.output_string oc "(";
+    fprint_value oc t;
+    Out_channel.output_string oc ")"
   | Fst(t, _, _) ->
-    string_of_value t ^ ".1"
+    fprint_value oc t;
+    Out_channel.output_string oc ".1"
   | Snd(t, _, _) ->
-    string_of_value t ^ ".2"
-  | Select(t, (id, params), i) ->
-    let a = Basetype.newty (Basetype.DataW (id, params)) in
-    "select(" ^ string_of_value t ^ " : " ^
-    (Printing.string_of_basetype a) ^ " )." ^ (string_of_int i)
-  | Undef(a) -> "undef(" ^ (Printing.string_of_basetype a) ^ ")"
-  | IntConst(n) -> string_of_int n
+    fprint_value oc t;
+    Out_channel.output_string oc ".2"
+  | Select(t, _, i) ->
+    Out_channel.output_string oc "select(";
+    fprint_value oc t;
+    Printf.fprintf oc ").%i" i
+  | Undef(a) ->
+    Out_channel.output_string oc "undef(";
+    Out_channel.output_string oc (Printing.string_of_basetype a);
+    Out_channel.output_string oc ")"
+  | IntConst(n) -> 
+    Printf.fprintf oc "%i" n
 
 let rec subst_value (rho: Term.var -> value) (v: value) =
   match v with
@@ -119,64 +130,70 @@ let targets_of_block (b : block) : label list =
   | Branch(_, _ , _, (_, _, _, cases)) -> List.map cases ~f:(fun (_, _, l) -> l)
   | Return(_, _, _, _, _) -> []
 
-(* TODO: proper printing *)
-let string_of_term t =
+let fprint_term (oc: Out_channel.t) (t: term) : unit =
   match t with
   | Val(v) ->
-    "Val(" ^ (string_of_value v) ^ ")"
+    Out_channel.output_string oc "Val(";
+    fprint_value oc v;
+    Out_channel.output_string oc ")"
   | Const(c, v) ->
-    (Printing.string_of_op_const c) ^ "(" ^ (string_of_value v) ^ ")"
+    Out_channel.output_string oc (Printing.string_of_op_const c);
+    fprint_value oc v;
+    Out_channel.output_string oc ")"
 
-let string_of_letbndgs bndgs =
-  String.concat ~sep:""
-    (List.map (List.rev bndgs)
-       ~f:(fun b -> match b with
-         | Let((x, a), t) ->
-           Printf.sprintf "   let %s: %s = %s\n"
-             x (Printing.string_of_basetype a) (string_of_term t)))
+let fprint_letbndgs (oc: Out_channel.t) (bndgs: let_bindings) : unit =
+  List.iter bndgs
+    ~f:(function
+      | Let((x, a), t) ->
+        Printf.fprintf oc "   let %s: %s = " x (Printing.string_of_basetype a);
+        fprint_term oc t;
+        Out_channel.output_string oc "\n"
+    )
 
-let string_of_block b =
+let fprint_block (oc: Out_channel.t) (b: block) : unit =
   match b with
     | Unreachable(l) ->
-      Printf.sprintf " l%i(x : %s) = unreachable"
+      Printf.fprintf oc " l%i(x : %s) = unreachable"
         l.name
         (Printing.string_of_basetype l.message_type)
     | Direct(l, x, bndgs, body, goal) ->
-      Printf.sprintf " l%i(%s : %s) =\n%s   in l%i(%s) end\n"
-        l.name x (Printing.string_of_basetype l.message_type)
-        (string_of_letbndgs bndgs)
-        goal.name (string_of_value body)
+      Printf.fprintf oc " l%i(%s : %s) =\n" l.name x
+        (Printing.string_of_basetype l.message_type);
+      fprint_letbndgs oc bndgs;
+      Printf.fprintf oc "   l%i(" goal.name;
+      fprint_value oc body;
+      Printf.fprintf oc ")\n"
     | Branch(la, x, bndgs, (id, params, cond, cases)) ->
       let constructor_names = Basetype.Data.constructor_names id in
-        (Printf.sprintf " l%i(%s : %s) =\n%s    case %s of\n      | "
-           la.name x (Printing.string_of_basetype la.message_type)
-           (string_of_letbndgs bndgs) (string_of_value cond)) ^
-        (String.concat ~sep:"      | "
-           (List.map2_exn constructor_names cases
-              ~f:(fun cname (l, lb, lg) ->
-              Printf.sprintf "%s(%s) -> l%i(%s)\n"
-                cname l lg.name (string_of_value lb))
-
-           ))
+      Printf.fprintf oc " l%i(%s : %s) =\n" la.name x
+        (Printing.string_of_basetype la.message_type);
+      fprint_letbndgs oc bndgs;
+      Printf.fprintf oc "   case ";
+      fprint_value oc cond;
+      Printf.fprintf oc " of\n";
+      List.iter2_exn constructor_names cases
+        ~f:(fun cname (l, lb, lg) ->
+          Printf.fprintf oc "   | %s(%s) -> l%i(" cname l lg.name;
+          fprint_value oc lb;
+          Printf.fprintf oc ")\n")
     | Return(l, x, bndgs, body, _) ->
-        Printf.sprintf " l%i(%s : %s) =\n%s   return %s\n end\n"
-          l.name x (Printing.string_of_basetype l.message_type) 
-          (string_of_letbndgs bndgs) (string_of_value body)
+      Printf.fprintf oc " l%i(%s : %s) =\n" l.name x
+        (Printing.string_of_basetype l.message_type);
+      fprint_letbndgs oc bndgs;
+      Printf.fprintf oc "   return ";
+      fprint_value oc body;
+      Printf.fprintf oc "\n"
 
-let string_of_func func =
-  let buf = Buffer.create 80 in
-    Buffer.add_string buf
-      (Printf.sprintf "%s(x : %s) : %s = l%i(x)\n\n"
-         func.func_name
-         (Printing.string_of_basetype func.entry_label.message_type)
-         (Printing.string_of_basetype func.return_type)
-         func.entry_label.name);
-    List.iter func.blocks
-      ~f:(fun block ->
-        Buffer.add_string buf (string_of_block block);
-        Buffer.add_string buf "\n"
-      );
-  Buffer.contents buf
+let fprint_func (oc: Out_channel.t) (func: t) : unit =
+  Printf.fprintf oc "%s(x: %s) : %s = l%i(x)\n\n"
+    func.func_name
+    (Printing.string_of_basetype func.entry_label.message_type)
+    (Printing.string_of_basetype func.return_type)
+    (func.entry_label.name);
+  List.iter func.blocks
+    ~f:(fun block ->
+      fprint_block oc block;
+      Out_channel.output_string oc "\n")
 
 let check_blocks_invariant entry_label blocks =
   let defined_labels = Int.Table.create () in
@@ -456,6 +473,8 @@ let term_to_ssa (t: Term.t)
       failwith "illegal argument ssa"
   in
   to_ssa t
+    
+module U = Unify(struct type t = unit end)
 
 let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
   (* Supply of fresh variable names.

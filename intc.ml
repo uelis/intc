@@ -3,14 +3,6 @@ open Lexing
 open Opts
 open Decls
 
-let read_file filename =
-  In_channel.with_file filename
-    ~f:In_channel.input_all
-
-let write_file filename s =
-  Out_channel.with_file filename
-    ~f:(fun c -> Out_channel.output_string c s)
-
 let parse_error_loc lexbuf =
   let start_pos = lexbuf.lex_start_p in
   Printf.sprintf "line %i, character %i:"
@@ -48,7 +40,7 @@ let term_loc (s : Term.t option) =
         loc.end_pos.line loc.end_pos.column
     | None -> "Term " ^ (Printing.string_of_term s)
 
-let rec compile_decl (d: decl) : unit =
+let compile_decl (d: decl) : unit =
   match d with
   | TermDecl(f, t) ->
     let b =
@@ -65,25 +57,28 @@ let rec compile_decl (d: decl) : unit =
     if !opt_keep_circuits then
       begin
         let target = Printf.sprintf "%s.dot" f in
-        write_file target (Circuit.dot_of_circuit circuit)
+        Out_channel.write_all target ~data:(Circuit.dot_of_circuit circuit)
       end;
     let ssa_func = Ssa.circuit_to_ssa f circuit in
     let ssa_traced = Trace.trace ssa_func in
     let ssa_shortcut = Trace.shortcut_jumps ssa_traced in
     if !opt_keep_ssa then
       begin
+        let write_ssa filename ssafunc =
+          Out_channel.with_file filename
+            ~f:(fun c -> Ssa.fprint_func c ssafunc) in
         let target = Printf.sprintf "%s.ssa" f in
         Printf.printf
           "*** Writing ssa-form program for %s to file '%s'\n" f target;
-        write_file target (Ssa.string_of_func ssa_func);
+        write_ssa target ssa_func;
         let target = Printf.sprintf "%s.ssa.traced" f in
         Printf.printf
           "*** Writing ssa-form program for %s to file '%s'\n" f target;
-        write_file target (Ssa.string_of_func ssa_traced);
+        write_ssa target ssa_traced;
         let target = Printf.sprintf "%s.ssa.shortcut" f in
         Printf.printf
           "*** Writing ssa-form program for %s to file '%s'\n" f target;
-        write_file target (Ssa.string_of_func ssa_shortcut)
+        write_ssa target ssa_shortcut
       end;
     if !opt_llvm_compile && (f = "main") then
       begin
@@ -121,7 +116,7 @@ let main =
           Printf.printf "*** Writing ssa files.\n";
         if !opt_llvm_compile then
           Printf.printf "*** Writing llvm bitcode files.\n";
-        let input = read_file !file_name in
+        let input = In_channel.read_all !file_name in
         let decls = parse input in
         let substituted_decls = subst_decls decls in
         List.iter ~f:compile_decl substituted_decls
