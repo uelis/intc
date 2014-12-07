@@ -425,7 +425,10 @@ let make ~func_name:(func_name: string)
  * Translation from circuits
  ****************************)
     
-(* TODO: NAMING! document naming assumptions *)
+(* INVARIANT: The supply of fresh names in the
+ * generation of ssa programs has the form x0, x1, ...
+ * This means that only source terms not containing
+ * variables of this form should be translated. *)
 let fresh_var = Vargen.mkVarGenerator "x" ~avoid:[]
 
 let unTensorW a =
@@ -512,10 +515,11 @@ let term_to_ssa (t: Term.t)
     
 module U = Unify(struct type t = unit end)
 
+(* TODO: This implementation is quite inefficient with many uses of type
+ * inference. The types are all known and could be constructed directly. *)
 let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
-  (* Supply of fresh variable names.
-   * (The instructions do not contain a free variable starting with "x")
-  *)
+  (* Notice that the freshness invariant must be considered here:
+   * The instructions do not contain a free variable starting with "x". *)
   let open Circuit in
 
   let blocks = ref [] in
@@ -558,11 +562,6 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
         (z1, mkBind t2
                (z2, mkReturn (mkPairV (mkVar z1) (mkVar z2)))) in
     let to_ssa t target_type =
-      (* TODO: all this type inference is quite inefficient *)
-      (*
-      print_string "ssa";
-      print_string (Printing.string_of_term t);
-      *)
       let a = Typing.principal_type [(z, src.message_type)] [] t in
       U.unify_eqs [U.Type_eq(a, (Type.newty (Type.Base target_type)), None)];
       begin
