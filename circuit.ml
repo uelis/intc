@@ -124,7 +124,8 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       let w1 = fresh_wire () in
       let w2 = fresh_wire () in
       let w3 = fresh_wire () in
-      ((x, w3) :: d, LWeak(flip w, w1)::Assoc(flip w1, w2)::Door(w3, flip w2) :: i)
+      (x, w3) :: d,
+      LWeak(flip w, w1) :: Assoc(flip w1, w2) :: Door(w3, flip w2) :: i
   in
   let rec compile (sigma: Term.var list) (gamma: wire context) (t: Term.t) =
     match t.Term.desc with
@@ -178,12 +179,14 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       let gamma_s, gamma_t = split_context gamma s t in
       let (w_s, i_s) = compile_in_box Term.unusable_var sigma gamma_s s in
       let w_x = fresh_wire () in
-      let w_y = fresh_wire () in      let (w_t, i_t) = compile sigma ((x, w_x) :: (y, w_y) :: gamma_t) t in
+      let w_y = fresh_wire () in
+      let (w_t, i_t) = compile sigma ((x, w_x) :: (y, w_y) :: gamma_t) t in
       (* TODO: check that types are really inferred! *)
       (w_t, Case(Basetype.Data.sumid 2, [Basetype.newtyvar();
                                          Basetype.newtyvar()],
                  flip w_s, [w_x; w_y]) :: i_s @ i_t)
-    | Term.Case(id, params, f, ts) -> (* [(x, s); (y, t)]) when id = Type.Data.sumid 2 -> *)
+    | Term.Case(id, params, f, ts) ->
+      (* [(x, s); (y, t)]) when id = Type.Data.sumid 2 -> *)
       let n = List.length ts in
       let copy_and_enter_wire (w: wire)
         : wire list * instruction list =
@@ -227,7 +230,8 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       (w, i_der @ i_join @ i_leavebox @ i_ts @ i_dup)
     | Term.Fun((x, a, ty), s) ->
       let tym, typ = Type.question_answer_pair ty in
-      let sigma1, sigma2 = Basetype.newty Basetype.Var, Basetype.newty Basetype.Var in
+      let sigma1 = Basetype.newty Basetype.Var in
+      let sigma2 = Basetype.newty Basetype.Var in
       (* ASSUMPTION: all annotations must have type variables as index
        * types.
        * TODO: Give a warning otherwise! *)
@@ -331,30 +335,10 @@ let solve_constraints (con: type_constraint list) : unit =
     end in
   let ineqs, eqs = separate con [] [] in
   (* unify equations first *)
-  (*
-    List.iter ~f:(fun e -> match e with
-      | (U.Type_eq(a,b,_)) -> Printf.printf "%s = %s\n"
-      (Printing.string_of_type a)
-      (Printing.string_of_type b)
-      | (U.Basetype_eq(a,b,_)) -> Printf.printf "%s = %s\n"
-      (Printing.string_of_basetype a)
-      (Printing.string_of_basetype b)
-      ) eqs;
-      List.iter ~f:(fun (a,b) -> Printf.printf "%s <= %s\n"
-      (Printing.string_of_basetype a)
-      (Printing.string_of_basetype b))
-      ineqs;
-      Printf.printf "======\n"; *)
   U.unify_eqs eqs;
-    (*
-     Printf.printf "sol\n";
-        List.iter ~f:(fun (a,b) -> Printf.printf "%s <= %s\n"
-        (Printing.string_of_basetype a)
-        (Printing.string_of_basetype b)) ineqs;
-        Printf.printf "======\n";
-    *)
-
-  let cmp a b = Int.compare (Basetype.find a).Basetype.id (Basetype.find b).Basetype.id in
+  let cmp a b = Int.compare
+                  (Basetype.find a).Basetype.id
+                  (Basetype.find b).Basetype.id in
   (* All inequalities have the form A <= alpha for some variable alpha.
    * Gather now all constraints A1 <= alpha, ..., An <= alpha for each
    * variable alpha in the form [A1,...,An] <= alpha. *)
@@ -380,8 +364,6 @@ let solve_constraints (con: type_constraint list) : unit =
       let sol =
         if List.length xs > 1 || constraint_recursive then
           begin
-           (* List.iter ~f:(fun a -> Printf.printf "%s,  " (Printing.string_of_basetype a)) xs;
-              Printf.printf "%s\n" (Printing.string_of_basetype alpha);*)
             let recty = Basetype.Data.fresh_id "conty" in
             let params = List.filter fv_unique
                            ~f:(fun beta -> not (Basetype.equals beta alpha)) in
@@ -405,30 +387,16 @@ let solve_constraints (con: type_constraint list) : unit =
                   (recty ^ "_" ^ (string_of_int i))
                   params
                   arg_type);
-            (* Printf.printf "Declaring type: %s\n" (Printing.string_of_data recty); *)
             sol
           end
         else
           (assert (xs <> []);
            List.hd_exn xs) in
       U.unify_eqs [U.Basetype_eq(sol, alpha, None)]
-            (*
-       | Basetype.DataW("ref", [beta]) ->
-       (  match xs with
-       [x1] -> U.unify_pairs [x1 , beta, Some ContextShape]
-       | _ -> failwith "todo"
-       )
-    *)
     | _ ->
         assert false
   in
   List.iter joined_lower_bounds ~f:solve_ineq
-    (*
-   Printf.printf "sol\n";
-   List.iter (fun (a,b) -> Printf.printf "%s = %s\n"
-   (Printing.string_of_type a)
-   (Printing.string_of_type b)) ineqs;
-   Printf.printf "======\n" *)
 
 exception Not_Leq
 
@@ -441,15 +409,7 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Term.t): Term.t =
   if Basetype.equals a b then
     t
   else
-    (* TODO *)
     match Basetype.finddesc b with
-    (*
-       | Basetype.DataW("ref", [b]) ->
-       if Basetype.equals a b then
-       Term.mkLambdaW(("x", None), Term.mkInW "ref" 0 (Term.mkVar "x"))
-       else
-       raise Not_Leq
-    *)
     | Basetype.BoxW(c) ->
       begin
         match Basetype.finddesc c with
@@ -553,11 +513,6 @@ let infer_types (c : t) : unit =
       (* ensure that x is fresh *)
       let f' = Term.variant f in
       let s' = List.map ~f:Term.variant_var s in
-      (*
-      (List.iter ~f:(fun x -> Printf.printf "%s " x) s);
-      (Printing.print_term f');
-        (Printing.print_term (Term.let_tupleW x (s'', f')));
-      *)
       let beta =
         let b = principal_type
                   [(x, sigma)] []
@@ -565,14 +520,6 @@ let infer_types (c : t) : unit =
         match Type.finddesc b with
         | Type.Base beta -> beta
         | _ -> assert false in
-      (*
-      (Printing.print_term (Term.let_tupleW x (s'', f')));
-      flush stdout;
-      Printf.printf "Base:  %s (%s, %s)"
-        (Printing.string_of_basetype beta)
-        (Printing.string_of_basetype sigma)
-         (Printing.string_of_basetype alpha);
-      *)
       beq_constraint w1.type_back (tensor sigma one) ::
       beq_constraint w1.type_forward (tensor sigma beta) ::
       (constraints rest)
@@ -626,10 +573,8 @@ let infer_types (c : t) : unit =
       (* ensure "x" is fresh *)
       let f' = Term.variant f in
       let s' = List.map ~f:Term.variant_var s in
-      (*
-        Printf.printf "Der: %s" (Printing.string_of_termW (let_tupleW x (s', f')));
-      *)
-      let tyf = principal_type_value [(x, sigma2)] (Term.let_tupleW x (s', f')) in
+      let tyf = principal_type_value [(x, sigma2)]
+                  (Term.let_tupleW x (s', f')) in
       beq_constraint
         w1.type_forward (tensor sigma2 (tensor tyf alpha2)) ::
       beq_constraint
@@ -648,7 +593,8 @@ let infer_types (c : t) : unit =
       (* ensure "x" is fresh *)
       let f' = Term.variant f in
       let s' = List.map ~f:Term.variant_var s in
-      let tyf = principal_type_value [(x, sigma2)] (Term.let_tupleW x (s', f')) in
+      let tyf = principal_type_value [(x, sigma2)]
+                  (Term.let_tupleW x (s', f')) in
       beq_constraint
         w1.type_forward (tensor sigma2 (tensor tyf alpha2)) ::
       beq_constraint
@@ -780,12 +726,12 @@ let infer_types (c : t) : unit =
   | U.Not_Unifiable _ ->
     failwith "Internal error: cannot unify constraints in compilation"
 
-
 let circuit_of_term (t : Term.t) : t =
   let c = raw_circuit_of_term [] [] t in
   let _ = infer_types c in
   c
 
+(* TODO: This function should be cleaned up *)
 let dot_of_circuit
       ?title:(title = "")
       ?wire_style:(wire_style = fun _ -> "")
@@ -807,7 +753,8 @@ let dot_of_circuit
     | Case(id, _, w1, ws) ->
       Printf.sprintf "\"Case(%s, {%i,%i},%s)\""
         id w1.src w1.dst
-        (String.concat ~sep:"," (List.map ~f:(fun w -> Printf.sprintf "{%i,%i}" w.src w.dst) ws))
+        (String.concat ~sep:","
+           (List.map ~f:(fun w -> Printf.sprintf "{%i,%i}" w.src w.dst) ws))
     | Door(w1, w2) ->
       Printf.sprintf "\"Door({%i,%i},{%i,%i})\""
         w1.src w1.dst w2.src w2.dst
@@ -883,7 +830,9 @@ let dot_of_circuit
         Buffer.add_string buf " -> ";
         Buffer.add_string buf (node_name dstins);
         Buffer.add_string buf (wire_style w);
-        Buffer.add_string buf (Printf.sprintf "[label=\"%i(%s)\"]" w.dst (Printing.string_of_basetype w.type_forward));
+        Buffer.add_string buf
+          (Printf.sprintf "[label=\"%i(%s)\"]" w.dst
+             (Printing.string_of_basetype w.type_forward));
         Buffer.add_string buf ";\n ";
       with Not_found -> () (* Weakening *) in
     List.iter instructions_with_result

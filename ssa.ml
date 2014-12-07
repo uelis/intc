@@ -874,5 +874,4 @@ let add_entry_exit_code (f: t) : t =
 
 let circuit_to_ssa (name: string) (c: Circuit.t) : t =
   let body = circuit_to_ssa_body name c in
-  let p = add_entry_exit_code body in
-  p
+  add_entry_exit_code body 
