@@ -1,17 +1,17 @@
 type list<'a> = Nil of unit | Cons of 'a * box<list<'a>>
 
-let f1 = fn c -> print c 
-let f1' = fn c -> return () 
-let f2 = fn c -> let x = return c in print x 
+let f1 = fn c -> print c
+let f1' = fn c -> return ()
+let f2 = fn c -> let x = return c in print x
 let f3 = fn c -> let c = return False in print 3
 let main43 =
    fn c ->
       case c of True -> (print 1) | False -> return ()
-   
 
-let head = λ xs -> fn u -> xs 0 
-let cons = λ x -> λ xs -> fn i -> let b = (i = 0) in if b then x() else xs(i-1) 
-let tail = λ xs -> fn i -> xs (i+1) 
+
+let head = λ xs -> fn u -> xs 0
+let cons = λ x -> λ xs -> fn i -> let b = (i = 0) in if b then x() else xs(i-1)
+let tail = λ xs -> fn i -> xs (i+1)
 
 fn f3(x) =
   case x of
@@ -28,7 +28,7 @@ fn tailrecimp(x) =
 
 let tailrec =
    direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
-   
+
 let facaux = tailrec (λ facaux ->
     fn (i, r) ->
       let b = (i = 0) in

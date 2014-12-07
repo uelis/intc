@@ -76,7 +76,7 @@ let rec subst_value (rho: Term.var -> value) (v: value) =
     begin
       match subst_value rho v1 with
       | In((_, j, w), a) ->
-        (* TODO: this is used in cbv.intml. Check that it's really ok.  *)
+        (* TODO: this is used in cbv.intml. Check that it's really ok. *)
         if i=j then w else Undef(a)
       | w -> Select(w, a, i)
     end
