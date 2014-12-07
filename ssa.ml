@@ -1,13 +1,9 @@
 open Core.Std
 open Unify
-(* TODO:
-   - better printing
-*)
 
-type label = {
-  name: int;
-  message_type: Basetype.t
-}
+(********************
+ * Values 
+ ********************)
 
 type value =
   | Var of Term.var
@@ -91,11 +87,19 @@ let subst_term (rho: Term.var -> value) (t: term) =
   match t with
   | Val(v) -> Val(subst_value rho v)
   | Const(c, v) -> Const(c, subst_value rho v)
-
+                     
+(********************
+ * Programs 
+ ********************)
 
 type let_binding =
   | Let of (Term.var * Basetype.t) * term
 type let_bindings = let_binding list
+                      
+type label = {
+  name: int;
+  message_type: Basetype.t
+}
 
 type block =
     Unreachable of label
@@ -145,7 +149,7 @@ let fprint_letbndgs (oc: Out_channel.t) (bndgs: let_bindings) : unit =
   List.iter bndgs
     ~f:(function
       | Let((x, a), t) ->
-        Printf.fprintf oc "   let %s: %s = " x (Printing.string_of_basetype a);
+        Printf.fprintf oc "   let %s = " x (* Printing.string_of_basetype a *);
         fprint_term oc t;
         Out_channel.output_string oc "\n"
     )
@@ -195,6 +199,11 @@ let fprint_func (oc: Out_channel.t) (func: t) : unit =
       fprint_block oc block;
       Out_channel.output_string oc "\n")
 
+(* The following functions verify the representation invariants and the
+   types in ssa programs. *)
+    
+exception Type_error
+
 let check_blocks_invariant entry_label blocks =
   let defined_labels = Int.Table.create () in
   let invoked_labels = Int.Table.create () in
@@ -211,27 +220,19 @@ let check_blocks_invariant entry_label blocks =
                                 ~key:l.name ~data:()) in
   List.iter blocks ~f:check
 
-let make ~func_name:(func_name: string)
-      ~entry_label:(entry_label: label)
-      ~blocks:(blocks: block list)
-      ~return_type:(return_type: Basetype.t) =
-  check_blocks_invariant entry_label blocks;
-  { func_name = func_name;
-    entry_label = entry_label;
-    blocks = blocks;
-    return_type = return_type }
-
 let rec typeof_value
           (gamma: Basetype.t Typing.context)
           (v: value)
   : Basetype.t =
   let open Basetype in
+  let equals_exn a b =
+    if equals a b then () else raise Type_error in
   match v with
   | Var(x) ->
     begin
       match List.Assoc.find gamma x with
       | Some b -> b
-      | None -> assert false
+      | None -> raise Type_error
     end
   | Unit ->
     newty OneW
@@ -245,31 +246,31 @@ let rec typeof_value
       match finddesc a with
       | DataW(id', params) ->
         let constructor_types = Data.constructor_types id' params in
-        assert (id = id');
+        if (id <> id') then raise Type_error;
         (match List.nth constructor_types n with
-         | Some b' -> assert (equals b b')
-         | None -> assert false)
+         | Some b' -> equals_exn b b'
+         | None -> raise Type_error)
       | _ ->
-        assert false
+        raise Type_error
     end;
     a
   | Fst(v, b1, b2) ->
     let a1 = typeof_value gamma v in
-    assert (equals a1 (newty (TensorW(b1, b2))));
+    equals_exn a1 (newty (TensorW(b1, b2)));
     b1
   | Snd(v, b1, b2) ->
     let a2 = typeof_value gamma v in
-    assert (equals a2 (newty (TensorW(b1, b2))));
+    equals_exn a2 (newty (TensorW(b1, b2)));
     b2
   | Select(v, (id, params), n) ->
     let a1 = typeof_value gamma v in
     let a = newty (DataW(id, params)) in
-    assert (equals a a1);
+    equals_exn a a1;
     let constructor_types = Data.constructor_types id params in
     begin
       match List.nth constructor_types n with
       | Some b -> b
-      | None -> assert false
+      | None -> raise Type_error
     end
   | Undef(a) ->
     a
@@ -282,64 +283,66 @@ let typecheck_term
       (a: Basetype.t)
   : unit =
   let open Basetype in
+  let equals_exn a b =
+    if equals a b then () else raise Type_error in
   match t with
   | Val(v) ->
     let b = typeof_value gamma v in
-    assert (equals a b)
+    equals_exn a b
   | Const(Term.Cprint(_), v) ->
     let b = typeof_value gamma v in
-    assert (equals b (newty OneW));
-    assert (equals a (newty OneW))
+    equals_exn b (newty OneW);
+    equals_exn a (newty OneW)
   | Const(Term.Cintadd, v) 
   | Const(Term.Cintsub, v)
   | Const(Term.Cintmul, v)
   | Const(Term.Cintdiv, v) ->
     let b = typeof_value gamma v in
     let intty = newty NatW in
-    assert (equals b (newty (TensorW(intty, intty))));
-    assert (equals a intty)
+    equals_exn b (newty (TensorW(intty, intty)));
+    equals_exn a intty
   | Const(Term.Cinteq, v)
   | Const(Term.Cintslt, v) ->
     let b = typeof_value gamma v in
     let intty = newty NatW in
     let boolty = Basetype.newty (Basetype.DataW(Basetype.Data.boolid, [])) in
-    assert (equals b (newty (TensorW(intty, intty))));
-    assert (equals a boolty)
+    equals_exn b (newty (TensorW(intty, intty)));
+    equals_exn a boolty
   | Const(Term.Cintprint, v) ->
     let b = typeof_value gamma v in
     let intty = newty NatW in
-    assert (equals b intty);
-    assert (equals a (newty OneW))
+    equals_exn b intty;
+    equals_exn a (newty OneW)
   | Const(Term.Calloc(b), v) ->
     let c = typeof_value gamma v in
-    assert (equals c (newty OneW));
-    assert (equals a (newty (BoxW b)))
+    equals_exn c (newty OneW);
+    equals_exn a (newty (BoxW b))
   | Const(Term.Cfree(b), v) ->
     let c = typeof_value gamma v in
-    assert (equals c (newty (BoxW b)));
-    assert (equals a (newty OneW))
+    equals_exn c (newty (BoxW b));
+    equals_exn a (newty OneW)
   | Const(Term.Cload(b), v) ->
     let c = typeof_value gamma v in
-    assert (equals c (newty (BoxW b)));
-    assert (equals a b)
+    equals_exn c (newty (BoxW b));
+    equals_exn a b
   | Const(Term.Cstore(b), v) ->
     let c = typeof_value gamma v in
-    assert (equals c (newty (TensorW(newty (BoxW b), b))));
-    assert (equals a (newty OneW))
+    equals_exn c (newty (TensorW(newty (BoxW b), b)));
+    equals_exn a (newty OneW)
   | Const(Term.Cpush(b), v) ->
     let c = typeof_value gamma v in
-    assert (equals c b);
-    assert (equals a (newty OneW))
+    equals_exn c b;
+    equals_exn a (newty OneW)
   | Const(Term.Cpop(b), v) ->
     let c = typeof_value gamma v in
-    assert (equals c (newty OneW));
-    assert (equals a b)
+    equals_exn c (newty OneW);
+    equals_exn a b
   | Const(Term.Ccall(_, b1, b2), v)
   | Const(Term.Cencode(b1, b2), v) 
   | Const(Term.Cdecode(b1, b2), v) ->
     let c = typeof_value gamma v in
-    assert (equals c b1);
-    assert (equals a b2)
+    equals_exn c b1;
+    equals_exn a b2
 
 let rec typecheck_let_bindings
       (gamma: Basetype.t Typing.context)
@@ -353,14 +356,20 @@ let rec typecheck_let_bindings
     typecheck_term gamma1 t a;
     (v, a) :: gamma1
 
-let typecheck_block (b: block) : unit =
+let typecheck_block (label_types: Basetype.t Int.Table.t) (b: block) : unit =
+  let equals_exn a b =
+    if Basetype.equals a b then () else raise Type_error in
+  let check_label_exn l a =
+    match Int.Table.find label_types l.name with
+    | Some b -> equals_exn l.message_type b
+    | None -> raise Type_error in
   match b with
   | Unreachable(_) -> ()
   | Direct(s, x, l, v, d) ->
     let gamma0 = [(x, s.message_type)] in
     let gamma = typecheck_let_bindings gamma0 l in
     let a = typeof_value gamma v in
-    assert (Basetype.equals a (d.message_type))
+    equals_exn a (d.message_type);
   | Branch(s, x, l, (id, params, v, ds)) ->
     let constructor_types = Basetype.Data.constructor_types id params in
     let bs = List.zip ds constructor_types in
@@ -370,26 +379,53 @@ let typecheck_block (b: block) : unit =
         let gamma0 = [(x, s.message_type)] in
         let gamma = typecheck_let_bindings gamma0 l in
         let va = typeof_value gamma v in
-        assert (Basetype.equals va (Basetype.newty
-                                      (Basetype.DataW(id, params))));
+        equals_exn va (Basetype.newty
+                         (Basetype.DataW(id, params)));
         List.iter bs
           ~f:(fun ((x, v, d), a) ->
             let b = typeof_value ((x, a) :: gamma) v in
-            assert (Basetype.equals (d.message_type) b))
+            check_label_exn d b)
       | None ->
-        assert false
+        raise Type_error
     end
   | Return(s, x, l, v, a) ->
     let gamma0 = [(x, s.message_type)] in
     let gamma = typecheck_let_bindings gamma0 l in
     let b = typeof_value gamma v in
-    assert (Basetype.equals a b)
+    equals_exn a b
 
-let typecheck (p: t) : unit =
-  List.iter p.blocks ~f:typecheck_block
+let typechecks (blocks: block list) : bool =
+  try
+    let label_types = Int.Table.create () in
+    List.iter blocks ~f:(fun b ->
+      let l = label_of_block b in
+      match Int.Table.add label_types ~key:l.name ~data:l.message_type with
+      | `Duplicate -> raise Type_error
+      | `Ok -> ()
+    );
+    List.iter blocks ~f:(typecheck_block label_types);
+    true
+  with
+  | Type_error -> false
+    
 
+let make ~func_name:(func_name: string)
+      ~entry_label:(entry_label: label)
+      ~blocks:(blocks: block list)
+      ~return_type:(return_type: Basetype.t) =
+  check_blocks_invariant entry_label blocks;
+  assert (typechecks blocks);
+  { func_name = func_name;
+    entry_label = entry_label;
+    blocks = blocks;
+    return_type = return_type }
+
+
+(****************************
+ * Translation from circuits
+ ****************************)
+    
 (* TODO: NAMING! document naming assumptions *)
-
 let fresh_var = Vargen.mkVarGenerator "x" ~avoid:[]
 
 let unTensorW a =
@@ -840,5 +876,4 @@ let add_entry_exit_code (f: t) : t =
 let circuit_to_ssa (name: string) (c: Circuit.t) : t =
   let body = circuit_to_ssa_body name c in
   let p = add_entry_exit_code body in
-  typecheck p;
   p

@@ -1,10 +1,8 @@
-open Core.Std
-      
-type label = { 
-  name: int; 
-  message_type: Basetype.t
-}
+(** Progams in functional SSA form *)
 
+open Core.Std
+       
+(** SSA values and terms *)
 type value =
   | Var of Term.var
   | Unit
@@ -19,28 +17,39 @@ type term =
   | Val of value
   | Const of Term.op_const * value 
 
+(** Substition of values in values *)
 val subst_value: (Term.var -> value) -> value -> value
+  
+(** Substition of values in terms *)
 val subst_term: (Term.var -> value) -> term -> term
 
+(** Straight-line programs are given by let bindings *)
 type let_binding =
   | Let of (Term.var * Basetype.t) * term
 type let_bindings = let_binding list 
+  
+(** Programs consist of a list of blocks, which each defines a label.*)                      
+type label = { 
+  name: int; 
+  message_type: Basetype.t
+}
 
-type block = 
-    Unreachable of label
+(** Program blocks *)
+type block =
+  | Unreachable of label
   | Direct of label * Term.var * let_bindings * value * label
   | Branch of label * Term.var * let_bindings * 
               (Basetype.Data.id * Basetype.t list * value * 
                (Term.var * value * label) list)
   | Return of label * Term.var * let_bindings * value * Basetype.t
 
+(** Return the label defined by a block *)
 val label_of_block: block -> label
+
+(** Return the jump targets of a block *)
 val targets_of_block: block -> label list
 
-(** Invariant: Any block [b] in the list [blocks] must 
-    be reachable from the entry label over blocks appearing
-    before it in the list of blocks. 
-*)
+(** A program in SSA form. *)
 type t = private {
   func_name : string;
   entry_label: label;
