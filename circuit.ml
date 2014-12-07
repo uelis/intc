@@ -51,27 +51,6 @@ type t =
       instructions : instruction list
     }
 
-let rec wires (i: instruction list): wire list =
-  match i with
-    | [] -> []
-    | Base(w1, _) :: is
-    | Encode(w1) :: is
-    | Decode(w1) :: is ->
-      w1 :: (wires is)
-    | Der(w1, w2, _) :: is
-    | Door(w1, w2) :: is
-    | Assoc(w1, w2) :: is
-    | LWeak(w1, w2) :: is
-    | Bind(w1, w2) :: is 
-    | Direct(w1, w2) :: is 
-    | App(w1, _, w2) :: is ->
-      w1 :: w2 :: (wires is)
-    | Tensor(w1, w2, w3) :: is
-    | Seq(w1, w2, w3) :: is ->
-      w1 :: w2 :: w3 :: (wires is)
-    | Case(_, _, w1,  ws) :: is ->
-      w1 :: ws @ (wires is)
-
 let map_wires_instruction (f: wire -> wire): instruction -> instruction =
   fun i ->
     match i with
@@ -89,18 +68,12 @@ let map_wires_instruction (f: wire -> wire): instruction -> instruction =
     | App(w1, t, w2) -> App(f w1, t, f w2)
     | Direct(w1, w2) -> Direct(f w1, f w2)
 
-(* renaming of wires *)
-let map_wire (f: int -> int): wire -> wire =
-  fun w ->
-    {src = f w.src;
-     dst = f w.dst;
-     type_forward = w.type_forward;
-     type_back = w.type_back
-    }
-
-let map_instruction (f: int -> int): instruction -> instruction =
-  map_wires_instruction (map_wire f)
-
+let wires (i: instruction) : wire list =
+  let ws = ref [] in
+  let f w = ws := w :: !ws; w in
+  ignore (map_wires_instruction f i);
+  !ws
+    
 (* Wires for all the variables in the context.
  * They point into the graph with their dst-label. *)
 
@@ -131,7 +104,7 @@ let sum s t = Basetype.newty (Basetype.DataW(Basetype.Data.sumid 2, [s; t]))
   *)
 (* ASSUMPTION: all type annotations in t may only contain index types
  * that are variables, i.e. not {1+1}'a --o 'b, for example. *)
-let raw_circuit_of_termU  (sigma: Term.var list) (gamma: wire context) (t: Term.t): t =
+let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t): t =
   let used_wirenames =
     List.fold_right gamma ~f:(fun (_, w) wns -> w.src :: w.dst :: wns) ~init:[] in
   let next_wirename = ref ((List.fold_right used_wirenames ~f:max ~init:(-1)) + 1) in
@@ -205,8 +178,7 @@ let raw_circuit_of_termU  (sigma: Term.var list) (gamma: wire context) (t: Term.
       let gamma_s, gamma_t = split_context gamma s t in
       let (w_s, i_s) = compile_in_box Term.unusable_var sigma gamma_s s in
       let w_x = fresh_wire () in
-      let w_y = fresh_wire () in
-      let (w_t, i_t) = compile sigma ((x, w_x) :: (y, w_y) :: gamma_t) t in
+      let w_y = fresh_wire () in      let (w_t, i_t) = compile sigma ((x, w_x) :: (y, w_y) :: gamma_t) t in
       (* TODO: check that types are really inferred! *)
       (w_t, Case(Basetype.Data.sumid 2, [Basetype.newtyvar();
                                          Basetype.newtyvar()],
@@ -555,116 +527,6 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Term.t) : Term.t =
       t2
     | _ -> raise Not_Leq
 
-let dot_of_circuit
-      ?title:(title = "")
-      ?wire_style:(wire_style = fun _ -> "")
-      (c: t) : string =
-  let node_name ins =
-    match ins with
-    | Base(w1, _) ->
-      Printf.sprintf "\"Base({%i,%i})\"" w1.src w1.dst
-    | Encode(w1) ->
-      Printf.sprintf "\"Encode({%i,%i})\"" w1.src w1.dst
-    | Decode(w1) ->
-      Printf.sprintf "\"Decode({%i,%i})\"" w1.src w1.dst
-    | Tensor(w1, w2, w3) ->
-      Printf.sprintf "\"Tensor({%i,%i},{%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst w3.src w3.dst
-    | Der(w1, w2, _) ->
-      Printf.sprintf "\"Der({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
-    | Case(id, _, w1, ws) ->
-      Printf.sprintf "\"Case(%s, {%i,%i},%s)\""
-        id w1.src w1.dst
-        (String.concat ~sep:"," (List.map ~f:(fun w -> Printf.sprintf "{%i,%i}" w.src w.dst) ws))
-    | Door(w1, w2) ->
-      Printf.sprintf "\"Door({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
-    | Assoc(w1, w2) ->
-      Printf.sprintf "\"Assoc({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
-    | LWeak(w1, w2) ->
-      Printf.sprintf "\"LWeak({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
-    | Bind(w1, w2) ->
-      Printf.sprintf "\"Bind({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
-    | App(w1, _, w2) ->
-      Printf.sprintf "\"App({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
-    | Direct(w1, w2) ->
-      Printf.sprintf "\"Direct({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
-    | Seq(w1, w2, w3) ->
-      Printf.sprintf "\"Seq({%i,%i},{%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst w3.src w3.dst
-  in
-  let node_label ins =
-    let ws = wires [ins] in
-    let name =
-      match ins with
-      | Base _ -> "base(...)"
-      | Encode _ -> "encode(...)"
-      | Decode _ -> "decode(...)"
-      | Tensor _ -> "&otimes;"
-      | Der _ -> "&pi;_..."
-      | Case _ -> "case"
-      | Door(_, w) ->
-        if w.src = -1 then "\", shape=\"plaintext" else "&uarr;"
-      | Assoc _ -> "assoc;"
-      | LWeak _ -> "lweak"
-      | Bind _ -> "bind"
-      | Seq _ -> "seq"
-      | App _ -> "app"
-      | Direct _ -> "direct"
-    in
-    List.fold_right ws ~f:(fun w s -> Printf.sprintf "%s(%i)" s w.src) ~init:name
-  in
-  let instructions_with_result =
-    (Door(flip c.output,
-          { src = (-1);
-            dst = (-2);
-            type_forward = Basetype.newty Basetype.Var;
-            type_back = Basetype.newty Basetype.Var})) :: c.instructions in
-  let node_map_by_src =
-    let rec build_dst_map i =
-      match i with
-      | [] -> Int.Map.empty
-      | node :: rest ->
-        List.fold_right (wires [node])
-          ~f:(fun w map -> Int.Map.add map ~key:w.src ~data:node)
-          ~init:(build_dst_map rest)
-    in build_dst_map instructions_with_result in
-  let buf = Buffer.create 1024 in
-  let nodes () =
-    List.iter instructions_with_result
-      ~f:(fun ins ->
-        Buffer.add_string buf (node_name ins);
-        Buffer.add_string buf "[label=\"";
-        Buffer.add_string buf (node_label ins);
-        Buffer.add_string buf "\"];\n");
-  in
-  let edges () =
-    let edge srcins (w: wire) =
-      try
-        let dstins = Int.Map.find_exn node_map_by_src w.dst in
-        Buffer.add_string buf (node_name srcins);
-        Buffer.add_string buf " -> ";
-        Buffer.add_string buf (node_name dstins);
-        Buffer.add_string buf (wire_style w);
-        Buffer.add_string buf (Printf.sprintf "[label=\"%i(%s)\"]" w.dst (Printing.string_of_basetype w.type_forward));
-        Buffer.add_string buf ";\n ";
-      with Not_found -> () (* Weakening *) in
-    List.iter instructions_with_result
-      ~f:(fun srcins -> List.iter ~f:(edge srcins) (wires [srcins]))
-  in
-  Buffer.add_string buf "digraph G {\n labelloc=t; label=\"";
-  Buffer.add_string buf title;
-  Buffer.add_string buf "\";fontname=Monospace;fontcolor=blue;fontsize=36;";
-  nodes ();
-  edges ();
-  Buffer.add_string buf "}";
-  Buffer.contents buf
 
 (*
  * Infers types in the string diagram and instantiated the
@@ -916,12 +778,121 @@ let infer_types (c : t) : unit =
     solve_constraints cs;
   with
   | U.Not_Unifiable _ ->
-    print_string (dot_of_circuit c);
     failwith "Internal error: cannot unify constraints in compilation"
 
 
-let circuit_of_termU (t : Term.t) : t =
-  let c = raw_circuit_of_termU [] [] t in
+let circuit_of_term (t : Term.t) : t =
+  let c = raw_circuit_of_term [] [] t in
   let _ = infer_types c in
   c
 
+let dot_of_circuit
+      ?title:(title = "")
+      ?wire_style:(wire_style = fun _ -> "")
+      (c: t) : string =
+  let node_name ins =
+    match ins with
+    | Base(w1, _) ->
+      Printf.sprintf "\"Base({%i,%i})\"" w1.src w1.dst
+    | Encode(w1) ->
+      Printf.sprintf "\"Encode({%i,%i})\"" w1.src w1.dst
+    | Decode(w1) ->
+      Printf.sprintf "\"Decode({%i,%i})\"" w1.src w1.dst
+    | Tensor(w1, w2, w3) ->
+      Printf.sprintf "\"Tensor({%i,%i},{%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst w3.src w3.dst
+    | Der(w1, w2, _) ->
+      Printf.sprintf "\"Der({%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst
+    | Case(id, _, w1, ws) ->
+      Printf.sprintf "\"Case(%s, {%i,%i},%s)\""
+        id w1.src w1.dst
+        (String.concat ~sep:"," (List.map ~f:(fun w -> Printf.sprintf "{%i,%i}" w.src w.dst) ws))
+    | Door(w1, w2) ->
+      Printf.sprintf "\"Door({%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst
+    | Assoc(w1, w2) ->
+      Printf.sprintf "\"Assoc({%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst
+    | LWeak(w1, w2) ->
+      Printf.sprintf "\"LWeak({%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst
+    | Bind(w1, w2) ->
+      Printf.sprintf "\"Bind({%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst
+    | App(w1, _, w2) ->
+      Printf.sprintf "\"App({%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst
+    | Direct(w1, w2) ->
+      Printf.sprintf "\"Direct({%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst
+    | Seq(w1, w2, w3) ->
+      Printf.sprintf "\"Seq({%i,%i},{%i,%i},{%i,%i})\""
+        w1.src w1.dst w2.src w2.dst w3.src w3.dst
+  in
+  let node_label ins =
+    let ws = wires ins in
+    let name =
+      match ins with
+      | Base _ -> "base(...)"
+      | Encode _ -> "encode(...)"
+      | Decode _ -> "decode(...)"
+      | Tensor _ -> "&otimes;"
+      | Der _ -> "&pi;_..."
+      | Case _ -> "case"
+      | Door(_, w) ->
+        if w.src = -1 then "\", shape=\"plaintext" else "&uarr;"
+      | Assoc _ -> "assoc;"
+      | LWeak _ -> "lweak"
+      | Bind _ -> "bind"
+      | Seq _ -> "seq"
+      | App _ -> "app"
+      | Direct _ -> "direct"
+    in
+    List.fold_right ws ~f:(fun w s -> Printf.sprintf "%s(%i)" s w.src) ~init:name
+  in
+  let instructions_with_result =
+    (Door(flip c.output,
+          { src = (-1);
+            dst = (-2);
+            type_forward = Basetype.newty Basetype.Var;
+            type_back = Basetype.newty Basetype.Var})) :: c.instructions in
+  let node_map_by_src =
+    let rec build_dst_map i =
+      match i with
+      | [] -> Int.Map.empty
+      | node :: rest ->
+        List.fold_right (wires node)
+          ~f:(fun w map -> Int.Map.add map ~key:w.src ~data:node)
+          ~init:(build_dst_map rest)
+    in build_dst_map instructions_with_result in
+  let buf = Buffer.create 1024 in
+  let nodes () =
+    List.iter instructions_with_result
+      ~f:(fun ins ->
+        Buffer.add_string buf (node_name ins);
+        Buffer.add_string buf "[label=\"";
+        Buffer.add_string buf (node_label ins);
+        Buffer.add_string buf "\"];\n");
+  in
+  let edges () =
+    let edge srcins (w: wire) =
+      try
+        let dstins = Int.Map.find_exn node_map_by_src w.dst in
+        Buffer.add_string buf (node_name srcins);
+        Buffer.add_string buf " -> ";
+        Buffer.add_string buf (node_name dstins);
+        Buffer.add_string buf (wire_style w);
+        Buffer.add_string buf (Printf.sprintf "[label=\"%i(%s)\"]" w.dst (Printing.string_of_basetype w.type_forward));
+        Buffer.add_string buf ";\n ";
+      with Not_found -> () (* Weakening *) in
+    List.iter instructions_with_result
+      ~f:(fun srcins -> List.iter ~f:(edge srcins) (wires srcins))
+  in
+  Buffer.add_string buf "digraph G {\n labelloc=t; label=\"";
+  Buffer.add_string buf title;
+  Buffer.add_string buf "\";fontname=Monospace;fontcolor=blue;fontsize=36;";
+  nodes ();
+  edges ();
+  Buffer.add_string buf "}";
+  Buffer.contents buf

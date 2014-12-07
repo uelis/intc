@@ -225,15 +225,7 @@ term:
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern PatUnit $3 in
           mkTerm (Bind(($1, alpha), (x, t))) }
-    | term_binop EQUALS term_binop
-        { let alpha = Basetype.newty Basetype.Var in
-          let beta = Basetype.newty Basetype.Var in
-          mkTerm (App(mkTerm (Const(Cinteq)), Type.newty Type.Var, mkTerm (PairV(($1, alpha), ($3, beta))))) }
-    | term_binop LANGLE term_binop
-        { let alpha = Basetype.newty Basetype.Var in
-          let beta = Basetype.newty Basetype.Var in
-          mkTerm (App(mkTerm (Const(Cintslt)), Type.newty Type.Var, mkTerm (PairV(($1, alpha), ($3, beta))))) }
-    | term_binop
+    | term_app
        { $1 }
     | term_constr
        { let alpha = Basetype.newty Basetype.Var in
@@ -270,34 +262,6 @@ term_cases:
            let id', r = $4 in
             if id = id' then (id, (i, x, t)::r)
             else illformed "Constructors from different types used in case." }
-
-term_binop:
-    | term_binop PLUS term_binop
-       { let alpha = Basetype.newty Basetype.Var in
-         let beta = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm_rhs 2 (Const(Cintadd)),
-                     Type.newty Type.Var,
-                     mkTerm (PairV(($1, alpha), ($3, beta))))) }
-    | term_binop MINUS term_binop
-       { let alpha = Basetype.newty Basetype.Var in
-         let beta = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm_rhs 2 (Const(Cintsub)),
-                     Type.newty Type.Var,
-                     mkTerm (PairV(($1, alpha), ($3, beta))))) }
-    | term_binop TIMES term_binop
-       { let alpha = Basetype.newty Basetype.Var in
-         let beta = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm_rhs 2 (Const(Cintmul)),
-                     Type.newty Type.Var,
-                     mkTerm (PairV(($1, alpha), ($3, beta))))) }
-    | term_binop DIV term_binop
-       { let alpha = Basetype.newty Basetype.Var in
-         let beta = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm_rhs 2 (Const(Cintdiv)),
-                     Type.newty Type.Var,
-                     mkTerm (PairV(($1, alpha), ($3, beta))))) }
-    | term_app
-       { $1 }
 
 term_app:
     | term_atom
@@ -367,12 +331,6 @@ term_atom:
         { mkTerm (ExternalU(($3, $5), Type.newty Type.Var)) }
     | PRINT STRING
        { mkTerm (App(mkTerm (Const(Cprint $2)), Type.newty Type.Var, mkTerm (UnitV))) }
-//    | BOX LPAREN term RPAREN
-//       { let alpha = Basetype.newty Basetype.Var in
-//         mkTerm (Box($3, alpha)) }
-//    | UNBOX LPAREN term RPAREN
-//       { let alpha = Basetype.newty Basetype.Var in
-//         mkTerm (Unbox($3, alpha)) }
 
 pattern:
     | identifier

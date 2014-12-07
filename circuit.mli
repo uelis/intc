@@ -5,8 +5,6 @@ type wire = {
   type_back: Basetype.t
 }
 
-val map_wire : (int -> int) -> wire -> wire                 
-
 type instruction =
   | Base of wire (* TA *) * (Term.var list * Term.t)
   | Seq of wire (* (TA)^* *) * wire (* \Tens A (TB)^* *) * wire (* TB *)
@@ -22,8 +20,7 @@ type instruction =
   | App of wire (* (A => X) *) * (Term.var list * Term.t) * wire (* X *)
   | Direct of wire (* (X- => TX+)^* *) * wire (* X *)
 
-val map_instruction : (int -> int) -> instruction -> instruction                  
-val wires : instruction list -> wire list
+val wires : instruction -> wire list
 
 (* Behaviour of LWeak *)
 val embed : Basetype.t -> Basetype.t -> Term.t -> Term.t
@@ -34,7 +31,7 @@ type t = {
   instructions : instruction list
 }
 
-val circuit_of_termU : Term.t -> t
+val circuit_of_term : Term.t -> t
 
 val dot_of_circuit :
  ?title:string -> ?wire_style:(wire -> string) -> t -> string

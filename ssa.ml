@@ -36,13 +36,14 @@ let rec string_of_value v =
     let cname = List.nth_exn (Basetype.Data.constructor_names id) k in
     cname ^ "(" ^ string_of_value t ^ ") " (* ^ ") : " ^
     (Printing.string_of_basetype a) *)
-  | Fst(t, _, _) -> string_of_value t ^ ".1"
-  | Snd(t, _, _) -> string_of_value t ^ ".2"
+  | Fst(t, _, _) ->
+    string_of_value t ^ ".1"
+  | Snd(t, _, _) ->
+    string_of_value t ^ ".2"
   | Select(t, (id, params), i) ->
     let a = Basetype.newty (Basetype.DataW (id, params)) in
     "select(" ^ string_of_value t ^ " : " ^
-    (Printing.string_of_basetype a) ^ " )."
-    ^ (string_of_int i)
+    (Printing.string_of_basetype a) ^ " )." ^ (string_of_int i)
   | Undef(a) -> "undef(" ^ (Printing.string_of_basetype a) ^ ")"
   | IntConst(n) -> string_of_int n
 
@@ -119,14 +120,12 @@ let targets_of_block (b : block) : label list =
   | Return(_, _, _, _, _) -> []
 
 (* TODO: proper printing *)
-
-
 let string_of_term t =
   match t with
-  | Val(v) -> "Val(" ^ (string_of_value v) ^ ")"
+  | Val(v) ->
+    "Val(" ^ (string_of_value v) ^ ")"
   | Const(c, v) ->
-    (Printing.string_of_op_const c) ^ "(" ^
-    (string_of_value v) ^ ")"
+    (Printing.string_of_op_const c) ^ "(" ^ (string_of_value v) ^ ")"
 
 let string_of_letbndgs bndgs =
   String.concat ~sep:""
@@ -134,41 +133,35 @@ let string_of_letbndgs bndgs =
        ~f:(fun b -> match b with
          | Let((x, a), t) ->
            Printf.sprintf "   let %s: %s = %s\n"
-             x (Printing.string_of_basetype a) (string_of_term t))
-    )
+             x (Printing.string_of_basetype a) (string_of_term t)))
 
 let string_of_block b =
   match b with
     | Unreachable(l) ->
-        Printf.sprintf " l%i(x : %s) = unreachable"
-          l.name
-          (Printing.string_of_basetype l.message_type)
+      Printf.sprintf " l%i(x : %s) = unreachable"
+        l.name
+        (Printing.string_of_basetype l.message_type)
     | Direct(l, x, bndgs, body, goal) ->
-        (Printf.sprintf " l%i(%s : %s) =\n"
-          l.name x (Printing.string_of_basetype l.message_type)) ^
-        (string_of_letbndgs bndgs) ^
-        (Printf.sprintf "   in l%i(%s) end\n" goal.name (string_of_value body))
+      Printf.sprintf " l%i(%s : %s) =\n%s   in l%i(%s) end\n"
+        l.name x (Printing.string_of_basetype l.message_type)
+        (string_of_letbndgs bndgs)
+        goal.name (string_of_value body)
     | Branch(la, x, bndgs, (id, params, cond, cases)) ->
-      let case_types = Basetype.Data.constructor_types id params in
-        (Printf.sprintf " l%i(%s : %s) =\n"
-          la.name x (Printing.string_of_basetype la.message_type)) ^
-        (string_of_letbndgs bndgs) ^
-        (Printf.sprintf "    case %s of\n      | " (string_of_value cond)) ^
+      let constructor_names = Basetype.Data.constructor_names id in
+        (Printf.sprintf " l%i(%s : %s) =\n%s    case %s of\n      | "
+           la.name x (Printing.string_of_basetype la.message_type)
+           (string_of_letbndgs bndgs) (string_of_value cond)) ^
         (String.concat ~sep:"      | "
-           (List.map
-              (List.zip_exn (List.zip_exn (Basetype.Data.constructor_names id) case_types) cases)
-              ~f:(fun ((cname, _), (l, lb, lg)) ->
+           (List.map2_exn constructor_names cases
+              ~f:(fun cname (l, lb, lg) ->
               Printf.sprintf "%s(%s) -> l%i(%s)\n"
-                cname (*(Printing.string_of_basetype a)*) l lg.name (string_of_value lb))
+                cname l lg.name (string_of_value lb))
 
            ))
     | Return(l, x, bndgs, body, _) ->
-        (Printf.sprintf " l%i(%s : %s) =\n"
-          l.name x (Printing.string_of_basetype l.message_type)) ^
-        (string_of_letbndgs bndgs) ^
-        (Printf.sprintf "   return %s\n end\n"
-           (string_of_value body)
- (*           (Printing.string_of_type retty)*))
+        Printf.sprintf " l%i(%s : %s) =\n%s   return %s\n end\n"
+          l.name x (Printing.string_of_basetype l.message_type) 
+          (string_of_letbndgs bndgs) (string_of_value body)
 
 let string_of_func func =
   let buf = Buffer.create 80 in
@@ -185,8 +178,6 @@ let string_of_func func =
       );
   Buffer.contents buf
 
-
-
 let check_blocks_invariant entry_label blocks =
   let defined_labels = Int.Table.create () in
   let invoked_labels = Int.Table.create () in
@@ -199,11 +190,11 @@ let check_blocks_invariant entry_label blocks =
     Int.Table.replace defined_labels ~key:l.name ~data:();
     if not (Int.Table.mem invoked_labels l.name) then
       failwith ("ssa invariant: no forward path from entry label");
-    List.iter ts ~f:(fun l -> Int.Table.replace invoked_labels ~key:l.name ~data:()) in
+    List.iter ts ~f:(fun l -> Int.Table.replace invoked_labels
+                                ~key:l.name ~data:()) in
   List.iter blocks ~f:check
 
-let make
-      ~func_name:(func_name: string)
+let make ~func_name:(func_name: string)
       ~entry_label:(entry_label: label)
       ~blocks:(blocks: block list)
       ~return_type:(return_type: Basetype.t) =
@@ -362,7 +353,8 @@ let typecheck_block (b: block) : unit =
         let gamma0 = [(x, s.message_type)] in
         let gamma = typecheck_let_bindings gamma0 l in
         let va = typeof_value gamma v in
-        assert (Basetype.equals va (Basetype.newty (Basetype.DataW(id, params))));
+        assert (Basetype.equals va (Basetype.newty
+                                      (Basetype.DataW(id, params))));
         List.iter bs
           ~f:(fun ((x, v, d), a) ->
             let b = typeof_value ((x, a) :: gamma) v in
@@ -478,7 +470,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
   let nodes_by_src =
     let tbl = Int.Table.create () in
     let add_node n =
-      List.iter (wires [n])
+      List.iter (wires n)
         ~f:(fun w -> Int.Table.replace tbl ~key:w.src ~data:n) in
     List.iter c.instructions ~f:add_node;
     tbl in
@@ -801,7 +793,12 @@ let add_entry_exit_code (f: t) : t =
 
   let exit_label = {
     name = max_label_name + 2;
-    message_type = Basetype.newty (Basetype.TensorW(Basetype.newty Basetype.OneW, ret_type))} in
+    message_type =
+      Basetype.newty (
+        Basetype.TensorW(
+          Basetype.newty Basetype.OneW,
+          ret_type))
+  } in
   let exit_block =
     let z = fresh_var() in
     let v = Snd(Var z, Basetype.newty Basetype.OneW, ret_type) in
