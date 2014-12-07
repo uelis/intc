@@ -5,14 +5,15 @@ This is an experimental implementation of an Int compiler.
 The type system currently implements the fragment of types
 written mathematically as 
 ```
-  X, Y  ::=  α  |  A → TB  |  A·X ⊸ Y
+  X, Y  ::=  α  |  A → X  | X ⊗ Y |  A·X ⊸ Y
 ```
 (Universal quantification is used implicitly for external
 definitions.)
 
 The concrete syntax currently is:
 ```
-  X, Y  ::=  'a  |  A -> B  |  {A}|X| -> Y
+  A, B  ::=  unit | int | A * B | A + B | box<A> | (data types)
+  X, Y  ::=  ''a  |  A -> X  | X # Y |  {A}X -> Y
 ```
 
 ## Installation
@@ -48,54 +49,82 @@ compiled to an executable `main` using the script `llvm_compile.sh`:
 ### Data Types in the Low-Level Language
 
 Instead of recursive value types, the implementation uses boxed types
-`box<A>` with a term `box(s) : box<A>` if `s: A` and a term 
-`unbox(t) : A` if `t : box<A>`. Evaluating `box(s)` makes a heap
-allocation and returns the address. The term `unbox(t)` reads from
-the heap and frees the memory. In this experimental implementation
-memory safety is not enforced, i.e. the programmer must take care
-to not unbox a term twice.
+`box<A>`. These are stored on the heap and can be allocated using the
+primitive operation `alloc()`. A value `s: A` can be stored in `b` with
+the operation `store(b, x)`. Values can be read using the operation
+`load()`. Finally, a box is deallocated using `free(b)`.
+
+In this experimental implementation memory safety is not enforced, i.e. the
+programmer must take care to not unbox a term twice.
 
 Example:
 
 ```rust
-type list<'a> = 
-        Nil of unit 
+type list<'a> =
+        Nil of unit
       | Cons of 'a * box<list<'a>>
 
-let maprev = λ f ->
-   tailrec (λ mapf ->
-      fn (l, r) {
-        case l of
-          Nil -> r
-        | Cons(x, xs) -> mapf(unbox xs, Cons(f x, box r))
-      })
-
+/* list reversal */      
 let revaux =
    tailrec (λ rev ->
-      fn (l, r) {
+      fn (l, r) ->
         case l of
-          Nil -> r
-        | Cons(x, xs) -> rev(unbox xs, Cons(x, box r))
-      })
+          Nil -> return r
+        | Cons(x, xs) ->
+           let tail = load(xs) in
+	   /* reuse memory */
+           let () = store(xs, r) in
+           rev(tail, Cons(x, xs))
+      )
 
-fn rev(l) {
-  revaux (l, Nil())
-}
+fn rev(l) =
+  revaux (l, Nil)
+  
+/* map */
+let maprev = λ f ->
+   tailrec (λ mapf ->
+      fn (l, r) ->
+        case l of
+          Nil -> return r
+        | Cons(x, xs) ->
+            let tail = load(xs) in
+            let () = store(xs, r) in
+            let y = f x in
+            mapf(tail, Cons(y, xs))
+      )
 
-let maptr = λ f -> 
-   fn l {
-      rev (maprev f (l, Nil))
-   }
+let maptr = λ f ->
+   fn l ->
+      let l1 = maprev f (l, Nil) in
+      rev l1
 
 let printlist = tailrec (λ printlist ->
-    fn l { 
-       case l of 
-           Nil -> 
+    fn l ->
+       case l of
+           Nil ->
             print "\n"
          | Cons(h, t) ->
             print h;
             print " ";
-            printlist (unbox t)
-    })
+            let tail = load(t) in
+            let () = free(t) in
+            printlist tail
+    )
 
+fn upto(n) =
+   tailrec (λ aux ->
+   fn (m, r) ->
+      let b = inteq(m, 0) in
+      if b then return r else
+        let m' = intsub(m, 1) in
+        let tail = alloc() in
+        let () = store(tail, r) in
+        aux (m', Cons(m, tail))
+   ) (n, Nil)
+
+let main =
+   let l = upto 20 in
+   let l' = maptr (fn i -> intmul(2, i)) l in
+   let l'' = rev l' in
+   printlist l''
 ```

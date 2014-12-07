@@ -1,0 +1,76 @@
+fn tailrecimp(x) =
+  case x of
+    Inr(a, ()) -> return Inl((), Inr(a, ()))
+  | Inl(u, s) ->
+      case s of
+         Inr(b) -> return Inr(b)
+       | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
+
+let tailrec =
+   direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
+
+type list<'a> =
+        Nil of unit
+      | Cons of 'a * box<list<'a>>
+
+let maprev = λ f ->
+   tailrec (λ mapf ->
+      fn (l, r) ->
+        case l of
+          Nil -> return r
+        | Cons(x, xs) ->
+            let tail = load(xs) in
+            /* reuse memory */
+            let () = store(xs, r) in
+            let y = f x in
+            mapf(tail, Cons(y, xs))
+      )
+
+let revaux =
+   tailrec (λ rev ->
+      fn (l, r) ->
+        case l of
+          Nil -> return r
+        | Cons(x, xs) ->
+           let tail = load(xs) in
+           let () = store(xs, r) in
+           rev(tail, Cons(x, xs))
+      )
+
+fn rev(l) =
+  revaux (l, Nil)
+
+let maptr = λ f ->
+   fn l ->
+      let l1 = maprev f (l, Nil) in
+      rev l1
+
+let printlist = tailrec (λ printlist ->
+    fn l ->
+       case l of
+           Nil ->
+            print "\n"
+         | Cons(h, t) ->
+            print h;
+            print " ";
+            let tail = load(t) in
+            let () = free(t) in
+            printlist tail
+    )
+
+fn upto(n) =
+   tailrec (λ aux ->
+   fn (m, r) ->
+      let b = inteq(m, 0) in
+      if b then return r else
+        let m' = intsub(m, 1) in
+        let tail = alloc() in
+        let () = store(tail, r) in
+        aux (m', Cons(m, tail))
+   ) (n, Nil)
+
+let main =
+   let l = upto 20 in
+   let l' = maptr (fn i -> intmul(2, i)) l in
+   let l'' = rev l' in
+   printlist l''
