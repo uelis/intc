@@ -205,7 +205,25 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
             s_atom t1;
             Buffer.add_string buf " -> ";
             s_type t2
-          | Type.Var | Type.Base _  ->
+          | Type.Var | Type.Base _ | Type.Tensor _ ->
+            s_factor t
+          | Type.Link _ -> assert false
+        end
+    end;
+    Buffer.add_string buf after
+  and s_factor (t: Type.t) =
+    let before, body, after = check_rec t in
+    Buffer.add_string buf before;
+    begin
+      match body with
+      | Some body -> Buffer.add_string buf body
+      | None -> begin
+          match Type.finddesc t with
+          | Type.Tensor(t1, t2) ->
+            s_factor t1;
+            Buffer.add_string buf " # ";
+            s_atom t2
+          | Type.Var | Type.Base _ | Type.FunW _ | Type.FunU _ ->
             s_atom t
           | Type.Link _ -> assert false
         end
@@ -227,6 +245,7 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
             Buffer.add_string buf "[";
             Buffer.add_string buf (string_of_basetype a);
             Buffer.add_string buf "]"
+          | Type.Tensor _ 
           | Type.FunW _
           | Type.FunU _ ->
             Buffer.add_char buf '(';
@@ -322,6 +341,12 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "@] as %s,%s in@ @[" x y;
       s_term t2;
       fprintf f "@]"
+    | LetPair(t1, ((x, _), (y, _), t2)) ->
+      fprintf f "@[<hv 2>let %s # %s =@ " x y;
+      s_term t1;
+      fprintf f "@] in@ @[";
+      s_term t2;
+      fprintf f "@]"
     | Bind((t1, _), (x, t2)) ->
       fprintf f "@[<hv 2>let %s =@ " x;
       s_term t1;
@@ -349,7 +374,7 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       s_term_atom t1;
       fprintf f ")@]"
     | App _ | Var _ | ConstV _ | Const _ | UnitV | FstV _ | SndV _ | Select _
-    | PairV _ | TypeAnnot _ | HackU _ | ExternalU _
+    | PairV _ | TypeAnnot _ | HackU _ | ExternalU _ | Pair _
       -> s_term_app t
   and s_term_app (t: Term.t) =
     match t.desc with
@@ -360,7 +385,7 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
     | Var _ | ConstV _ | Const _ | UnitV
     | PairV _ | TypeAnnot _
     | InV _ | FstV _ | SndV _ | Return _ | Bind _ | Case _ | Select _
-    | Fn _ | Fun _ | CopyU _ | HackU _ | ExternalU _
+    | Fn _ | Fun _ | CopyU _ | Pair _ | LetPair _ | HackU _ | ExternalU _
       -> s_term_atom t
   and s_term_atom (t: Term.t) =
     match t.desc with
@@ -384,6 +409,12 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "@], @[";
       s_term t2;
       fprintf f "@])";
+    | Pair(t1, t2) ->
+      fprintf f "(@[";
+      s_term t1;
+      fprintf f "@] # @[";
+      s_term t2;
+      fprintf f "@])";
     | Select(_, _, t1, i) ->
       fprintf f "@[<hv>select(";
       s_term t1;
@@ -399,7 +430,7 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
     | TypeAnnot(t, _) ->
       s_term_atom t
     | App _ | InV _ | Return _ | Bind _ | Case _ 
-    | Fn _ | Fun _ | CopyU _ ->
+    | Fn _ | Fun _ | CopyU _ | LetPair _->
       fprintf f "(@[";
       s_term t;
       fprintf f "@])"

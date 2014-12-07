@@ -8,6 +8,7 @@ and desc =
   | Link of t
   | Var
   | Base of Basetype.t
+  | Tensor of t * t
   | FunW of Basetype.t * t
   | FunU of Basetype.t * t * t
 with sexp
@@ -45,6 +46,7 @@ type type_t = t with sexp
 let children a =
   match finddesc a with
   | Var | Base _ -> []
+  | Tensor(b1, b2) -> [b1; b2]
   | FunW(_, b) -> [b]
   | FunU(_, b1, b2) -> [b1; b2]
   | Link _ -> assert false
@@ -53,6 +55,7 @@ let rec subst (f: t -> t) (fbase: Basetype.t -> Basetype.t) (b: t) : t =
   match (find b).desc with
     | Var -> f (find b)
     | Base(a) -> newty (Base(Basetype.subst fbase a))
+    | Tensor(b1, b2) -> newty(Tensor(subst f fbase b1, subst f fbase b2))
     | FunW(b1, b2) -> newty (FunW(Basetype.subst fbase b1, subst f fbase b2))
     | FunU(a1, b1, b2) -> newty(FunU(Basetype.subst fbase a1, subst f fbase b1, subst f fbase b2))
     | Link _ -> assert false
@@ -67,12 +70,14 @@ let rec equals (u: t) (v: t) : bool =
           false
         | Base(a1), Base(a2) ->
           Basetype.equals a1 a2
+        | Tensor(u1, u2), Tensor(v1, v2) ->
+          (equals u1 v1) && (equals u2 v2)
         | FunW(u1, u2), FunW(v1, v2) ->
           (Basetype.equals u1 v1) && (equals u2 v2)
         | FunU(u1, u2, u3), FunU(v1, v2, v3) ->
           (Basetype.equals u1 v1) && (equals u2 v2) && (equals u3 v3)
         | Link _, _ | _, Link _ -> assert false
-        | Var, _ | Base _, _ | FunW _, _ | FunU _, _ ->
+        | Var, _ | Base _, _ | Tensor _, _ | FunW _, _ | FunU _, _ ->
           false
 
 module Typetbl = Hashtbl.Make(
@@ -104,6 +109,9 @@ let freshen t =
 let rec map_index_types (a: t) (f: Basetype.t -> Basetype.t) : t =
     match (find a).desc with
       | Var | Base _ -> a
+      | Tensor(b1, b2) ->
+        newty(Tensor(map_index_types b1 f,
+                     map_index_types b2 f))
       | FunW(a, b1) ->
         newty(FunW(a, map_index_types b1 f))
       | FunU(a, b1, b2) ->
@@ -129,6 +137,12 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
       | Base(a) -> 
         Basetype.newty Basetype.OneW,
         a
+      | Tensor(b1, b2) ->
+          let bm1, bp1 = qap b1 in
+          let bm2, bp2 = qap b2 in
+          let open Basetype in
+            newty (DataW(Data.sumid 2, [bm1; bm2])),
+            newty (DataW(Data.sumid 2, [bp1; bp2]))
       | FunW(a, b2) -> 
         let bm2, bp2 = qap b2 in
         let open Basetype in

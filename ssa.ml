@@ -2,7 +2,7 @@ open Core.Std
 open Unify
 
 (********************
- * Values 
+ * Values
  ********************)
 
 type value =
@@ -18,12 +18,12 @@ type value =
 type term =
   | Val of value
   | Const of Term.op_const * value
-             
+
 let rec fprint_value (oc: Out_channel.t) (v: value) : unit =
   match v with
   | Var(x) ->
     Printf.fprintf oc "%s" x
-  | Unit -> 
+  | Unit ->
     Printf.fprintf oc "()"
   | Pair(v1, v2) ->
     Out_channel.output_string oc "(";
@@ -51,7 +51,7 @@ let rec fprint_value (oc: Out_channel.t) (v: value) : unit =
     Out_channel.output_string oc "undef(";
     Out_channel.output_string oc (Printing.string_of_basetype a);
     Out_channel.output_string oc ")"
-  | IntConst(n) -> 
+  | IntConst(n) ->
     Printf.fprintf oc "%i" n
 
 let rec subst_value (rho: Term.var -> value) (v: value) =
@@ -87,15 +87,15 @@ let subst_term (rho: Term.var -> value) (t: term) =
   match t with
   | Val(v) -> Val(subst_value rho v)
   | Const(c, v) -> Const(c, subst_value rho v)
-                     
+
 (********************
- * Programs 
+ * Programs
  ********************)
 
 type let_binding =
   | Let of (Term.var * Basetype.t) * term
 type let_bindings = let_binding list
-                      
+
 type label = {
   name: int;
   message_type: Basetype.t
@@ -148,7 +148,7 @@ let fprint_term (oc: Out_channel.t) (t: term) : unit =
 let fprint_letbndgs (oc: Out_channel.t) (bndgs: let_bindings) : unit =
   List.iter bndgs
     ~f:(function
-      | Let((x, a), t) ->
+      | Let((x, _), t) ->
         Printf.fprintf oc "   let %s = " x (* Printing.string_of_basetype a *);
         fprint_term oc t;
         Out_channel.output_string oc "\n"
@@ -167,7 +167,7 @@ let fprint_block (oc: Out_channel.t) (b: block) : unit =
       Printf.fprintf oc "   l%i(" goal.name;
       fprint_value oc body;
       Printf.fprintf oc ")\n"
-    | Branch(la, x, bndgs, (id, params, cond, cases)) ->
+    | Branch(la, x, bndgs, (id, _, cond, cases)) ->
       let constructor_names = Basetype.Data.constructor_names id in
       Printf.fprintf oc " l%i(%s : %s) =\n" la.name x
         (Printing.string_of_basetype la.message_type);
@@ -201,7 +201,7 @@ let fprint_func (oc: Out_channel.t) (func: t) : unit =
 
 (* The following functions verify the representation invariants and the
    types in ssa programs. *)
-    
+
 exception Type_error
 
 let check_blocks_invariant entry_label blocks =
@@ -276,7 +276,7 @@ let rec typeof_value
     a
   | IntConst(_) ->
     newty NatW
-      
+
 let typecheck_term
       (gamma: Basetype.t Typing.context)
       (t: term)
@@ -293,7 +293,7 @@ let typecheck_term
     let b = typeof_value gamma v in
     equals_exn b (newty OneW);
     equals_exn a (newty OneW)
-  | Const(Term.Cintadd, v) 
+  | Const(Term.Cintadd, v)
   | Const(Term.Cintsub, v)
   | Const(Term.Cintmul, v)
   | Const(Term.Cintdiv, v) ->
@@ -338,7 +338,7 @@ let typecheck_term
     equals_exn c (newty OneW);
     equals_exn a b
   | Const(Term.Ccall(_, b1, b2), v)
-  | Const(Term.Cencode(b1, b2), v) 
+  | Const(Term.Cencode(b1, b2), v)
   | Const(Term.Cdecode(b1, b2), v) ->
     let c = typeof_value gamma v in
     equals_exn c b1;
@@ -350,7 +350,7 @@ let rec typecheck_let_bindings
   : Basetype.t Typing.context =
   match l with
   | [] ->
-    gamma 
+    gamma
   | Let((v, a), t) :: ls ->
     let gamma1 = typecheck_let_bindings gamma ls in
     typecheck_term gamma1 t a;
@@ -361,7 +361,9 @@ let typecheck_block (label_types: Basetype.t Int.Table.t) (b: block) : unit =
     if Basetype.equals a b then () else raise Type_error in
   let check_label_exn l a =
     match Int.Table.find label_types l.name with
-    | Some b -> equals_exn l.message_type b
+    | Some b ->
+      equals_exn a b;
+      equals_exn l.message_type b
     | None -> raise Type_error in
   match b with
   | Unreachable(_) -> ()
@@ -407,7 +409,7 @@ let typechecks (blocks: block list) : bool =
     true
   with
   | Type_error -> false
-    
+
 
 let make ~func_name:(func_name: string)
       ~entry_label:(entry_label: label)
@@ -424,7 +426,7 @@ let make ~func_name:(func_name: string)
 (****************************
  * Translation from circuits
  ****************************)
-    
+
 (* INVARIANT: The supply of fresh names in the
  * generation of ssa programs has the form x0, x1, ...
  * This means that only source terms not containing
@@ -512,7 +514,7 @@ let term_to_ssa (t: Term.t)
       failwith "illegal argument ssa"
   in
   to_ssa t
-    
+
 module U = Unify(struct type t = unit end)
 
 (* TODO: This implementation is quite inefficient with many uses of type
@@ -580,16 +582,15 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           Unreachable(src)
       end
     else
-      let open Term in
       match Int.Table.find_exn nodes_by_src dst with
       | Circuit.Base(w1 (* [f] *), (gamma, f)) ->
         if dst = w1.src then
           let x = fresh_var () in
           (* ensure that variables in (y, f) do not collide with
              local name supply. *)
-          let gamma = List.map gamma ~f:variant_var in
-          let t = variant f in
-          let t1 = mkBind sigma (x, let_tupleW x (gamma, t)) in
+          let gamma = List.map gamma ~f:Term.variant_var in
+          let t = Term.variant f in
+          let t1 = Term.mkBind sigma (x, Term.let_tupleW x (gamma, t)) in
           let lt, vt = to_ssa (mkPair sigma t1) w1.type_forward in
           Direct(src, z, lt, vt, label_of_dst w1)
         else
@@ -615,11 +616,11 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
       | Circuit.Tensor(w1, w2, w3) ->
         if dst = w1.src then
           (* <sigma, v> @ w1       |-->  <sigma, inl(v)> @ w3 *)
-          let lt, vt = to_ssa (mkPair sigma (m >>= mkInlV)) w3.type_forward in
+          let lt, vt = to_ssa (mkPair sigma (m >>= Term.mkInlV)) w3.type_forward in
           Direct(src, z, lt, vt, label_of_dst w3)
         else if dst = w2.src then
           (* <sigma, v> @ w2       |-->  <sigma, inr(v)> @ w3 *)
-          let lt, vt = to_ssa (mkPair sigma (m >>= mkInrV)) w3.type_forward in
+          let lt, vt = to_ssa (mkPair sigma (m >>= Term.mkInrV)) w3.type_forward in
           Direct(src, z, lt, vt, label_of_dst w3)
         else if dst = w3.src then
           (* <sigma, inl(v)> @ w3  |-->  <sigma, v> @ w1
@@ -645,12 +646,13 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           let lt, vt = to_ssa (mkPair sigma (mkSnd m)) w2.type_forward in
           Direct(src, z, lt, vt, label_of_dst w2)
         else if dst = w2.src then
-          let gamma = List.map gamma ~f:variant_var in
-          let f = variant f in
+          let gamma = List.map gamma ~f:Term.variant_var in
+          let f = Term.variant f in
           let t =
             let x = fresh_var () in
             mkPair sigma
-              (mkPair (mkBind sigma (x, let_tupleW x (gamma, mkReturn f))) m) in
+              (mkPair (Term.mkBind sigma
+                         (x, Term.let_tupleW x (gamma, Term.mkReturn f))) m) in
           let lt, vt = to_ssa t w1.type_forward in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
@@ -659,12 +661,13 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           let lt, vt = to_ssa (mkPair sigma m) w2.type_forward in
           Direct(src, z, lt, vt, label_of_dst w2)
         else if dst = w2.src then
-          let gamma = List.map gamma ~f:variant_var in
-          let f = variant f in
+          let gamma = List.map gamma ~f:Term.variant_var in
+          let f = Term.variant f in
           let t =
             let x = fresh_var () in
             mkPair sigma
-              (mkPair (mkBind sigma (x, let_tupleW x (gamma, mkReturn f))) m) in
+              (mkPair (Term.mkBind sigma
+                         (x, Term.let_tupleW x (gamma, Term.mkReturn f))) m) in
           let lt, vt = to_ssa t w1.type_forward in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
@@ -719,7 +722,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           Direct(src, z, lt, vt, label_of_dst w2)
         else if dst = w2.src then
           let lt, vt =
-            to_ssa (mkPair sigma (mkPair m (mkReturn mkUnitV)))
+            to_ssa (mkPair sigma (mkPair m (Term.mkReturn Term.mkUnitV)))
               w1.type_forward in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
@@ -755,7 +758,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
         else if dst = w1.src then
           (* <sigma, m> @ w1      |-->  <sigma, m> @ w2 *)
           let lt, vt =
-            to_ssa (mkPair sigma (mkPair m (mkReturn mkUnitV)))
+            to_ssa (mkPair sigma (mkPair m (Term.mkReturn Term.mkUnitV)))
               w2.type_forward in
           Direct(src, z, lt, vt, label_of_dst w2)
         else if dst = w2.src then
@@ -779,7 +782,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           let m' = mkSnd m in
           let t1 =
             let x = fresh_var () in
-            mkBind c (x, mkReturn (mkInV id i (mkVar x))) in
+            Term.mkBind c (x, Term.mkReturn (Term.mkInV id i (Term.mkVar x))) in
           let lt, vt =
             to_ssa (mkPair sigma (mkPair t1 m'))
               w1.type_forward in
@@ -874,4 +877,4 @@ let add_entry_exit_code (f: t) : t =
 
 let circuit_to_ssa (name: string) (c: Circuit.t) : t =
   let body = circuit_to_ssa_body name c in
-  add_entry_exit_code body 
+  add_entry_exit_code body

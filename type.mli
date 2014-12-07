@@ -18,6 +18,7 @@ and desc =
   | Link of t
   | Var
   | Base of Basetype.t
+  | Tensor of t * t
   | FunW of Basetype.t * t
   | FunU of Basetype.t * t * t
 

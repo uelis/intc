@@ -223,10 +223,6 @@ let attrib_size (a: Basetype.t) : profile =
       begin
         let cs = Basetype.Data.constructor_types id ps in
         let n = List.length cs in
-            (*
-           List.iter (fun a -> Printf.printf "%s, "
-           (Printing.string_of_basetype a)) cs;
-           Printf.printf " %i\n" n;*)
         let mx = List.fold_right cs ~f:(fun c mx -> max_profiles (a_s c) mx)
                    ~init:M.empty in
         if n = 1 || Basetype.Data.is_discriminated id = false then
@@ -571,7 +567,6 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
       block in
   let connect_to src_block encoded_value dst =
     try
-      (*Printf.printf "%i %s\n" dst (Printing.string_of_basetype (Hashtbl.find label_types dst)); *)
       assert_type encoded_value (Int.Table.find_exn label_types dst);
       let phi = Int.Table.find_exn phi_nodes dst in
       List.iter2_exn phi.payload encoded_value.payload
@@ -590,7 +585,6 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
         let phi = { payload = payload; attrib = attrib } in
         Int.Table.replace phi_nodes ~key:dst ~data:phi
       end
-      (* add new phi node with (encoded_value, source) to block dst *)
   in
   (* make entry block *)
   let entry_block = Llvm.append_block context "entry" func in
@@ -605,11 +599,9 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
   let open Ssa in
   List.iter ssa_func.blocks
     ~f:(fun block ->
-      (* Printf.printf "%s" (Ssa.string_of_block block);  *)
       flush stdout;
       match block with
       | Unreachable(src) ->
-        (*                       Printf.printf "%i --> \n" src.name; *)
         Llvm.position_at_end (get_block src.name) builder;
         ignore (Llvm.build_unreachable builder)
       | Direct(src, x, lets, body, dst) ->
@@ -620,7 +612,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
         let src_block = Llvm.insertion_block builder in
         ignore (Llvm.build_br (get_block dst.name) builder);
         connect_to src_block ev dst.name
-      | Branch(src, x, lets, (id, params, body, cases)) (* (xl, bodyl, dst1), (xr, bodyr, dst2)) *) ->
+      | Branch(src, x, lets, (id, params, body, cases)) ->
         begin
           Llvm.position_at_end (get_block src.name) builder;
           let xenc = Int.Table.find_exn phi_nodes src.name in
@@ -678,7 +670,6 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
         ignore (Llvm.build_ret pev builder)
         (* TODO: actual return *)
     )
-
 
 (* Must be applied to circuit of type [A] *)
 let llvm_compile (ssa_func : Ssa.t) : Llvm.llmodule =

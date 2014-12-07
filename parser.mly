@@ -199,6 +199,10 @@ term:
           mkTerm (Fn((x, alpha), t)) }
     | COPY term AS identifier COMMA identifier IN term
        { mkTerm (CopyU($2, ($4, $6, $8))) }
+    | LET identifier SHARP identifier EQUALS term IN term
+        { let alpha = Type.newty Type.Var in
+          let beta = Type.newty Type.Var in
+           mkTerm (LetPair($6, (($2, alpha), ($4, beta), $8))) }
     | LET pattern EQUALS term IN term
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $2 $6 in
@@ -284,6 +288,8 @@ term_atom:
        { let alpha = Basetype.newty Basetype.Var in
          let beta = Basetype.newty Basetype.Var in
          mkTerm (PairV(($2, alpha), ($4, beta))) }
+    | LPAREN term SHARP term RPAREN
+       { mkTerm (Pair($2, $4)) }
     | NUM
        { mkTerm (ConstV(Cintconst($1))) }
     | PRINT term_atom

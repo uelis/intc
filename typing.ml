@@ -137,6 +137,7 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
     ai
   | Return _ | Bind _ | Fn _ | Fun _ | App _ |Case _
   | CopyU _ | HackU _ | TypeAnnot _ | Const _  | ExternalU _
+  | Pair _ | LetPair _
     -> raise (Typing_error (Some t, "Value term expected."))
 and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
   : Type.t =
@@ -278,6 +279,18 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     let tyX = pt c gamma s in
     eq_expected_constraint s ~actual:tyX ~expected:beta;
     tyY
+  | Pair(s, t) ->
+    let gamma, delta = split_context phi s t in
+    let tyX = pt c gamma s in
+    let tyY = pt c delta t in
+    Type.newty (Type.Tensor(tyX, tyY))
+  | LetPair(s, ((x, a), (y, b), t)) ->
+    let gamma, delta = split_context phi s t in
+    let tyY = pt c ([(x, a); (y, b)] @ delta) t in
+    let tyX = pt c gamma s in
+    let ab = Type.newty (Type.Tensor(a, b)) in
+    eq_expected_constraint s ~actual:tyX ~expected:ab;
+    tyY
   | Case(id, params, s, l) ->
     assert (Basetype.Data.is_discriminated id);
     (* case distinction is allowed over values only *)
@@ -349,6 +362,8 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
       | Type.Var -> ()
       | Type.Base(b) ->
         check_wf_base b
+      | Type.Tensor(b1, b2) ->
+        check_wf b1; check_wf b2
       | Type.FunW(b1, b2) ->
         check_wf_base b1; check_wf b2
       | Type.FunU(a1, b1, b2) ->

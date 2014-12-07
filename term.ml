@@ -57,11 +57,13 @@ and t_desc =
   | Const of op_const
   | Return of t * Basetype.t
   | Bind of (t * Basetype.t) * (var * t)
-  | App of t * Type.t * t
-  | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
   | Fn of (var * Basetype.t) * t
   | Fun of (var * Basetype.t * Type.t) * t
+  | App of t * Type.t * t
+  | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
   | CopyU of t * (var * var * t)
+  | Pair of t * t
+  | LetPair of t* ((var * Type.t) * (var * Type.t) * t)
   | HackU of Type.t * t
   | ExternalU of (string * Type.t (* type schema *)) * Type.t
   | TypeAnnot of t * Type.t
@@ -127,30 +129,10 @@ let rec is_value (term: t) : bool =
   | PairV((s, _), (t, _)) -> is_value s && is_value t
   | Case _ | Const _ | App _
   | Return _ | Bind _
+  | Pair _ | LetPair _
   | HackU _ | ExternalU _ | CopyU _ | Fn _ | Fun _
   | TypeAnnot _ ->
     false
-
-let rec is_pure (term: t) : bool =
-  match term.desc with
-  | Var _ | ConstV _ | UnitV -> true
-  | InV((_,_,s), _) | FstV(s, _, _) | SndV(s, _, _)
-  | Select(_, _, s, _) -> is_pure s
-  | PairV((s, _), (t, _)) -> is_pure s && is_pure t
-  | Case(_, _, s, l) ->
-    is_pure s && List.for_all l ~f:(fun (_, t) -> is_pure t)
-  | App({desc = Const(Cintadd); _}, _, t)
-  | App({desc = Const(Cintsub); _}, _, t)
-  | App({desc = Const(Cintmul); _}, _, t)
-  | App({desc = Const(Cintdiv); _}, _, t) (* ? *)
-  | App({desc = Const(Cinteq); _}, _, t)
-  | App({desc = Const(Cintslt); _}, _, t) ->
-    is_pure t
-  | Const _ | App _ | Return _ | Bind _
-  | HackU _ | ExternalU _ | CopyU _ | Fn _ | Fun _ ->
-    false
-  | TypeAnnot(t, _) ->
-    is_pure t
 
 let rec free_vars (term: t) : var list =
   let abs x l = List.filter l ~f:(fun z -> not (String.equal z x)) in
@@ -168,6 +150,10 @@ let rec free_vars (term: t) : var list =
     abs x (free_vars t)
   | Bind((s, _), (x, t)) ->
     (free_vars s) @ (abs x (free_vars t))
+  | Pair(s, t) ->
+    (free_vars s) @ (free_vars t)
+  | LetPair(s, ((x, _), (y, _), t)) ->
+    (free_vars s) @ (abs x (abs y (free_vars t)))
   | Case(_, _, s, l) ->
     free_vars s @
     List.fold_right l ~f:(fun (x, t) fv -> (abs x (free_vars t)) @ fv) ~init:[]
@@ -188,6 +174,10 @@ let rec all_vars (term: t) : var list =
     x :: all_vars t
   | Bind((s, _), (x, t)) ->
     x :: all_vars s @ all_vars t
+  | Pair(s, t) ->
+    (all_vars s) @ (all_vars t)
+  | LetPair(s, (_, _, t)) ->
+    (all_vars s) @ (all_vars t)
   | Case(_, _, s, l) ->
     all_vars s @
     List.fold_right l ~f:(fun (x, t) fv -> x :: all_vars t @ fv) ~init:[]
@@ -222,6 +212,10 @@ let rename_vars (f: var -> var) (term: t) : t =
       { term with desc = Fun((f x, a, ty), rn t) }
     | Bind((s, a), (x, t)) ->
       { term with desc = Bind((rn s, a), (f x, rn t)) }
+    | Pair(s, t) ->
+      { term with desc = Pair(rn s, rn t) }
+    | LetPair(s, ((x, a), (y, b), t)) ->
+      { term with desc = LetPair(rn s, ((f x, a), (f y, b), rn t)) }
     | Select(id, params, s, i) ->
       { term with desc = Select(id, params, rn s, i) }
     | Case(id, params, s, l) ->
@@ -294,6 +288,11 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
       { term with desc = Fun((x', a, ty), t') }
     | Bind((s, a), (x, t)) ->
       { term with desc = Bind((sub sigma s, a), abs sigma (x, t)) }
+    | Pair(s, t) ->
+      { term with desc = Pair(sub sigma s, sub sigma t) }
+    | LetPair(s, ((x, a), (y, b), t)) ->
+      let x', y', t' = abs2 sigma (x, y, t) in
+      { term with desc = LetPair(sub sigma s, ((x', a), (y', b), t')) }
     | Select(id, params, s, i) ->
       { term with desc = Select(id, params, sub sigma s, i) }
     | Case(id, params, s, l) ->
@@ -426,6 +425,10 @@ let freshen_type_vars t =
       { term with desc = Fun((x, fbase a, f ty), mta t) }
     | Bind((s, a), (x, t)) ->
       { term with desc = Bind((mta s, fbase a), (x, mta t)) }
+    | Pair(s, t) ->
+      { term with desc = Pair(mta s, mta t) }
+    | LetPair(s, ((x, a), (y, b), t)) ->
+      { term with desc = LetPair(mta s, ((x, a), (y, b), mta t)) }
     | Select(id, params, s, i) ->
       { term with desc = Select(id, List.map params ~f:fbase, mta s, i) }
     | Case(id, params, s, l) ->

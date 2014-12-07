@@ -54,12 +54,13 @@ type t = {
   | Const of op_const
   | Return of t * Basetype.t
   | Bind of (t * Basetype.t) * (var * t)
-  | App of t * Type.t * t
-  | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
-  (* TODO: Ist select Wert wie FstV? *)
   | Fn of (var * Basetype.t) * t
   | Fun of (var * Basetype.t * Type.t) * t
+  | App of t * Type.t * t
+  | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
   | CopyU of t * (var * var * t)
+  | Pair of t * t
+  | LetPair of t* ((var * Type.t) * (var * Type.t) * t)
   | HackU of Type.t * t
   | ExternalU of (string * Type.t (* type schema *)) * Type.t
   | TypeAnnot of t * Type.t
@@ -92,13 +93,15 @@ val mkUnbox : t -> t
 val let_tupleW : var -> (var list) * t -> t
 
 val is_value: t -> bool
-val is_pure: t -> bool
 
 (** Free variables *)
 val free_vars : t -> var list 
+                       
 (** All variables, free and bound *)
 val all_vars : t -> var list
-val rename_vars : (var -> var) -> t -> t 
+                      
+val rename_vars : (var -> var) -> t -> t
+  
 val variant_var : var -> var
 val variant_var_avoid: var -> var list -> var
 val variant : t -> t

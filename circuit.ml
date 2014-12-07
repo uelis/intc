@@ -1,9 +1,8 @@
 (** Compilation to circuits
   * TODO: 
   *  - simplify boilerplate
-  *  - construct circuit with the correct types right away
-  * TODO: ueberpruefe, dass die neu inferrierten typen auch mit den
-  * annotationen uebereinstimmen
+  *  - construct circuit with the correct types right away,
+  *    without using type inference
 *)
 open Core.Std
 open Unify
@@ -172,9 +171,28 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
           let (w_t, i_t) = compile_in_box Term.unusable_var sigma gamma_t t in
           let wr = fresh_wire () in
           (wr, Tensor(flip w_t, wr, flip w_s) :: i_s @ i_t)
-        | Type.Var | Type.Base _ | Type.Link _ ->
+        | Type.Var | Type.Base _ | Type.Tensor _ | Type.Link _ ->
           assert false
       end
+    | Term.Pair(s, t) ->
+      let gamma_s, gamma_t = split_context gamma s t in
+      let (w_s, i_s) = compile sigma gamma_s s in
+      let (w_t, i_t) = compile sigma gamma_t t in
+      let wr = fresh_wire () in
+      wr, Tensor(flip w_s, flip w_t, wr) :: i_s @ i_t
+    | Term.LetPair(s, ((x, _), (y, _), t)) ->
+      let gamma_s, gamma_t = split_context gamma s t in
+      let (gamma_s_inbox, i_enter_box) = enter_box gamma_s in
+      let (w_s, i_s) = compile sigma gamma_s_inbox s in
+      let w_s_left = fresh_wire () in
+      let w_s_right = fresh_wire () in
+      let i_unpair = [Tensor(w_s_left, w_s_right, flip w_s)] in
+      let w_x = fresh_wire () in
+      let w_y = fresh_wire () in
+      let i_leavebox = [Door(flip w_s_left, w_x);
+                        Door(flip w_s_right, w_y)] in
+      let (w_t, i_t) = compile sigma ((y, w_y) :: (x, w_x) :: gamma_t) t in
+      w_t, i_t @ i_s @ i_enter_box @ i_unpair @ i_leavebox
     | Term.CopyU(s, (x, y, t)) ->
       let gamma_s, gamma_t = split_context gamma s t in
       let (w_s, i_s) = compile_in_box Term.unusable_var sigma gamma_s s in
