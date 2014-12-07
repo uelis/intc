@@ -428,7 +428,7 @@ let freshen_type_vars t =
     | Pair(s, t) ->
       { term with desc = Pair(mta s, mta t) }
     | LetPair(s, ((x, a), (y, b), t)) ->
-      { term with desc = LetPair(mta s, ((x, a), (y, b), mta t)) }
+      { term with desc = LetPair(mta s, ((x, f a), (y, f b), mta t)) }
     | Select(id, params, s, i) ->
       { term with desc = Select(id, List.map params ~f:fbase, mta s, i) }
     | Case(id, params, s, l) ->

@@ -1,0 +1,67 @@
+/* variant of alloc.int to test pair types */
+
+fn tailrecimp(x) =
+  case x of
+    Inr(a, ()) -> return Inl((), Inr(a, ()))
+  | Inl(u, s) ->
+      case s of
+         Inr(b) -> return Inr(b)
+       | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
+
+let tailrec =
+   direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
+
+/* Combinators in the style of Idealised Algol */
+
+fn skip() = return ()
+let seq = λ c12 ->
+   let c1 # c2 = c12 in
+   let () = c1 in
+   c2
+
+let pr = λ e -> let x = e in print x; print "\n"
+let dec = λ e -> let x = e in intsub(x, 1)
+
+let ispositive = λ e -> let x = e in intslt(0, x)
+
+let cif =
+  λ e -> λ ct -> λ cf ->
+    let x = e in
+    if x then ct else cf
+
+let while =
+   λ e -> λ c ->
+    (tailrec (λ f ->
+        fn () ->
+          let x = e in
+          if x then (c; f ()) else return ()))
+      ()
+
+let allocimp = fn x ->
+  case x of
+    Inl(mem, yv) ->
+     (case yv of
+          Inl(c, p) ->
+          (case p of
+              Inl(newmem, ()) -> return Inl(newmem, Inl(c, Inl()))
+            | Inr() -> return Inl(mem, Inl(c, Inr(mem)))
+          )
+        | Inr(a) -> return Inr(a)
+     )
+  | Inr(q, ()) -> return Inl(q, Inr())
+
+let newvar1 =
+    direct(allocimp : (('a -> [unit]) # ['a] -> ['b]) -> ('a -> ['b]))
+
+/* check that swapping works */
+let newvar = fn initial -> λ body -> newvar1 body initial
+
+let main = newvar 0 (λ writeread ->
+   let write # read = writeread in
+   copy (λ e -> let v = e in write(v)) as write1, write2 in
+   copy read as read1, read23 in
+   copy read23 as read2, read3 in
+     seq (write1 (return 12) #
+          (while (ispositive read1)
+            (seq (pr read2 # write2 (dec read3))))
+      ))

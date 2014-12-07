@@ -432,6 +432,8 @@ inttype:
 inttype_factor:
     | inttype_atom
       { $1 }
+    | inttype_factor SHARP inttype_atom
+      { Type.newty (Type.Tensor($1, $3)) }
 
 inttype_atom:
     | DOUBLEQUOTE identifier

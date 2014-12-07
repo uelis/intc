@@ -286,8 +286,8 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     Type.newty (Type.Tensor(tyX, tyY))
   | LetPair(s, ((x, a), (y, b), t)) ->
     let gamma, delta = split_context phi s t in
-    let tyY = pt c ([(x, a); (y, b)] @ delta) t in
     let tyX = pt c gamma s in
+    let tyY = pt c ([(x, a); (y, b)] @ delta) t in
     let ab = Type.newty (Type.Tensor(a, b)) in
     eq_expected_constraint s ~actual:tyX ~expected:ab;
     tyY
