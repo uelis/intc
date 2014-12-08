@@ -3,28 +3,31 @@
 This is an experimental implementation of an Int compiler.
 
 The type system currently implements the fragment of types
-written mathematically as 
+written mathematically as
 ```
-  X, Y  ::=  α  |  A → X  | X ⊗ Y |  A·X ⊸ Y
+  A, B  ::=  α  |  unit  |  int  |  A x B  |  A + B  |  μ α. A
+  X, Y  ::=  α  |  A → X  |  X ⊗ Y  |  A·X ⊸ Y
 ```
 (Universal quantification is used implicitly for external
 definitions.)
 
 The concrete syntax currently is:
 ```
-  A, B  ::=  unit | int | A * B | A + B | box<A> | (data types)
+  A, B  ::=  'a  | unit | int | A * B | A + B | box<A> | data<A1,...,An>
   X, Y  ::=  ''a  |  A -> X  | X # Y |  {A}X -> Y
 ```
+Here, `data` is the name of an algebraic data type, that may be defined
+much like in OCaml.
 
 ## Installation
 
 The compiler is writen in OCaml and depends on Jane Street's Core
-library and the OCaml LLVM bindings. 
+library and the OCaml LLVM bindings.
 
-The dependencies are most easily installed using the 
+The dependencies are most easily installed using the
 OCaml Package Manager (OPAM).
 
-```  
+```
   opam install core
   opam install llvm
   make
@@ -32,7 +35,7 @@ OCaml Package Manager (OPAM).
 
 OPAM itself can be obtained from (http://opam.ocamlpro.com).
 On Ubuntu 14.04, it can be installed with `apt-get install opam`.
-  
+
 ## Compiling Examples
 
 ```
@@ -64,22 +67,24 @@ type list<'a> =
         Nil of unit
       | Cons of 'a * box<list<'a>>
 
-/* list reversal */      
+/* list reversal */
 let revaux =
    tailrec (λ rev ->
       fn (l, r) ->
         case l of
           Nil -> return r
         | Cons(x, xs) ->
+           /* We have xs : box<list<'a>>.
+              Using load, we obtain tail: list<'a>. */
            let tail = load(xs) in
-	   /* reuse memory */
+      	   /* We can reuse the box to build up the accumulator: */
            let () = store(xs, r) in
            rev(tail, Cons(x, xs))
       )
 
 fn rev(l) =
   revaux (l, Nil)
-  
+
 /* map */
 let maprev = λ f ->
    tailrec (λ mapf ->
