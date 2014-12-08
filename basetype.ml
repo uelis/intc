@@ -1,4 +1,3 @@
-(* TODO: verify boxed recursion *)
 open Core.Std
 
 type t =
@@ -231,22 +230,44 @@ struct
    *    in paramvars.
    *)
   let add_constructor id name paramvars argtype =
+    
     (* check if constructor is already defined *)
-    try
-      ignore (find_constructor name);
-      failwith "Duplicate constructor definition"
-    with Not_found -> ();
+    begin
+      try
+        ignore (find_constructor name);
+        failwith "Duplicate constructor definition"
+      with Not_found -> ()
+    end;
     let d = Hashtbl.find_exn datatypes id in
+    
     (* check that free variables in argtype are contained in
      * paramvars. *)
     let ftv = free_vars argtype in
-      if List.exists
-           ~f:(fun alpha ->
-             not (List.exists paramvars
-                    ~f:(fun beta -> equals alpha beta) ))
-           ftv then
-        failwith ("The free variables in any constructor must be " ^
-                  "contained in the type parameters.");
+    if List.exists
+         ~f:(fun alpha ->
+           not (List.exists paramvars
+                  ~f:(fun beta -> equals alpha beta) ))
+         ftv then
+      failwith ("The free variables in any constructor must be " ^
+                "contained in the type parameters.");
+    
+    (* check that all recursive occurrences of the type are under a box. *)
+    let rec check_rec_occ a =
+      match finddesc a with
+      | Var | NatW | OneW | ZeroW -> ()
+      | TensorW(a1, a2) ->
+        check_rec_occ a1;
+        check_rec_occ a2
+      | DataW(id', params) ->
+        if (id = id') then
+          failwith "Recursive occurrences are only allowed within box<...>"
+        else
+          List.iter params ~f:check_rec_occ
+      | BoxW _ -> ()
+      | Link _ -> assert false
+    in
+    check_rec_occ argtype;
+    
     (* replace given parameters by private parameters *)
     let param_subst alpha =
       let l = List.zip_exn paramvars d.params in
@@ -254,5 +275,5 @@ struct
       |> Option.value ~default:alpha in
     let argtype' = subst param_subst argtype in
     let d' = { d with constructors = d.constructors @ [name, argtype'] } in
-      String.Table.replace datatypes ~key:id ~data:d'
+    String.Table.replace datatypes ~key:id ~data:d'
 end

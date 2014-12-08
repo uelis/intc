@@ -35,13 +35,15 @@ let mkDatatype id params constructors =
   Basetype.Data.make id ~nparams:n ~discriminated:true;
   List.iter
     ~f:(fun (cname, cargty) ->
+      
       (* check for previous definition of constructor *)
       try
         ignore (Basetype.Data.find_constructor cname);
          illformed ("Redefinition of constructor " ^ cname ^ ".")
       with Not_found -> ();
-       (* verify that the type variables in the constructor type
-        * are contained in the type parameters *)
+        
+     (* verify that the type variables in the constructor type
+      * are contained in the type parameters *)
       let ftv = Basetype.free_vars cargty in
       if List.exists
             ~f:(fun alpha ->
@@ -50,9 +52,25 @@ let mkDatatype id params constructors =
             ftv then
               illformed ("The free variables in the type of constructor " ^
                  cname ^ " must be contained in the type parameter.");
-       (* if all succeeds, add the constructor *)
-       Basetype.Data.add_constructor id cname params cargty)
-     constructors;
+      
+      (* check that all recursive occurrences of the type are under a box. *)
+      let rec check_rec_occ a =
+        match Basetype.finddesc a with
+        | Var | NatW | OneW | ZeroW | BoxW _ -> ()
+        | TensorW(a1, a2) ->
+          check_rec_occ a1;
+          check_rec_occ a2
+        | DataW(id', params) ->
+          if (id = id') then
+            illformed "Recursive occurrences are only allowed within box<...>"
+          else
+            List.iter params ~f:check_rec_occ
+        | Link _ -> assert false
+      in
+      check_rec_occ cargty;
+      (* if all succeeds, add the constructor *)
+      Basetype.Data.add_constructor id cname params cargty)
+    constructors;
   id
 
 type pattern =
