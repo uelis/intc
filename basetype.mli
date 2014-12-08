@@ -94,9 +94,15 @@ sig
       constructor of type "[name: a -> id<params>]", where
       [id<params>] means the instantiation of the data type
       at the parameters [params].
-
+      
       To add a constructor [cons: 'a -> list<'a>], one would
-      call [add_constructor "list" "cons" ['a] 'a].*)
+      call [add_constructor "list" "cons" ['a] 'a].
+
+      Preconditions: 
+      - No constructor called [name] is already defined.
+      - [params] is a list of type variables.
+      - The free type variables in [a] are contained in [params].
+  *)
   val add_constructor : id -> string -> t list -> t -> unit
 end
 

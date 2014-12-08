@@ -1,3 +1,4 @@
+(* TODO: verify boxed recursion *)
 open Core.Std
 
 type t =
