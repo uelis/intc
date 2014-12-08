@@ -30,11 +30,6 @@ let mkTerm d : Term.t =
   let e = Parsing.symbol_end_pos () in
   mkTerm_with_pos s e d
 
-let mkTerm_rhs i d : Term.t =
-  let s = Parsing.rhs_start_pos i in
-  let e = Parsing.rhs_end_pos i in
-  mkTerm_with_pos s e d
-
 let mkDatatype id params constructors =
   let n = List.length params in
   Basetype.Data.make id ~nparams:n ~discriminated:true;
