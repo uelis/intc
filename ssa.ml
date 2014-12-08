@@ -590,7 +590,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
              local name supply. *)
           let gamma = List.map gamma ~f:Term.variant_var in
           let t = Term.variant f in
-          let t1 = Term.mkBind sigma (x, Term.let_tupleW x (gamma, t)) in
+          let t1 = Term.mkBind sigma (x, Term.mkBindList x (gamma, t)) in
           let lt, vt = to_ssa (mkPair sigma t1) w1.type_forward in
           Direct(src, z, lt, vt, label_of_dst w1)
         else
@@ -652,7 +652,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
             let x = fresh_var () in
             mkPair sigma
               (mkPair (Term.mkBind sigma
-                         (x, Term.let_tupleW x (gamma, Term.mkReturn f))) m) in
+                         (x, Term.mkBindList x (gamma, Term.mkReturn f))) m) in
           let lt, vt = to_ssa t w1.type_forward in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
@@ -667,7 +667,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
             let x = fresh_var () in
             mkPair sigma
               (mkPair (Term.mkBind sigma
-                         (x, Term.let_tupleW x (gamma, Term.mkReturn f))) m) in
+                         (x, Term.mkBindList x (gamma, Term.mkReturn f))) m) in
           let lt, vt = to_ssa t w1.type_forward in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false

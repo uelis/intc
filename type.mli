@@ -1,13 +1,6 @@
-open Core.Std
+(** Representation of interactive types *)
 
-(* The representation of types uses a union find data
- * structure that makes unification easy. 
- * I learned about this representation of types
- * from the following article (Section 1.4):
- *   Didier Rémy. Using, Understanding, and Unraveling
- *   The OCaml Language. LNCS 2395. Springer-Verlag 2002
- *   http://pauillac.inria.fr/~remy/cours/appsem/
- *)
+open Core.Std
 
 type t = 
    { mutable desc : desc; 
@@ -25,11 +18,16 @@ and desc =
 include Types.Repr 
   with type t := t with type desc := desc
 
+(** Substitution of types for types and base types for base types. *)
 val subst: (t -> t) -> (Basetype.t -> Basetype.t) -> t -> t
 
+(** Freshen all type variables, both for interactive types and 
+    for base types. *)
 val freshen: t -> t
+
+(** Apply the given function to all index types in the given
+    type. Index types are all the types [a] in [FunU(a, _, _)]. *)
 val map_index_types: t -> (Basetype.t -> Basetype.t) -> t
 
-(* Given upper class type X, returns the pair (X^-, X^+). *)
+(* Given an interactive  type X, returns the pair (X^-, X^+). *)
 val question_answer_pair: t -> Basetype.t * Basetype.t
-

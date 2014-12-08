@@ -1,3 +1,15 @@
+(** Compilation of source programs to interaction circuits 
+
+    Circuits are repesented by lists of nodes, which each 
+    lists the edges (here: wires) that it is connected to.
+*)
+
+(** A wire is specified by its two end-points, which are
+    identified using numbers. The number uniquely specify
+    the end-points, i.e. no number may appear in two nodes.
+    The wire also specifies the message passing types for
+    forward passing ([src] to [dst]) and backwards ([dst] to
+    [src]). *)
 type wire = {
   src: int;
   dst: int;
@@ -5,6 +17,8 @@ type wire = {
   type_back: Basetype.t
 }
 
+(* Instructions are graph nodes. The wires mentioned in each node
+   are meant to be connected to the node with its [src] end.*)
 type instruction =
   | Base of wire (* TA *) * (Term.var list * Term.t)
   | Seq of wire (* (TA)^* *) * wire (* \Tens A (TB)^* *) * wire (* TB *)
@@ -20,18 +34,25 @@ type instruction =
   | App of wire (* (A => X) *) * (Term.var list * Term.t) * wire (* X *)
   | Direct of wire (* (X- => TX+)^* *) * wire (* X *)
 
+(** Returns the wires anchored at a node *)
 val wires : instruction -> wire list
 
-(* Behaviour of LWeak *)
+(** The node [LWeak] depends on the choice of an embedding-projection
+    pair. There are many possible choices. The following 
+    pairs are sufficient for the translation given below. *)
 val embed : Basetype.t -> Basetype.t -> Term.t -> Term.t
 val project : Basetype.t -> Basetype.t -> Term.t -> Term.t
 
+(** Circuits are a list of instruction node with a choice of output wire.
+*)
 type t = { 
   output : wire; 
   instructions : instruction list
 }
 
+(** Translate a well-typed term into a circuit. *)
 val circuit_of_term : Term.t -> t
 
+(** Convert a circuit to dot format for debugging. *)
 val dot_of_circuit :
  ?title:string -> ?wire_style:(wire -> string) -> t -> string

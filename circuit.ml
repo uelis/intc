@@ -534,7 +534,7 @@ let infer_types (c : t) : unit =
       let beta =
         let b = principal_type
                   [(x, sigma)] []
-                  (Term.let_tupleW x (s', f')) in
+                  (Term.mkBindList x (s', f')) in
         match Type.finddesc b with
         | Type.Base beta -> beta
         | _ -> assert false in
@@ -592,7 +592,7 @@ let infer_types (c : t) : unit =
       let f' = Term.variant f in
       let s' = List.map ~f:Term.variant_var s in
       let tyf = principal_type_value [(x, sigma2)]
-                  (Term.let_tupleW x (s', f')) in
+                  (Term.mkBindList x (s', f')) in
       beq_constraint
         w1.type_forward (tensor sigma2 (tensor tyf alpha2)) ::
       beq_constraint
@@ -612,7 +612,7 @@ let infer_types (c : t) : unit =
       let f' = Term.variant f in
       let s' = List.map ~f:Term.variant_var s in
       let tyf = principal_type_value [(x, sigma2)]
-                  (Term.let_tupleW x (s', f')) in
+                  (Term.mkBindList x (s', f')) in
       beq_constraint
         w1.type_forward (tensor sigma2 (tensor tyf alpha2)) ::
       beq_constraint

@@ -244,8 +244,9 @@ let variant_with_name_supply (fresh_var: unit -> var) (t: t) : t =
          ~init:String.Map.empty in
   rename_vars (String.Map.find_exn ren_map) t
 
-(* substitues s for the head occurrence of x.
- * return None if t does not contain x.
+(* Substitues [s] for [x].
+   Returns [None] if [t] does not contain [x].
+   If [head] is true then only the head occurrence is subtituted.
 *)
 let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
   (* Below sigma is always a permutation that maps bound
@@ -258,8 +259,9 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
   let rec sub sigma term =
     match term.desc with
     | Var(y) ->
+      (* substitute only once if head *)
       if x = y && ((not head) || (not !substituted)) then
-        (substituted := true; s) (* substitute only once *)
+        (substituted := true; s) 
       else
         { term with desc = Var(apply sigma y) }
     | UnitV | ConstV _ | Const _ | ExternalU _ ->
@@ -330,8 +332,8 @@ let subst (s: t) (x: var) (t: t) : t =
   | None -> t
   | Some t' -> t'
 
-(* Conveniencene function for n-ary let on WC level *)
-let let_tupleW (x: var) ((sigma: var list), (f: t)) : t =
+(* Conveniencene function for n-ary Bind  *)
+let mkBindList (x: var) ((sigma: var list), (f: t)) : t =
   let rec remove_shadow sigma =
     match sigma with
     | [] -> []

@@ -1,9 +1,14 @@
 (** Source terms *)
 
+(** Variables are string *)
 type var = string
 
+(** A variable that cannot appear from parsing a source term. 
+    It is useful in constructing terms to be sure that there 
+    are no name collisions. *)
 val unusable_var : var
 
+(** Location of term in the source file *)
 module Location : sig
   type pos = { column: int; line: int} 
   type loc = {start_pos: pos; end_pos: pos} 
@@ -11,10 +16,12 @@ module Location : sig
   val none: t
 end
 
+(** Value constants *)
 type value_const =
   | Cundef of Basetype.t
   | Cintconst of int
 
+(** Primitive operations *)
 type op_const =
   | Cprint of string
   | Cintadd
@@ -34,15 +41,32 @@ type op_const =
   | Cencode of Basetype.t * Basetype.t
   | Cdecode of Basetype.t * Basetype.t
 
-(* TODO: dokumentiere typannotationen (bei Box ist es der Inhalt) 
-- Konstruktoren BindW und LetW haben inkonsistente Typannotationen                                     
-*)
+(** The type of terms is a single type to represent both value terms 
+    and interaction terms. Eventually, we are interested only in terms
+    corresponding to the following grammar.
+    {| 
+     v,w ::= variable | value constant 
+           | () | (v, w) | fst(v) | snd(v) 
+           | Cons_i(v) | Select_i(v)
+     s,t ::= variable | constant | return v | let x = s in t 
+           | fn x -> t | \ x -> t | s t | s v 
+           | case v of Cons_1(x) -> t1 ... 
+           | copy s as x1, x2 in t
+           | (s # t) | let (x # y) = s in t
+           | direct(s : a)
+           | external(f : a)
+           | (s : a)
+    |}
+    The type of terms here can represent more terms, e.g. it allows interaction terms
+    also in values. The type checker will later check that they correspond to the 
+    above grammar. It seems to be better to do it this way, as this simplifies the
+    parser and its error reporting. *)
 type t = { 
   desc: t_desc;      
   loc: Location.t 
 } and t_desc =
   | Var of var
-  (* complex value terms *)
+  (* value terms *)
   | ConstV of value_const
   | UnitV 
   | PairV of (t * Basetype.t) * (t * Basetype.t)
@@ -90,8 +114,9 @@ val mkTypeAnnot : t -> Type.t -> t
 val mkBox : t -> t
 val mkUnbox : t -> t
 
-val let_tupleW : var -> (var list) * t -> t
+val mkBindList : var -> (var list) * t -> t
 
+(** Check if a term conforms to the grammar of value terms. *)
 val is_value: t -> bool
 
 (** Free variables *)
@@ -100,10 +125,21 @@ val free_vars : t -> var list
 (** All variables, free and bound *)
 val all_vars : t -> var list
                       
+(** Rename variables using given function. *)
 val rename_vars : (var -> var) -> t -> t
   
+(** Return a variant of the variable by mapping ["x"] to ["x'"]. 
+    The optional argument allows one to specify a list of names to
+    avoid in the result. *)
 val variant_var : var -> var
+  
+(** Return a variant of the variable by mapping ["x"] to ["x'"]
+    repeatedly (at least once), so long until the result does not
+    appear in the given list of variables to avoid.*)
 val variant_var_avoid: var -> var list -> var
+  
+(** Compute variant of the term. 
+    Equivalent to [rename_vars variant_var]. *)
 val variant : t -> t
 
 (** Renames all variables with new names drawn from 
@@ -111,10 +147,13 @@ val variant : t -> t
 val variant_with_name_supply : (unit -> var) -> t -> t 
 
 (** Head substitution.
-    head_subst s x t substitues s for the head occurrence of x,
-    if one exists. It returns None if t does not contain x. *)
+    [head_subst s x t] substitues [s] for the head occurrence of [x],
+    if one exists. It returns [None] if [t] does not contain [x]. *)
 val head_subst: t -> var -> t -> t option
-(* TODO: (subst "<x,x>" "x" "x") should be incorrect *)
+                                   
+(** Capture avoiding substitution.
+    [subst s x t] substitues [s] for [x] in [t]. *)
 val subst: t -> var -> t -> t
 
+(** Rename type variables in type annotations with fresh type variables. *)
 val freshen_type_vars : t -> t
