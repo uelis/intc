@@ -1,2 +1,5 @@
+(** Simplification of SSA programs by tracing. *)
+
 val trace: Ssa.t -> Ssa.t
+                      
 val shortcut_jumps: Ssa.t -> Ssa.t

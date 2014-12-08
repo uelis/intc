@@ -1,3 +1,5 @@
+(** Command line options *)
+
 val opt_keep_circuits : bool ref 
 val opt_keep_ssa : bool ref
 val opt_llvm_compile : bool ref

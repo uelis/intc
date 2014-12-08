@@ -57,6 +57,10 @@ type t = private {
   return_type: Basetype.t;
 }
 
+(** Construct a SSA program from its part.
+    This function verifies the representation invariants and 
+    verifies the program for type correctness, if assertions
+    are enabled. *)
 val make: 
   func_name:string -> 
   entry_label:label -> 
