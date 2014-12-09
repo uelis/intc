@@ -124,4 +124,3 @@ let main =
   with
   | Failure msg -> Printf.printf "%s\n" msg
   | Typing.Typing_error(t, msg)-> print_error (term_loc t) msg
-

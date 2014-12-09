@@ -29,7 +29,7 @@ type instruction =
   | Case of Basetype.Data.id * Basetype.t list * wire * (wire list)
   | Door of wire (* X *) * wire (* \Tens A X *)
   | Assoc of wire (* \Tens (A x B) X *) * wire (* \Tens A (\Tens B X) *)
-  | LWeak of wire (* \Tens A X *) * wire (* \Tens B X *) (* where B <= A *)
+  | LWeak of wire (* \Tens A X *) * wire (* \Tens B X *) (* where B \lhd A *)
   | Bind of wire (* \Tens A X *) * wire (* (A => X) *)
   | App of wire (* (A => X) *) * (Term.var list * Term.t) * wire (* X *)
   | Direct of wire (* (X- => TX+)^* *) * wire (* X *)

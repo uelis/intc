@@ -6,15 +6,15 @@ let fresh_var = Vargen.mkVarGenerator "z" ~avoid:[]
 let block_table (func: Ssa.t) =
   let blocks = Int.Table.create () in
   List.iter func.blocks
-    ~f:(fun b -> 
+    ~f:(fun b ->
       let i = (Ssa.label_of_block b).name in
       Int.Table.replace blocks ~key:i ~data:b
     );
   blocks
 
-(** 
+(**
    Tracing
-*) 
+*)
 let trace_block blocks i0 =
   let block = Int.Table.find_exn blocks i0 in
   let l0 = label_of_block block in
@@ -39,16 +39,16 @@ let trace_block blocks i0 =
       end in
   let trace_let l =
     match l with
-    | Let((x, a), t) -> 
+    | Let((x, a), t) ->
       let t' = subst_term (String.Table.find_exn rho) t in
       begin
         match t', !lets with
-        | Val v', _ -> 
+        | Val v', _ ->
           String.Table.replace rho ~key:x ~data:v'
-        | Const(Term.Cpop(_), _), _ -> 
+        | Const(Term.Cpop(_), _), _ ->
           begin
             match remove_last_push !lets with
-            | Some (v', lets') -> 
+            | Some (v', lets') ->
               lets := lets';
               String.Table.replace rho ~key:x ~data:v'
             | None ->
@@ -58,15 +58,15 @@ let trace_block blocks i0 =
           end
         (* quick hack to eliminate Alloc,Store,Load,Free sequences
            immediately *)
-          (* TODO: 
-        | Load(addr1, _), Let((z1, a1), Store(addr2, v, _)) :: rest 
+          (* TODO:
+        | Load(addr1, _), Let((z1, a1), Store(addr2, v, _)) :: rest
           when addr1 = addr2 ->
           String.Table.replace rho ~key:x ~data:v;
           lets := rest @ [Let((z1, a1), Val(Unit))]
-        | Free(addr1, _), Let((addr2, anat) , Alloc(_)) :: rest 
+        | Free(addr1, _), Let((addr2, anat) , Alloc(_)) :: rest
           when addr1 = Var addr2 ->
           String.Table.replace rho ~key:x ~data:Unit;
-          lets := rest @ [Let((addr2, anat), Val(IntConst(0)))] 
+          lets := rest @ [Let((addr2, anat), Val(IntConst(0)))]
           *)
         | _ ->
           let x' = fresh_var () in
@@ -74,9 +74,9 @@ let trace_block blocks i0 =
           lets := Let((x', a), t') :: !lets
       end in
   let trace_lets lets = List.iter (List.rev lets) ~f:trace_let in
-  let flush_lets () = 
+  let flush_lets () =
     let ls = !lets in
-    lets := []; 
+    lets := [];
     ls in
 
   (* tracing of blocks*)
@@ -89,7 +89,7 @@ let trace_block blocks i0 =
       Direct(l0, x0, lets, v, dst)
     | _ ->
       begin
-        Int.Table.change visited i (function None -> Some 1 
+        Int.Table.change visited i (function None -> Some 1
                                            | Some i -> Some (i+1));
         (* Printf.printf "%s\n" (string_of_letbndgs !lets); *)
         match block with
@@ -106,19 +106,19 @@ let trace_block blocks i0 =
           begin
             match vc' with
             | In((_, i, vi), _) ->
-              let (y, vd, dst) = List.nth_exn cases i in          
+              let (y, vd, dst) = List.nth_exn cases i in
               String.Table.replace rho ~key:y ~data:vi;
               let vd' = subst_value (String.Table.find_exn rho) vd in
               trace_block dst.name vd'
-            | _ -> 
+            | _ ->
               let lets = flush_lets () in
-              let cases' = 
+              let cases' =
                 List.map cases
-                  ~f:(fun (y, vd, dst) -> 
+                  ~f:(fun (y, vd, dst) ->
                     let y' = fresh_var () in
                     String.Table.replace rho ~key:y ~data:(Var y');
                     let vd' = subst_value (String.Table.find_exn rho) vd in
-                    (y', vd', dst)) in 
+                    (y', vd', dst)) in
               Branch(l0, x0, lets, (id, params, vc', cases'))
           end
         | Return(_, x, lets, vr, a) ->
@@ -126,7 +126,7 @@ let trace_block blocks i0 =
           trace_lets lets;
           let vr' = subst_value (String.Table.find_exn rho) vr in
           let lets = flush_lets () in
-          Return(l0, x0, lets, vr', a) 
+          Return(l0, x0, lets, vr', a)
       end in
   let v0 = Var x0 in
   String.Table.replace rho ~key:x0 ~data:v0;
@@ -139,7 +139,7 @@ let trace (func : Ssa.t) =
   let rec trace_blocks i =
     if not (Int.Table.mem traced i) then
       begin
-        Int.Table.replace traced ~key:i ~data:(); 
+        Int.Table.replace traced ~key:i ~data:();
 
         let b = trace_block blocks i in
         rev_blocks := b :: !rev_blocks;
@@ -147,15 +147,15 @@ let trace (func : Ssa.t) =
           ~f:(fun l -> trace_blocks l.name)
       end in
   trace_blocks (func.entry_label.name);
-  Ssa.make 
-    ~func_name: func.func_name 
+  Ssa.make
+    ~func_name: func.func_name
     ~entry_label: func.entry_label
     ~blocks: (List.rev !rev_blocks)
     ~return_type: func.return_type
 
-(** 
-   Shortcutting jumps 
-*) 
+(**
+   Shortcutting jumps
+*)
 let shortcut_block blocks i0 =
   let block = Int.Table.find_exn blocks i0 in
 
@@ -164,7 +164,7 @@ let shortcut_block blocks i0 =
     let rec shortcut_value (i : label) v =
       if Int.Table.mem visited i.name then
         i, v
-      else 
+      else
         begin
           Int.Table.add_exn visited ~key:i.name ~data:();
           let block = Int.Table.find_exn blocks i.name in
@@ -177,8 +177,8 @@ let shortcut_block blocks i0 =
             begin
               match vc' with
               | In((_, i, vi), _) ->
-                let (y, vd, dst) = List.nth_exn cases i in          
-                let vd' = subst_value (fun z -> if y = z then vi else Var z) 
+                let (y, vd, dst) = List.nth_exn cases i in
+                let vd' = subst_value (fun z -> if y = z then vi else Var z)
                             (subst_value (fun z -> if x = z then v else Var z ) vd) in
                 shortcut_value dst vd'
               | _ ->
@@ -186,7 +186,7 @@ let shortcut_block blocks i0 =
             end
           | Unreachable _
           | Direct _
-          | Branch _ 
+          | Branch _
           | Return _ ->
             i, v
         end in
@@ -198,9 +198,9 @@ let shortcut_block blocks i0 =
     Direct(l, x, lets, vr', dst')
   | Branch(l, x, lets, (id, params, vc, cases)) ->
     let cases' = List.map cases
-                   ~f:(fun (y, vd, dst) -> 
+                   ~f:(fun (y, vd, dst) ->
                      let dst', vd' = shortcut_value dst vd in
-                     (y, vd', dst')) in 
+                     (y, vd', dst')) in
     Branch(l, x, lets, (id, params, vc, cases'))
   | Unreachable _
   | Return _ -> block
@@ -212,7 +212,7 @@ let shortcut_jumps (func : Ssa.t) =
   let rec shortcut_blocks i =
     if not (Int.Table.mem traced i) then
       begin
-        Int.Table.replace traced ~key:i ~data:(); 
+        Int.Table.replace traced ~key:i ~data:();
 
         let b = shortcut_block blocks i in
         rev_blocks := b :: !rev_blocks;
@@ -220,8 +220,8 @@ let shortcut_jumps (func : Ssa.t) =
           ~f:(fun l -> shortcut_blocks l.name)
       end in
   shortcut_blocks (func.entry_label.name);
-  Ssa.make 
-    ~func_name: func.func_name 
+  Ssa.make
+    ~func_name: func.func_name
     ~entry_label: func.entry_label
     ~blocks: (List.rev !rev_blocks)
     ~return_type: func.return_type

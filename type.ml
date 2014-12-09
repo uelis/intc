@@ -134,7 +134,7 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
             Typetbl.replace vm ~key:(find t) ~data:(betam, betap);
             betam, betap
           end
-      | Base(a) -> 
+      | Base(a) ->
         Basetype.newty Basetype.OneW,
         a
       | Tensor(b1, b2) ->
@@ -143,7 +143,7 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
           let open Basetype in
             newty (DataW(Data.sumid 2, [bm1; bm2])),
             newty (DataW(Data.sumid 2, [bp1; bp2]))
-      | FunW(a, b2) -> 
+      | FunW(a, b2) ->
         let bm2, bp2 = qap b2 in
         let open Basetype in
         newty (TensorW(a, bm2)),

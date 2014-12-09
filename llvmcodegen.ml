@@ -426,7 +426,7 @@ let build_term
   | Ssa.Const(Term.Cintdiv as const, arg)
   | Ssa.Const(Term.Cinteq as const, arg)
   | Ssa.Const(Term.Cintslt as const, arg)
-  | Ssa.Const(Term.Cintprint as const, arg) 
+  | Ssa.Const(Term.Cintprint as const, arg)
   | Ssa.Const(Term.Calloc _ as const, arg)
   | Ssa.Const(Term.Cfree _ as const, arg)
   | Ssa.Const(Term.Cload _ as const, arg)

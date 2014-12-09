@@ -245,7 +245,7 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
             Buffer.add_string buf "[";
             Buffer.add_string buf (string_of_basetype a);
             Buffer.add_string buf "]"
-          | Type.Tensor _ 
+          | Type.Tensor _
           | Type.FunW _
           | Type.FunU _ ->
             Buffer.add_char buf '(';
@@ -325,7 +325,7 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
     match t.desc with
     | Return(t, _) ->
       fprintf f "return @[";
-      s_term t; 
+      s_term t;
       fprintf f "@]"
     | Fn((x, _), t1) ->
       fprintf f "@[<hv 2>fn (%s) ->@;" x;
@@ -429,7 +429,7 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "@[<hv 2>external(%s: %s)@]" e (string_of_type a)
     | TypeAnnot(t, _) ->
       s_term_atom t
-    | App _ | InV _ | Return _ | Bind _ | Case _ 
+    | App _ | InV _ | Return _ | Bind _ | Case _
     | Fn _ | Fun _ | CopyU _ | LetPair _->
       fprintf f "(@[";
       s_term t;

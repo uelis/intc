@@ -15,7 +15,7 @@ let tailrec =
 
 fn skip() = return ()
 let seq = λ c12 ->
-   let c1 # c2 = c12 in
+   let (c1 # c2) = c12 in
    let () = c1 in
    c2
 
@@ -57,7 +57,7 @@ let newvar1 =
 let newvar = fn initial -> λ body -> newvar1 body initial
 
 let main = newvar 0 (λ writeread ->
-   let write # read = writeread in
+   let (write # read) = writeread in
    copy (λ e -> let v = e in write(v)) as write1, write2 in
    copy read as read1, read23 in
    copy read23 as read2, read3 in

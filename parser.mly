@@ -1,9 +1,6 @@
 %{
-(************************************************************************
-*
-*  parser.mly
-*
-************************************************************************)
+  (** Parser
+  *)
 
 open Core.Std
 open Lexing
@@ -35,13 +32,13 @@ let mkDatatype id params constructors =
   Basetype.Data.make id ~nparams:n ~discriminated:true;
   List.iter
     ~f:(fun (cname, cargty) ->
-      
+
       (* check for previous definition of constructor *)
       try
         ignore (Basetype.Data.find_constructor cname);
          illformed ("Redefinition of constructor " ^ cname ^ ".")
       with Not_found -> ();
-        
+
      (* verify that the type variables in the constructor type
       * are contained in the type parameters *)
       let ftv = Basetype.free_vars cargty in
@@ -52,7 +49,7 @@ let mkDatatype id params constructors =
             ftv then
               illformed ("The free variables in the type of constructor " ^
                  cname ^ " must be contained in the type parameter.");
-      
+
       (* check that all recursive occurrences of the type are under a box. *)
       let rec check_rec_occ a =
         match Basetype.finddesc a with
@@ -134,10 +131,9 @@ let clear_type_vars () = Hashtbl.clear type_vars
 
 %token LBRACE RBRACE LPAREN RPAREN LANGLE RANGLE LBRACKET RBRACKET
 %token PLUS MINUS TIMES DIV
-%token ENCODE DECODE
-%token HAT COMMA TILDE QUOTE DOUBLEQUOTE COLON
-%token SEMICOLON SHARP EQUALS TO VERTBAR
+%token COMMA QUOTE DOUBLEQUOTE COLON SEMICOLON SHARP EQUALS TO VERTBAR
 %token FN LAMBDA TYPE UNIT PUSH POP BOX ALLOC FREE LOAD STORE CALL NAT
+%token ENCODE DECODE
 %token INTADD INTSUB INTMUL INTDIV INTEQ INTSLT
 %token IF THEN ELSE PRINT HACK LET AS OF IN RETURN
 %token COPY CASE EXTERNAL
@@ -151,7 +147,6 @@ let clear_type_vars () = Hashtbl.clear type_vars
 %left EQUALS
 %left PLUS MINUS
 %left TIMES DIV
-%nonassoc HAT TILDE
 %nonassoc THEN
 %nonassoc VERTBAR
 
@@ -206,16 +201,16 @@ term:
     | LAMBDA LPAREN identifier COLON inttype RPAREN TO term
         { let alpha = Basetype.newty Basetype.Var in
           mkTerm (Fun (($3, alpha, $5), $8)) }
-    | FN pattern TO term 
+    | FN pattern TO term
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $2 $4 in
           mkTerm (Fn((x, alpha), t)) }
     | COPY term AS identifier COMMA identifier IN term
        { mkTerm (CopyU($2, ($4, $6, $8))) }
-    | LET identifier SHARP identifier EQUALS term IN term
+    | LET LPAREN identifier SHARP identifier RPAREN EQUALS term IN term
         { let alpha = Type.newty Type.Var in
           let beta = Type.newty Type.Var in
-           mkTerm (LetPair($6, (($2, alpha), ($4, beta), $8))) }
+           mkTerm (LetPair($8, (($3, alpha), ($5, beta), $10))) }
     | LET pattern EQUALS term IN term
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $2 $6 in
@@ -331,7 +326,7 @@ term_atom:
     | STORE
        { let alpha = Basetype.newty Basetype.Var in
          mkTerm (Const(Cstore(alpha))) }
-    | ENCODE 
+    | ENCODE
        { let alpha = Basetype.newty Basetype.Var in
          let beta = Basetype.newty Basetype.Var in
           mkTerm (Const(Cencode(alpha, beta))) }

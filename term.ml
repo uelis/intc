@@ -261,7 +261,7 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
     | Var(y) ->
       (* substitute only once if head *)
       if x = y && ((not head) || (not !substituted)) then
-        (substituted := true; s) 
+        (substituted := true; s)
       else
         { term with desc = Var(apply sigma y) }
     | UnitV | ConstV _ | Const _ | ExternalU _ ->

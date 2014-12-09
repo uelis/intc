@@ -230,7 +230,7 @@ struct
    *    in paramvars.
    *)
   let add_constructor id name paramvars argtype =
-    
+
     (* check if constructor is already defined *)
     begin
       try
@@ -239,7 +239,7 @@ struct
       with Not_found -> ()
     end;
     let d = Hashtbl.find_exn datatypes id in
-    
+
     (* check that free variables in argtype are contained in
      * paramvars. *)
     let ftv = free_vars argtype in
@@ -250,7 +250,7 @@ struct
          ftv then
       failwith ("The free variables in any constructor must be " ^
                 "contained in the type parameters.");
-    
+
     (* check that all recursive occurrences of the type are under a box. *)
     let rec check_rec_occ a =
       match finddesc a with
@@ -267,7 +267,7 @@ struct
       | Link _ -> assert false
     in
     check_rec_occ argtype;
-    
+
     (* replace given parameters by private parameters *)
     let param_subst alpha =
       let l = List.zip_exn paramvars d.params in

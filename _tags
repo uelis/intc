@@ -1,1 +1,1 @@
-<*.ml> or <*.mli> or "intc.byte" or "intc.native" or "intc.p.native": g++, package(llvm), package(llvm.bitwriter), package(llvm.executionengine)
+<*.ml> or <*.mli> or "intc.byte" or "intc.native" or "intc.p.native": g++, package(llvm), package(llvm.bitwriter)

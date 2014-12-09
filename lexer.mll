@@ -44,12 +44,11 @@ rule main = parse
   | '>'        { RANGLE }
   | "fn"       { FN }
   | "λ"        { LAMBDA }
+  | '\\'       { LAMBDA }
   | '+'        { PLUS }
   | '-'        { MINUS }
   | '*'        { TIMES }
-  | '^'        { HAT }
   | '/'        { DIV }
-  | '~'        { TILDE }
   | ','        { COMMA }
   | '''        { QUOTE }
   | "''"       { DOUBLEQUOTE }

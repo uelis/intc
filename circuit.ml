@@ -1,5 +1,5 @@
 (** Compilation to circuits
-  * TODO: 
+  * TODO:
   *  - simplify boilerplate
   *  - construct circuit with the correct types right away,
   *    without using type inference
@@ -22,10 +22,6 @@ let flip (w: wire) = {
   type_forward = w.type_back;
   type_back = w.type_forward
 }
-(* TODO: DOCUMENTATION
- * Graph invariant: There are no two wires with w1.src = w2.src that are affixed
- * to different nodes. I.e. w.src and w.dst are darts and must therefore be
- * unique in the graph *)
 
 (* All wires are meant to 'leave' the instructions, i.e. they are all affixed
 *  with their src-label to the instruction.
@@ -40,10 +36,10 @@ type instruction =
   | Case of Basetype.Data.id * Basetype.t list * wire * (wire list)
   | Door of wire (* X *) * wire (* \Tens A X *)
   | Assoc of wire (* \Tens (A x B) X *) * wire (* \Tens A (\Tens B X) *)
-  | LWeak of wire (* \Tens A X *) * wire (* \Tens B X *) (* where B <= A *)
-  | Bind of wire (* \Tens A X *) * wire (* (A => X) *)
-  | App of wire (* (A => X) *) * (Term.var list * Term.t) * wire (* X *)
-  | Direct of wire (* (X- => X+)^* *) * wire (* X *)
+  | LWeak of wire (* \Tens A X *) * wire (* \Tens B X *) (* where B \lhd A *)
+  | Bind of wire (* \Tens A X *) * wire (* (A -> X) *)
+  | App of wire (* (A -> X) *) * (Term.var list * Term.t) * wire (* X *)
+  | Direct of wire (* (X- -> X+) *) * wire (* X *)
 
 type t =
     { output : wire;
@@ -72,7 +68,7 @@ let wires (i: instruction) : wire list =
   let f w = ws := w :: !ws; w in
   ignore (map_wires_instruction f i);
   !ws
-    
+
 (* Wires for all the variables in the context.
  * They point into the graph with their dst-label. *)
 
@@ -295,7 +291,7 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
     | Term.Const(Term.Cinteq as c) | Term.Const(Term.Cintslt as c)
     | Term.Const(Term.Cprint _ as c) | Term.Const(Term.Cpop(_) as c)
     | Term.Const(Term.Cpush _ as c) | Term.Const(Term.Ccall _ as c)
-    | Term.Const(Term.Calloc _ as c) | Term.Const(Term.Cfree _ as c) 
+    | Term.Const(Term.Calloc _ as c) | Term.Const(Term.Cfree _ as c)
     | Term.Const(Term.Cload _ as c) | Term.Const(Term.Cstore _ as c) ->
       let w = fresh_wire () in
       let w1 = fresh_wire () in
