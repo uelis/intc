@@ -77,7 +77,18 @@ let rec subst_value (rho: Term.var -> value) (v: value) =
       match subst_value rho v1 with
       | In((_, j, w), a) ->
         (* TODO: this is used in cbv.intml. Check that it's really ok. *)
-        if i=j then w else Undef(a)
+        if i=j then w else
+          (* need to find the right type annotation *)
+          let ai =
+            match Basetype.finddesc a with
+            | Basetype.DataW(id, params) ->
+              begin
+                match List.nth (Basetype.Data.constructor_types id params) i with
+                | Some b -> b
+                | None -> assert false
+              end
+            | _ -> assert false in
+          Undef(ai)
       | w -> Select(w, a, i)
     end
   | Undef(a) -> Undef(a)
@@ -202,8 +213,6 @@ let fprint_func (oc: Out_channel.t) (func: t) : unit =
 (* The following functions verify the representation invariants and the
    types in ssa programs. *)
 
-exception Type_error
-
 let check_blocks_invariant entry_label blocks =
   let defined_labels = Int.Table.create () in
   let invoked_labels = Int.Table.create () in
@@ -226,13 +235,13 @@ let rec typeof_value
   : Basetype.t =
   let open Basetype in
   let equals_exn a b =
-    if equals a b then () else raise Type_error in
+    if equals a b then () else failwith "internal ssa.ml: type error" in
   match v with
   | Var(x) ->
     begin
       match List.Assoc.find gamma x with
       | Some b -> b
-      | None -> raise Type_error
+      | None -> failwith "internal ssa.ml: undefined variable"
     end
   | Unit ->
     newty OneW
@@ -246,12 +255,12 @@ let rec typeof_value
       match finddesc a with
       | DataW(id', params) ->
         let constructor_types = Data.constructor_types id' params in
-        if (id <> id') then raise Type_error;
+        if (id <> id') then failwith "internal ssa.ml: wrong data type";
         (match List.nth constructor_types n with
          | Some b' -> equals_exn b b'
-         | None -> raise Type_error)
+         | None -> failwith "internal ssa.ml: wrong constructor type")
       | _ ->
-        raise Type_error
+        failwith "internal ssa.ml: data type expected"
     end;
     a
   | Fst(v, b1, b2) ->
@@ -270,7 +279,8 @@ let rec typeof_value
     begin
       match List.nth constructor_types n with
       | Some b -> b
-      | None -> raise Type_error
+      | None ->
+        failwith "internal ssa.ml: unknown constructor"
     end
   | Undef(a) ->
     a
@@ -284,7 +294,7 @@ let typecheck_term
   : unit =
   let open Basetype in
   let equals_exn a b =
-    if equals a b then () else raise Type_error in
+    if equals a b then () else failwith "internal ssa.ml: type mismatch" in
   match t with
   | Val(v) ->
     let b = typeof_value gamma v in
@@ -358,20 +368,20 @@ let rec typecheck_let_bindings
 
 let typecheck_block (label_types: Basetype.t Int.Table.t) (b: block) : unit =
   let equals_exn a b =
-    if Basetype.equals a b then () else raise Type_error in
+    if Basetype.equals a b then () else failwith "internal ssa.ml: type mismatch" in
   let check_label_exn l a =
     match Int.Table.find label_types l.name with
     | Some b ->
       equals_exn a b;
       equals_exn l.message_type b
-    | None -> raise Type_error in
+    | None -> failwith "internal ssa.ml: wrong argument in jump" in
   match b with
   | Unreachable(_) -> ()
   | Direct(s, x, l, v, d) ->
     let gamma0 = [(x, s.message_type)] in
     let gamma = typecheck_let_bindings gamma0 l in
     let a = typeof_value gamma v in
-    equals_exn a (d.message_type);
+    check_label_exn d a
   | Branch(s, x, l, (id, params, v, ds)) ->
     let constructor_types = Basetype.Data.constructor_types id params in
     let bs = List.zip ds constructor_types in
@@ -388,7 +398,7 @@ let typecheck_block (label_types: Basetype.t Int.Table.t) (b: block) : unit =
             let b = typeof_value ((x, a) :: gamma) v in
             check_label_exn d b)
       | None ->
-        raise Type_error
+        failwith "internal ssa.ml: wrong number of cases in branch"
     end
   | Return(s, x, l, v, a) ->
     let gamma0 = [(x, s.message_type)] in
@@ -396,19 +406,15 @@ let typecheck_block (label_types: Basetype.t Int.Table.t) (b: block) : unit =
     let b = typeof_value gamma v in
     equals_exn a b
 
-let typechecks (blocks: block list) : bool =
-  try
-    let label_types = Int.Table.create () in
-    List.iter blocks ~f:(fun b ->
-      let l = label_of_block b in
-      match Int.Table.add label_types ~key:l.name ~data:l.message_type with
-      | `Duplicate -> raise Type_error
-      | `Ok -> ()
-    );
-    List.iter blocks ~f:(typecheck_block label_types);
-    true
-  with
-  | Type_error -> false
+let typecheck (blocks: block list) : unit =
+  let label_types = Int.Table.create () in
+  List.iter blocks ~f:(fun b ->
+    let l = label_of_block b in
+    match Int.Table.add label_types ~key:l.name ~data:l.message_type with
+    | `Duplicate -> failwith "internal ssa.ml: duplicte block"
+    | `Ok -> ()
+  );
+  List.iter blocks ~f:(typecheck_block label_types)
 
 
 let make ~func_name:(func_name: string)
@@ -416,7 +422,7 @@ let make ~func_name:(func_name: string)
       ~blocks:(blocks: block list)
       ~return_type:(return_type: Basetype.t) =
   check_blocks_invariant entry_label blocks;
-  assert (typechecks blocks);
+  assert (typecheck blocks = ()); (* execute for effect *)
   { func_name = func_name;
     entry_label = entry_label;
     blocks = blocks;
