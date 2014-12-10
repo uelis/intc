@@ -1,6 +1,6 @@
-(** Compilation of source programs to interaction circuits 
+(** Compilation of source programs to interaction circuits
 
-    Circuits are repesented by lists of nodes, which each 
+    Circuits are repesented by lists of nodes, which each
     lists the edges (here: wires) that it is connected to.
 *)
 
@@ -38,15 +38,15 @@ type instruction =
 val wires : instruction -> wire list
 
 (** The node [LWeak] depends on the choice of an embedding-projection
-    pair. There are many possible choices. The following 
+    pair. There are many possible choices. The following
     pairs are sufficient for the translation given below. *)
 val embed : Basetype.t -> Basetype.t -> Term.t -> Term.t
 val project : Basetype.t -> Basetype.t -> Term.t -> Term.t
 
 (** Circuits are a list of instruction node with a choice of output wire.
 *)
-type t = { 
-  output : wire; 
+type t = {
+  output : wire;
   instructions : instruction list
 }
 
