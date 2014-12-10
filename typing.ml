@@ -84,34 +84,34 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
                           "' not bound or not of value type."))
     end
   | ConstV(Cintconst(_)) ->
-    Basetype.newty Basetype.NatW
+    Basetype.newty Basetype.IntB
   | ConstV(Cundef(a)) ->
     a
   | UnitV ->
-    Basetype.newty Basetype.OneW
+    Basetype.newty Basetype.UnitB
   | PairV((t1, a1), (t2, a2)) ->
       let b1 = ptV c t1 in
       let b2 = ptV c t2 in
       beq_expected_constraint t1 ~actual:b1 ~expected:a1;
       beq_expected_constraint t2 ~actual:b2 ~expected:a2;
-      Basetype.newty (Basetype.TensorW(b1, b2))
+      Basetype.newty (Basetype.PairB(b1, b2))
   | FstV(t1, a, b) ->
     let a1 = ptV c t1 in
     beq_expected_constraint t1
       ~actual:a1
-      ~expected:(Basetype.newty (Basetype.TensorW(a, b)));
+      ~expected:(Basetype.newty (Basetype.PairB(a, b)));
     a
   | SndV(t1, a, b) ->
     let a1 = ptV c t1 in
     beq_expected_constraint t1
       ~actual:a1
-      ~expected:(Basetype.newty (Basetype.TensorW(a, b)));
+      ~expected:(Basetype.newty (Basetype.PairB(a, b)));
     b
   | InV((id, k, t1), a) ->
     let a1 = ptV c t1 in
     let n = Basetype.Data.params id in
     let params = fresh_tyVars n in
-    let data = Basetype.newty (Basetype.DataW(id, params)) in
+    let data = Basetype.newty (Basetype.DataB(id, params)) in
     (* TODO: check that constructor exists? *)
     let argtype =
       match List.nth (Basetype.Data.constructor_types id params) k with
@@ -127,16 +127,16 @@ let rec ptV (c: Basetype.t context) (t: Term.t)
     beq_expected_constraint t1 ~actual:a1 ~expected:fresh_argtype;
     beq_expected_constraint t ~actual:fresh_data ~expected:a;
     fresh_data
-  | Select(id, params, s, i) ->
+  | SelectV(id, params, s, i) ->
     assert (not (Basetype.Data.is_discriminated id));
     let a1 = ptV c s in
-    let data = Basetype.newty (Basetype.DataW(id, params)) in
+    let data = Basetype.newty (Basetype.DataB(id, params)) in
     let ctypes = Basetype.Data.constructor_types id params in
     let ai = List.nth_exn ctypes i in
     beq_expected_constraint s ~actual:a1 ~expected:data;
     ai
   | Return _ | Bind _ | Fn _ | Fun _ | App _ |Case _
-  | CopyU _ | HackU _ | TypeAnnot _ | Const _  | ExternalU _
+  | Copy _ | Direct _ | TypeAnnot _ | Const _  | External _
   | Pair _ | LetPair _
     -> raise (Typing_error (Some t, "Value term expected."))
 and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
@@ -154,67 +154,67 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
   | Const(Cprint _) ->
     Type.newty
       (Type.FunW(
-         Basetype.newty Basetype.OneW,
-         Type.newty (Type.Base (Basetype.newty Basetype.OneW))))
+         Basetype.newty Basetype.UnitB,
+         Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Cintprint) ->
     Type.newty
       (Type.FunW(
-         Basetype.newty Basetype.NatW,
-         Type.newty (Type.Base (Basetype.newty Basetype.OneW))))
+         Basetype.newty Basetype.IntB,
+         Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Cintadd)
   | Const(Cintsub)
   | Const(Cintmul)
   | Const(Cintdiv) ->
-    let intty = Basetype.newty Basetype.NatW in
+    let intty = Basetype.newty Basetype.IntB in
     Type.newty (
       Type.FunW(
-        Basetype.newty (Basetype.TensorW(intty, intty)),
+        Basetype.newty (Basetype.PairB(intty, intty)),
         Type.newty (Type.Base intty)))
   | Const(Cinteq) ->
-    let intty = Basetype.newty Basetype.NatW in
-    let boolty = Basetype.newty (Basetype.DataW(Basetype.Data.boolid, [])) in
+    let intty = Basetype.newty Basetype.IntB in
+    let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
     Type.newty
       (Type.FunW(
-         Basetype.newty (Basetype.TensorW(intty, intty)),
+         Basetype.newty (Basetype.PairB(intty, intty)),
          Type.newty (Type.Base boolty)))
   | Const(Cintslt) ->
-    let intty = Basetype.newty Basetype.NatW in
-    let boolty = Basetype.newty (Basetype.DataW(Basetype.Data.boolid, [])) in
+    let intty = Basetype.newty Basetype.IntB in
+    let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
     Type.newty
       (Type.FunW(
-         Basetype.newty (Basetype.TensorW(intty, intty)),
+         Basetype.newty (Basetype.PairB(intty, intty)),
          Type.newty (Type.Base boolty)))
   | Const(Cpush(a)) ->
     Type.newty
       (Type.FunW(
          a,
-         Type.newty (Type.Base (Basetype.newty Basetype.OneW))))
+         Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Cpop(a)) ->
     Type.newty
       (Type.FunW(
-         Basetype.newty Basetype.OneW,
+         Basetype.newty Basetype.UnitB,
          Type.newty (Type.Base a)))
   | Const(Calloc(a)) ->
     Type.newty
       (Type.FunW(
-         Basetype.newty Basetype.OneW,
-         Type.newty (Type.Base (Basetype.newty (Basetype.BoxW a)))))
+         Basetype.newty Basetype.UnitB,
+         Type.newty (Type.Base (Basetype.newty (Basetype.BoxB a)))))
   | Const(Cfree(a)) ->
     Type.newty
       (Type.FunW(
-         Basetype.newty (Basetype.BoxW a),
-         Type.newty (Type.Base (Basetype.newty Basetype.OneW))))
+         Basetype.newty (Basetype.BoxB a),
+         Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Cload(a)) ->
     Type.newty
       (Type.FunW(
-         Basetype.newty (Basetype.BoxW a),
+         Basetype.newty (Basetype.BoxB a),
          Type.newty (Type.Base a)))
   | Const(Cstore(a)) ->
-    let boxa = Basetype.newty (Basetype.BoxW a) in
+    let boxa = Basetype.newty (Basetype.BoxB a) in
     Type.newty
       (Type.FunW(
-         Basetype.newty (Basetype.TensorW(boxa, a)),
-         Type.newty (Type.Base (Basetype.newty Basetype.OneW))))
+         Basetype.newty (Basetype.PairB(boxa, a)),
+         Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Ccall(_, a, b)) | Const(Cencode(a, b)) | Const(Cdecode(a, b)) ->
     Type.newty (Type.FunW(a, Type.newty (Type.Base b)))
   | Return(t1, a) ->
@@ -272,7 +272,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     let tyY = pt c ((x, beta) :: phi) t in
     eq_expected_constraint (Term.mkVar x) ~actual:beta ~expected:ty;
     Type.newty (Type.FunU(a, beta, tyY))
-  | CopyU(s, (x, y, t)) ->
+  | Copy(s, (x, y, t)) ->
     let gamma, delta = split_context phi s t in
     let beta = Type.newty Type.Var in
     let tyY = pt c ([(x, beta); (y, beta)] @ delta) t in
@@ -295,7 +295,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     assert (Basetype.Data.is_discriminated id);
     (* case distinction is allowed over values only *)
     let a1 = ptV c s in
-    let data = Basetype.newty (Basetype.DataW(id, params)) in
+    let data = Basetype.newty (Basetype.DataB(id, params)) in
     let argtypes = Basetype.Data.constructor_types id params in
     let beta = Type.newty Type.Var in
     let l_args = List.zip_exn l argtypes in
@@ -305,7 +305,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
         eq_expected_constraint u ~actual:a2 ~expected:beta);
     beq_expected_constraint s ~actual:a1 ~expected:data;
     beta
-  | HackU(b, t1) ->
+  | Direct(b, t1) ->
     let a1 = pt c [] t1 in
     let b' = Type.map_index_types b
                (fun a ->
@@ -326,7 +326,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
                       b_minus,
                       Type.newty (Type.Base b_plus))));
     b
-  | ExternalU((_, a), b) ->
+  | External((_, a), b) ->
     eq_expected_constraint t
       ~actual:b
       ~expected:(Type.freshen a);
@@ -335,13 +335,13 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     (* TODO: move to type/basetype *)
     let rec check_wf_base (b: Basetype.t) : unit =
       match (Basetype.find b).Basetype.desc with
-      | Basetype.Var | Basetype.NatW | Basetype.ZeroW | Basetype.OneW -> ()
-      | Basetype.BoxW(b1) ->
+      | Basetype.Var | Basetype.IntB | Basetype.ZeroB | Basetype.UnitB -> ()
+      | Basetype.BoxB(b1) ->
         check_wf_base b1
-      | Basetype.TensorW(b1, b2) ->
+      | Basetype.PairB(b1, b2) ->
         check_wf_base b1;
         check_wf_base b2
-      | Basetype.DataW(id, bs) ->
+      | Basetype.DataB(id, bs) ->
         begin
           try
             let n = Basetype.Data.params id in
@@ -373,7 +373,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     let a = pt c phi t in
     eq_expected_constraint t ~actual:a ~expected:ty;
     a
-  | ConstV _ | UnitV | PairV _ | InV _ | FstV _ | SndV _ | Select _
+  | ConstV _ | UnitV | PairV _ | InV _ | FstV _ | SndV _ | SelectV _
     ->
     raise (Typing_error (Some t, "Interactive term expected."))
 

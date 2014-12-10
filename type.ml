@@ -135,24 +135,24 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
             betam, betap
           end
       | Base(a) ->
-        Basetype.newty Basetype.OneW,
+        Basetype.newty Basetype.UnitB,
         a
       | Tensor(b1, b2) ->
           let bm1, bp1 = qap b1 in
           let bm2, bp2 = qap b2 in
           let open Basetype in
-            newty (DataW(Data.sumid 2, [bm1; bm2])),
-            newty (DataW(Data.sumid 2, [bp1; bp2]))
+            newty (DataB(Data.sumid 2, [bm1; bm2])),
+            newty (DataB(Data.sumid 2, [bp1; bp2]))
       | FunW(a, b2) ->
         let bm2, bp2 = qap b2 in
         let open Basetype in
-        newty (TensorW(a, bm2)),
+        newty (PairB(a, bm2)),
         bp2
       | FunU(a, b1, b2) ->
           let bm1, bp1 = qap b1 in
           let bm2, bp2 = qap b2 in
           let open Basetype in
-            newty (DataW(Data.sumid 2, [newty (TensorW(a, bp1)); bm2])),
-            newty (DataW(Data.sumid 2, [newty (TensorW(a, bm1)); bp2]))
+            newty (DataB(Data.sumid 2, [newty (PairB(a, bp1)); bm2])),
+            newty (DataB(Data.sumid 2, [newty (PairB(a, bm1)); bp2]))
       | Link _ -> assert false
   in qap s

@@ -8,12 +8,12 @@ type t =
 and desc =
   | Link of t
   | Var
-  | NatW
-  | ZeroW
-  | OneW
-  | BoxW of t
-  | TensorW of t * t
-  | DataW of string * t list
+  | IntB
+  | ZeroB
+  | UnitB
+  | BoxB of t
+  | PairB of t * t
+  | DataB of string * t list
 with sexp
 
 let next_id = ref 0
@@ -50,30 +50,30 @@ type type_t = t with sexp
 
 let children a =
   match finddesc a with
-  | Var | NatW | ZeroW | OneW -> []
-  | BoxW(b1) -> [b1]
-  | TensorW(b1, b2) -> [b1; b2]
-  | DataW(_, bs) -> bs
+  | Var | IntB | ZeroB | UnitB -> []
+  | BoxB(b1) -> [b1]
+  | PairB(b1, b2) -> [b1; b2]
+  | DataB(_, bs) -> bs
   | Link _ -> assert false
 
 let rec free_vars (b: t) : t list =
   match (find b).desc with
     | Var -> [find b]
-    | NatW | ZeroW | OneW -> []
-    | BoxW(b1) -> free_vars b1
-    | TensorW(b1, b2) -> free_vars b1 @ (free_vars b2)
-    | DataW(_, bs) -> List.concat (List.map ~f:free_vars bs)
+    | IntB | ZeroB | UnitB -> []
+    | BoxB(b1) -> free_vars b1
+    | PairB(b1, b2) -> free_vars b1 @ (free_vars b2)
+    | DataB(_, bs) -> List.concat (List.map ~f:free_vars bs)
     | Link _ -> assert false
 
 let rec subst (f: t -> t) (b: t) : t =
   match (find b).desc with
     | Var -> f (find b)
-    | NatW -> newty NatW
-    | ZeroW -> newty ZeroW
-    | OneW -> newty OneW
-    | BoxW(b1) -> newty(BoxW(subst f b1))
-    | TensorW(b1, b2) -> newty(TensorW(subst f b1, subst f b2))
-    | DataW(id, bs) -> newty(DataW(id, List.map ~f:(subst f) bs))
+    | IntB -> newty IntB
+    | ZeroB -> newty ZeroB
+    | UnitB -> newty UnitB
+    | BoxB(b1) -> newty(BoxB(subst f b1))
+    | PairB(b1, b2) -> newty(PairB(subst f b1, subst f b2))
+    | DataB(id, bs) -> newty(DataB(id, List.map ~f:(subst f) bs))
     | Link _ -> assert false
 
 let rec equals (u: t) (v: t) : bool =
@@ -84,18 +84,18 @@ let rec equals (u: t) (v: t) : bool =
       match ur.desc, vr.desc with
         | Var, Var ->
             false
-        | NatW, NatW | ZeroW, ZeroW | OneW, OneW ->
+        | IntB, IntB | ZeroB, ZeroB | UnitB, UnitB ->
             true
-        | BoxW(u1), BoxW(v1)  ->
+        | BoxB(u1), BoxB(v1)  ->
             equals u1 v1
-        | TensorW(u1, u2), TensorW(v1, v2)  ->
+        | PairB(u1, u2), PairB(v1, v2)  ->
             equals u1 v1 && equals u2 v2
-        | DataW(idu, lu), DataW(idv, lv) ->
+        | DataB(idu, lu), DataB(idv, lv) ->
             idu = idv &&
             List.for_all2_exn lu lv ~f:equals
         | Link _, _ | _, Link _ -> assert false
-        | Var, _ | NatW, _ | ZeroW, _ | OneW, _
-        | BoxW _, _ | TensorW _ , _ | DataW _ , _ ->
+        | Var, _ | IntB, _ | ZeroB, _ | UnitB, _
+        | BoxB _, _ | PairB _ , _ | DataB _ , _ ->
             false
 
 let freshen_list ts =
@@ -132,8 +132,8 @@ struct
       ~data:{ name = "bool";
               params = [];
               discriminated = true;
-              constructors = ["True", newty OneW;
-                              "False", newty OneW] };
+              constructors = ["True", newty UnitB;
+                              "False", newty UnitB] };
     "bool"
 
   let sumid =
@@ -194,10 +194,10 @@ struct
   let is_recursive id =
     let rec check_rec a =
       match finddesc a with
-        | Var | ZeroW | OneW | NatW -> false
-        | BoxW(b1) -> check_rec b1
-        | TensorW(b1, b2) -> check_rec b1 && check_rec b2
-        | DataW(id', bs) -> id = id' || List.exists ~f:check_rec bs
+        | Var | ZeroB | UnitB | IntB -> false
+        | BoxB(b1) -> check_rec b1
+        | PairB(b1, b2) -> check_rec b1 && check_rec b2
+        | DataB(id', bs) -> id = id' || List.exists ~f:check_rec bs
         | Link _ -> assert false in
     let freshparams = List.init (params id) ~f:(fun _ -> newty Var) in
     let ct = constructor_types id freshparams in
@@ -254,16 +254,16 @@ struct
     (* check that all recursive occurrences of the type are under a box. *)
     let rec check_rec_occ a =
       match finddesc a with
-      | Var | NatW | OneW | ZeroW -> ()
-      | TensorW(a1, a2) ->
+      | Var | IntB | UnitB | ZeroB -> ()
+      | PairB(a1, a2) ->
         check_rec_occ a1;
         check_rec_occ a2
-      | DataW(id', params) ->
+      | DataB(id', params) ->
         if (id = id') then
           failwith "Recursive occurrences are only allowed within box<...>"
         else
           List.iter params ~f:check_rec_occ
-      | BoxW _ -> ()
+      | BoxB _ -> ()
       | Link _ -> assert false
     in
     check_rec_occ argtype;

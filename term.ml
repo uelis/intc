@@ -52,7 +52,7 @@ and t_desc =
   | FstV of t * Basetype.t * Basetype.t
   | SndV of t * Basetype.t * Basetype.t
   | InV of (Basetype.Data.id * int * t) * Basetype.t
-  | Select of Basetype.Data.id * (Basetype.t list) * t * int
+  | SelectV of Basetype.Data.id * (Basetype.t list) * t * int
   (* interaction terms *)
   | Const of op_const
   | Return of t * Basetype.t
@@ -61,11 +61,11 @@ and t_desc =
   | Fun of (var * Basetype.t * Type.t) * t
   | App of t * Type.t * t
   | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
-  | CopyU of t * (var * var * t)
+  | Copy of t * (var * var * t)
   | Pair of t * t
   | LetPair of t* ((var * Type.t) * (var * Type.t) * t)
-  | HackU of Type.t * t
-  | ExternalU of (string * Type.t (* type schema *)) * Type.t
+  | Direct of Type.t * t
+  | External of (string * Type.t (* type schema *)) * Type.t
   | TypeAnnot of t * Type.t
 
 let mkTerm d = { desc = d; loc = None }
@@ -105,8 +105,8 @@ let mkBind s (x ,t) =
   let alpha = Basetype.newtyvar() in
   { desc = Bind((s, alpha), (x, t)); loc = None }
 let mkFun ((x, a, ty), t) = { desc = Fun((x, a, ty), t); loc = None }
-let mkCopyU s ((x, y), t) = { desc = CopyU(s, (x, y, t)); loc = None }
-let mkHackU ty t = { desc = HackU(ty, t); loc = None }
+let mkCopy s ((x, y), t) = { desc = Copy(s, (x, y, t)); loc = None }
+let mkDirect ty t = { desc = Direct(ty, t); loc = None }
 let mkTypeAnnot t a = { desc = TypeAnnot(t, a); loc = None }
 let mkBox t =
   let alpha = Basetype.newtyvar() in
@@ -125,12 +125,12 @@ let rec is_value (term: t) : bool =
   match term.desc with
   | Var _ | ConstV _ | UnitV -> true
   | InV((_,_,s), _) | FstV(s, _, _) | SndV(s, _, _)
-  | Select(_, _, s, _) -> is_value s
+  | SelectV(_, _, s, _) -> is_value s
   | PairV((s, _), (t, _)) -> is_value s && is_value t
   | Case _ | Const _ | App _
   | Return _ | Bind _
   | Pair _ | LetPair _
-  | HackU _ | ExternalU _ | CopyU _ | Fn _ | Fun _
+  | Direct _ | External _ | Copy _ | Fn _ | Fun _
   | TypeAnnot _ ->
     false
 
@@ -138,13 +138,13 @@ let rec free_vars (term: t) : var list =
   let abs x l = List.filter l ~f:(fun z -> not (String.equal z x)) in
   match term.desc with
   | Var(v) -> [v]
-  | ConstV _ | Const(_) | UnitV | ExternalU _ -> []
+  | ConstV _ | Const(_) | UnitV | External _ -> []
   | InV((_,_,s), _) | FstV(s, _, _) | SndV(s, _, _)
-  | Select(_, _, s, _)  | Return(s, _)
-  | HackU(_, s) -> free_vars s
+  | SelectV(_, _, s, _)  | Return(s, _)
+  | Direct(_, s) -> free_vars s
   | PairV((s, _), (t, _)) | App(s, _, t) ->
     (free_vars s) @ (free_vars t)
-  | CopyU(s, (x, y, t)) ->
+  | Copy(s, (x, y, t)) ->
     (free_vars s) @ (abs x (abs y (free_vars t)))
   | Fn((x, _), t) | Fun((x, _, _), t) ->
     abs x (free_vars t)
@@ -163,12 +163,12 @@ let rec free_vars (term: t) : var list =
 let rec all_vars (term: t) : var list =
   match term.desc with
   | Var(v) -> [v]
-  | ConstV _ | Const(_) | UnitV | ExternalU _ -> []
+  | ConstV _ | Const(_) | UnitV | External _ -> []
   | InV((_,_,s), _) | FstV(s, _, _) | SndV(s, _, _)
-  | Return(s, _) | Select(_, _, s, _)
-  | HackU(_, s) -> all_vars s
+  | Return(s, _) | SelectV(_, _, s, _)
+  | Direct(_, s) -> all_vars s
   | PairV((s, _), (t, _)) | App(s, _, t)
-  | CopyU(s, (_, _, t)) ->
+  | Copy(s, (_, _, t)) ->
     all_vars s @ all_vars t
   | Fn((x, _), t) | Fun((x, _, _), t) ->
     x :: all_vars t
@@ -188,7 +188,7 @@ let rename_vars (f: var -> var) (term: t) : t =
   let rec rn term =
     match term.desc with
     | Var(x) -> { term with desc = Var(f x) }
-    | ConstV _ | Const _  | UnitV | ExternalU _ ->
+    | ConstV _ | Const _  | UnitV | External _ ->
       term
     | InV((n, k, s), a) ->
       { term with desc = InV((n, k, rn s), a) }
@@ -196,16 +196,16 @@ let rename_vars (f: var -> var) (term: t) : t =
       { term with desc = FstV(rn s, a, b) }
     | SndV(s, a, b) ->
       { term with desc = SndV(rn s, a, b) }
-    | HackU(ty, s) ->
-      { term with desc = HackU(ty, rn s) }
+    | Direct(ty, s) ->
+      { term with desc = Direct(ty, rn s) }
     | Return(s, a) ->
       { term with desc = Return(rn s, a) }
     | PairV((s, a), (t, b)) ->
       { term with desc = PairV((rn s, a), (rn t, b)) }
     | App(s, a, t) ->
       { term with desc = App(rn s, a, rn t) }
-    | CopyU(s, (x, y, t)) ->
-      { term with desc = CopyU(rn s, (f x, f y, rn t)) }
+    | Copy(s, (x, y, t)) ->
+      { term with desc = Copy(rn s, (f x, f y, rn t)) }
     | Fn((x, ty), t) ->
       { term with desc = Fn((f x, ty), rn t) }
     | Fun((x, a, ty), t) ->
@@ -216,8 +216,8 @@ let rename_vars (f: var -> var) (term: t) : t =
       { term with desc = Pair(rn s, rn t) }
     | LetPair(s, ((x, a), (y, b), t)) ->
       { term with desc = LetPair(rn s, ((f x, a), (f y, b), rn t)) }
-    | Select(id, params, s, i) ->
-      { term with desc = Select(id, params, rn s, i) }
+    | SelectV(id, params, s, i) ->
+      { term with desc = SelectV(id, params, rn s, i) }
     | Case(id, params, s, l) ->
       { term with desc = Case(id, params, rn s,
                               List.map l ~f:(fun (x, t) -> (f x, rn t))) }
@@ -264,7 +264,7 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
         (substituted := true; s)
       else
         { term with desc = Var(apply sigma y) }
-    | UnitV | ConstV _ | Const _ | ExternalU _ ->
+    | UnitV | ConstV _ | Const _ | External _ ->
       term
     | InV((n, k, s), a) ->
       {term with desc = InV((n, k, sub sigma s), a)}
@@ -272,16 +272,16 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
       { term with desc = FstV(sub sigma s, a, b) }
     | SndV(s, a, b) ->
       { term with desc = SndV(sub sigma s, a, b) }
-    | HackU(ty, s) ->
-      {term with desc = HackU(ty, sub sigma s)}
+    | Direct(ty, s) ->
+      {term with desc = Direct(ty, sub sigma s)}
     | Return(s, a) ->
       { term with desc = Return(sub sigma s, a) }
     | PairV((s, a), (t, b)) ->
       { term with desc = PairV((sub sigma s, a), (sub sigma t, b)) }
     | App (s, a, t) ->
       { term with desc = App(sub sigma s, a, sub sigma t) }
-    | CopyU(s, (x, y, t)) ->
-      { term with desc = CopyU(sub sigma s, abs2 sigma (x, y, t)) }
+    | Copy(s, (x, y, t)) ->
+      { term with desc = Copy(sub sigma s, abs2 sigma (x, y, t)) }
     | Fn((x, ty), t) ->
       let (x', t') = abs sigma (x, t) in
       { term with desc = Fn((x', ty), t') }
@@ -295,8 +295,8 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
     | LetPair(s, ((x, a), (y, b), t)) ->
       let x', y', t' = abs2 sigma (x, y, t) in
       { term with desc = LetPair(sub sigma s, ((x', a), (y', b), t')) }
-    | Select(id, params, s, i) ->
-      { term with desc = Select(id, params, sub sigma s, i) }
+    | SelectV(id, params, s, i) ->
+      { term with desc = SelectV(id, params, sub sigma s, i) }
     | Case(id, params, s, l) ->
       { term with desc = Case(id, params, sub sigma s,
                               List.map l ~f:(fun (x, t) -> abs sigma (x, t))) }
@@ -419,8 +419,8 @@ let freshen_type_vars t =
       { term with desc = PairV((mta s, fbase a), (mta t, fbase b)) }
     | App(s, a, t) ->
       { term with desc = App(mta s, f a, mta t) }
-    | CopyU(s, (x, y, t)) ->
-      { term with desc = CopyU(mta s, (x, y, mta t)) }
+    | Copy(s, (x, y, t)) ->
+      { term with desc = Copy(mta s, (x, y, mta t)) }
     | Fn((x, a), t) ->
       { term with desc = Fn((x, fbase a), mta t) }
     | Fun((x, a, ty), t) ->
@@ -431,12 +431,12 @@ let freshen_type_vars t =
       { term with desc = Pair(mta s, mta t) }
     | LetPair(s, ((x, a), (y, b), t)) ->
       { term with desc = LetPair(mta s, ((x, f a), (y, f b), mta t)) }
-    | Select(id, params, s, i) ->
-      { term with desc = Select(id, List.map params ~f:fbase, mta s, i) }
+    | SelectV(id, params, s, i) ->
+      { term with desc = SelectV(id, List.map params ~f:fbase, mta s, i) }
     | Case(id, params, s, l) ->
       { term with desc = Case(id, List.map params ~f:fbase, mta s,
                               List.map l ~f:(fun (x, t) -> (x, mta t))) }
     | TypeAnnot(t, ty) -> { term with desc = TypeAnnot(mta t, f ty) }
-    | HackU(ty, s) -> { term with desc = HackU(f ty, mta s) }
-    | ExternalU(e, ty) -> { term with desc = ExternalU(e, f ty) }
+    | Direct(ty, s) -> { term with desc = Direct(f ty, mta s) }
+    | External(e, ty) -> { term with desc = External(e, f ty) }
   in mta t

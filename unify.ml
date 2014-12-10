@@ -52,21 +52,21 @@ module Unify(T : sig type t end) = struct
             union c1 c2
           | _, Var ->
             union c2 c1
-          | NatW, NatW
-          | ZeroW, ZeroW
-          | OneW, OneW ->
+          | IntB, IntB
+          | ZeroB, ZeroB
+          | UnitB, UnitB ->
             ()
-          | BoxW(t1), BoxW(s1) ->
+          | BoxB(t1), BoxB(s1) ->
             unify_raw (Basetype_eq(t1, s1, tag))
-          | TensorW(t1, t2), TensorW(s1, s2) ->
+          | PairB(t1, t2), PairB(s1, s2) ->
             unify_raw (Basetype_eq(t1, s1, tag));
             unify_raw (Basetype_eq(t2, s2, tag))
-          | DataW(i, ts), DataW(j, ss) when i = j ->
+          | DataB(i, ts), DataB(j, ss) when i = j ->
             List.iter
               (fun (t, s) -> unify_raw (Basetype_eq (t, s, tag)))
               (List.combine ts ss)
-          | NatW, _ | ZeroW, _ | OneW, _
-          | BoxW _, _ | TensorW _, _ | DataW _, _ ->
+          | IntB, _ | ZeroB, _ | UnitB, _
+          | BoxB _, _ | PairB _, _ | DataB _, _ ->
             raise (Not_Unifiable (Equation_failed c))
           | Link _, _ -> assert false
       end

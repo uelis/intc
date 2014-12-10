@@ -1,11 +1,11 @@
 (** Representation of low-level types.
 
     This modules represents the first-order value types that
-    are used in the low-level language. 
+    are used in the low-level language.
 
     {v A,B ::= 'a | 0 | int | unit | A x B | box<A> | data<A1,...,A_n>  v}
 
-    The type [box<A>] is intended to contain boxed values of type [A]. 
+    The type [box<A>] is intended to contain boxed values of type [A].
 
     Algebraic data types may be recursive, but each recursive occurrence
     must appear boxed.
@@ -21,7 +21,7 @@ open Core.Std
     The OCaml Language. LNCS 2395. Springer-Verlag 2002
     http://pauillac.inria.fr/~remy/cours/appsem/
 *)
-       
+
 type t = {
   mutable desc : desc;
   mutable mark : int;
@@ -30,12 +30,12 @@ type t = {
 and desc =
   | Link of t
   | Var
-  | NatW
-  | ZeroW
-  | OneW
-  | BoxW of t
-  | TensorW of t * t
-  | DataW of string * t list
+  | IntB
+  | ZeroB
+  | UnitB
+  | BoxB of t
+  | PairB of t * t
+  | DataB of string * t list
 
 val sexp_of_t: t -> Sexplib.Sexp.t
 val t_of_sexp: Sexplib.Sexp.t -> t
@@ -57,7 +57,7 @@ sig
   (** Name of the bool type *)
   val boolid : id
 
-  (** Generate a new data type name. 
+  (** Generate a new data type name.
       This is useful for generating types programmatically. *)
   val fresh_id : string -> id
 
@@ -89,16 +89,16 @@ sig
   (** Add a new data type, initially with no constructors. *)
   val make : id -> nparams:int -> discriminated:bool -> unit
 
-  (** Add a constructor. 
-      The call [add_constructor id name params a] adds a 
+  (** Add a constructor.
+      The call [add_constructor id name params a] adds a
       constructor of type "[name: a -> id<params>]", where
       [id<params>] means the instantiation of the data type
       at the parameters [params].
-      
+
       To add a constructor [cons: 'a -> list<'a>], one would
       call [add_constructor "list" "cons" ['a] 'a].
 
-      Preconditions: 
+      Preconditions:
       - No constructor called [name] is already defined.
       - [params] is a list of type variables.
       - The free type variables in [a] are contained in [params].
@@ -109,13 +109,13 @@ end
 val newtyvar: unit -> t
 
 (** Returns the list of free type variables in their order of
-    appearance in the term, including duplicates. 
+    appearance in the term, including duplicates.
 *)
 val free_vars: t -> t list
 
-(** Substitution. 
+(** Substitution.
     The result of [subst f t] is the term obtained by
-    replacing each variable [alpha] in [t] by [f alpha]. 
+    replacing each variable [alpha] in [t] by [f alpha].
 *)
 val subst: (t -> t) -> t -> t
 

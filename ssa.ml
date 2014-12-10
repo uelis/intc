@@ -81,7 +81,7 @@ let rec subst_value (rho: Term.var -> value) (v: value) =
           (* undefined *)
           let ai =
             match Basetype.finddesc a with
-            | Basetype.DataW(id, params) ->
+            | Basetype.DataB(id, params) ->
               begin
                 match List.nth (Basetype.Data.constructor_types id params) i with
                 | Some b -> b
@@ -244,16 +244,16 @@ let rec typeof_value
       | None -> failwith "internal ssa.ml: undefined variable"
     end
   | Unit ->
-    newty OneW
+    newty UnitB
   | Pair(v1, v2) ->
     let a1 = typeof_value gamma v1 in
     let a2 = typeof_value gamma v2 in
-    newty (TensorW(a1, a2))
+    newty (PairB(a1, a2))
   | In((id, n, v), a) ->
     let b = typeof_value gamma v in
     begin
       match finddesc a with
-      | DataW(id', params) ->
+      | DataB(id', params) ->
         let constructor_types = Data.constructor_types id' params in
         if (id <> id') then failwith "internal ssa.ml: wrong data type";
         (match List.nth constructor_types n with
@@ -265,15 +265,15 @@ let rec typeof_value
     a
   | Fst(v, b1, b2) ->
     let a1 = typeof_value gamma v in
-    equals_exn a1 (newty (TensorW(b1, b2)));
+    equals_exn a1 (newty (PairB(b1, b2)));
     b1
   | Snd(v, b1, b2) ->
     let a2 = typeof_value gamma v in
-    equals_exn a2 (newty (TensorW(b1, b2)));
+    equals_exn a2 (newty (PairB(b1, b2)));
     b2
   | Select(v, (id, params), n) ->
     let a1 = typeof_value gamma v in
-    let a = newty (DataW(id, params)) in
+    let a = newty (DataB(id, params)) in
     equals_exn a a1;
     let constructor_types = Data.constructor_types id params in
     begin
@@ -285,7 +285,7 @@ let rec typeof_value
   | Undef(a) ->
     a
   | IntConst(_) ->
-    newty NatW
+    newty IntB
 
 let typecheck_term
       (gamma: Basetype.t Typing.context)
@@ -301,51 +301,51 @@ let typecheck_term
     equals_exn a b
   | Const(Term.Cprint(_), v) ->
     let b = typeof_value gamma v in
-    equals_exn b (newty OneW);
-    equals_exn a (newty OneW)
+    equals_exn b (newty UnitB);
+    equals_exn a (newty UnitB)
   | Const(Term.Cintadd, v)
   | Const(Term.Cintsub, v)
   | Const(Term.Cintmul, v)
   | Const(Term.Cintdiv, v) ->
     let b = typeof_value gamma v in
-    let intty = newty NatW in
-    equals_exn b (newty (TensorW(intty, intty)));
+    let intty = newty IntB in
+    equals_exn b (newty (PairB(intty, intty)));
     equals_exn a intty
   | Const(Term.Cinteq, v)
   | Const(Term.Cintslt, v) ->
     let b = typeof_value gamma v in
-    let intty = newty NatW in
-    let boolty = Basetype.newty (Basetype.DataW(Basetype.Data.boolid, [])) in
-    equals_exn b (newty (TensorW(intty, intty)));
+    let intty = newty IntB in
+    let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
+    equals_exn b (newty (PairB(intty, intty)));
     equals_exn a boolty
   | Const(Term.Cintprint, v) ->
     let b = typeof_value gamma v in
-    let intty = newty NatW in
+    let intty = newty IntB in
     equals_exn b intty;
-    equals_exn a (newty OneW)
+    equals_exn a (newty UnitB)
   | Const(Term.Calloc(b), v) ->
     let c = typeof_value gamma v in
-    equals_exn c (newty OneW);
-    equals_exn a (newty (BoxW b))
+    equals_exn c (newty UnitB);
+    equals_exn a (newty (BoxB b))
   | Const(Term.Cfree(b), v) ->
     let c = typeof_value gamma v in
-    equals_exn c (newty (BoxW b));
-    equals_exn a (newty OneW)
+    equals_exn c (newty (BoxB b));
+    equals_exn a (newty UnitB)
   | Const(Term.Cload(b), v) ->
     let c = typeof_value gamma v in
-    equals_exn c (newty (BoxW b));
+    equals_exn c (newty (BoxB b));
     equals_exn a b
   | Const(Term.Cstore(b), v) ->
     let c = typeof_value gamma v in
-    equals_exn c (newty (TensorW(newty (BoxW b), b)));
-    equals_exn a (newty OneW)
+    equals_exn c (newty (PairB(newty (BoxB b), b)));
+    equals_exn a (newty UnitB)
   | Const(Term.Cpush(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c b;
-    equals_exn a (newty OneW)
+    equals_exn a (newty UnitB)
   | Const(Term.Cpop(b), v) ->
     let c = typeof_value gamma v in
-    equals_exn c (newty OneW);
+    equals_exn c (newty UnitB);
     equals_exn a b
   | Const(Term.Ccall(_, b1, b2), v)
   | Const(Term.Cencode(b1, b2), v)
@@ -392,7 +392,7 @@ let typecheck_block (label_types: Basetype.t Int.Table.t) (b: block) : unit =
         let gamma = typecheck_let_bindings gamma0 l in
         let va = typeof_value gamma v in
         equals_exn va (Basetype.newty
-                         (Basetype.DataW(id, params)));
+                         (Basetype.DataB(id, params)));
         List.iter bs
           ~f:(fun ((x, v, d), a) ->
             let b = typeof_value ((x, a) :: gamma) v in
@@ -439,9 +439,9 @@ let make ~func_name:(func_name: string)
  * variables of this form should be translated. *)
 let fresh_var = Vargen.mkVarGenerator "x" ~avoid:[]
 
-let unTensorW a =
+let unPairB a =
   match Basetype.finddesc a with
-  | Basetype.TensorW(a1, a2) -> a1, a2
+  | Basetype.PairB(a1, a2) -> a1, a2
   | _ -> assert false
 
 let term_value_to_ssa (t: Term.t)
@@ -477,7 +477,7 @@ let term_value_to_ssa (t: Term.t)
       let t2' = Term.subst (Term.mkVar x') x t2 in
       let lt2, v2 = to_ssa t2' in
       lt2 @ [Let((x', ax), Val v1)] @ lt1, v2
-    | Term.Select(id, params, t1, i) ->
+    | Term.SelectV(id, params, t1, i) ->
       let lt1, v1 = to_ssa t1 in
       lt1, Select(v1, (id, params), i)
     | _ ->
@@ -603,8 +603,8 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           assert false
       | Circuit.Encode(w1) ->
         if dst = w1.src then
-          let _, a = unTensorW w1.type_back in
-          let _, b = unTensorW w1.type_forward in
+          let _, a = unPairB w1.type_back in
+          let _, b = unPairB w1.type_forward in
           let lt, vt =
             to_ssa (mkPair sigma ((Circuit.embed a b m)))
               w1.type_forward in
@@ -612,8 +612,8 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
         else assert false
       | Circuit.Decode(w1) ->
         if dst = w1.src then
-          let _, a = unTensorW w1.type_back in
-          let _, b = unTensorW w1.type_forward in
+          let _, a = unPairB w1.type_back in
+          let _, b = unPairB w1.type_forward in
           let lt, vt =
             to_ssa (mkPair sigma ((Circuit.project b a m)))
               w1.type_forward in
@@ -635,7 +635,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           let alpha = Basetype.newtyvar () in
           let beta1 = Basetype.newtyvar () in
           let beta2 = Basetype.newtyvar () in
-          let beta = Basetype.newty (Basetype.DataW(Basetype.Data.sumid 2,
+          let beta = Basetype.newty (Basetype.DataB(Basetype.Data.sumid 2,
                                                     [beta1; beta2])) in
           let lsigma, vsigma = to_ssa sigma alpha in
           let lm, vm = to_ssa m beta in
@@ -735,10 +735,10 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
       | Circuit.LWeak(w1 (* \Tens A X *),
                       w2 (* \Tens B X *)) (* B <= A *) ->
         if dst = w1.src then
-          let _, a_token = unTensorW w1.type_back in
-          let a, _ = unTensorW a_token in
-          let _, b_token = unTensorW w2.type_forward in
-          let b, _ = unTensorW b_token in
+          let _, a_token = unPairB w1.type_back in
+          let a, _ = unPairB a_token in
+          let _, b_token = unPairB w2.type_forward in
+          let b, _ = unPairB b_token in
           let c = mkFst m in
           let m' = mkSnd m in
           let lt, vt =
@@ -746,10 +746,10 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
               w2.type_forward in
           Direct(src, z, lt, vt, label_of_dst w2)
         else if dst = w2.src then
-          let _, a_token = unTensorW w1.type_forward in
-          let a, _ = unTensorW a_token in
-          let _, b_token = unTensorW w2.type_back in
-          let b, _ = unTensorW b_token in
+          let _, a_token = unPairB w1.type_forward in
+          let a, _ = unPairB a_token in
+          let _, b_token = unPairB w2.type_back in
+          let b, _ = unPairB b_token in
           let c = mkFst m in
           let m' = mkSnd m in
           let lt, vt =
@@ -833,16 +833,16 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
     ~return_type: c.output.type_forward
 
 let add_entry_exit_code (f: t) : t =
-  let sigma, arg_type = unTensorW f.entry_label.message_type in
-  U.unify sigma (Basetype.newty Basetype.OneW);
+  let sigma, arg_type = unPairB f.entry_label.message_type in
+  U.unify sigma (Basetype.newty Basetype.UnitB);
   List.iter (Basetype.free_vars arg_type)
-    ~f:(U.unify (Basetype.newty Basetype.NatW));
+    ~f:(U.unify (Basetype.newty Basetype.IntB));
 
-  let sigma, ret_type = unTensorW f.return_type in
+  let sigma, ret_type = unPairB f.return_type in
 
-  U.unify sigma (Basetype.newty Basetype.OneW);
+  U.unify sigma (Basetype.newty Basetype.UnitB);
   List.iter (Basetype.free_vars ret_type)
-    ~f:(U.unify (Basetype.newty Basetype.NatW));
+    ~f:(U.unify (Basetype.newty Basetype.IntB));
 
   let label_names = List.map f.blocks ~f:(fun b -> (label_of_block b).name) in
   let max_label_name = List.fold_right label_names ~f:max ~init:0 in
@@ -858,13 +858,13 @@ let add_entry_exit_code (f: t) : t =
     name = max_label_name + 2;
     message_type =
       Basetype.newty (
-        Basetype.TensorW(
-          Basetype.newty Basetype.OneW,
+        Basetype.PairB(
+          Basetype.newty Basetype.UnitB,
           ret_type))
   } in
   let exit_block =
     let z = fresh_var() in
-    let v = Snd(Var z, Basetype.newty Basetype.OneW, ret_type) in
+    let v = Snd(Var z, Basetype.newty Basetype.UnitB, ret_type) in
     Return(exit_label, z, [], v, ret_type) in
 
   let blocks' =

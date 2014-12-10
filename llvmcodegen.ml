@@ -201,12 +201,12 @@ let payload_size (a: Basetype.t) : int =
     let open Basetype in
     match finddesc a with
     | Link _ -> assert false
-    | ZeroW | OneW -> 0
+    | ZeroB | UnitB -> 0
     | Var -> 0
-    | NatW -> 1
-    | BoxW _ -> 1
-    | TensorW(a1, a2) -> p_s a1 + (p_s a2)
-    | DataW(id, ps) ->
+    | IntB -> 1
+    | BoxB _ -> 1
+    | PairB(a1, a2) -> p_s a1 + (p_s a2)
+    | DataB(id, ps) ->
       let cs = Basetype.Data.constructor_types id ps in
       List.fold_right cs ~f:(fun c m -> max (p_s c) m) ~init:0
   in p_s a
@@ -217,9 +217,9 @@ let attrib_size (a: Basetype.t) : profile =
     let open Basetype in
     match finddesc a with
     | Link _ -> assert false
-    | Var | ZeroW | OneW | NatW | BoxW _ -> M.empty
-    | TensorW(a1, a2) -> add_profiles (a_s a1) (a_s a2)
-    | DataW(id, ps) ->
+    | Var | ZeroB | UnitB | IntB | BoxB _ -> M.empty
+    | PairB(a1, a2) -> add_profiles (a_s a1) (a_s a2)
+    | DataB(id, ps) ->
       begin
         let cs = Basetype.Data.constructor_types id ps in
         let n = List.length cs in

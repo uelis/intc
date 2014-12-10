@@ -53,11 +53,11 @@ let mkDatatype id params constructors =
       (* check that all recursive occurrences of the type are under a box. *)
       let rec check_rec_occ a =
         match Basetype.finddesc a with
-        | Var | NatW | OneW | ZeroW | BoxW _ -> ()
-        | TensorW(a1, a2) ->
+        | Var | IntB | UnitB | ZeroB | BoxB _ -> ()
+        | PairB(a1, a2) ->
           check_rec_occ a1;
           check_rec_occ a2
-        | DataW(id', params) ->
+        | DataB(id', params) ->
           if (id = id') then
             illformed "Recursive occurrences are only allowed within box<...>"
           else
@@ -98,7 +98,7 @@ let elim_pattern p t =
       let vs = Term.all_vars t in
       let z = Vargen.mkVarGenerator "u" ~avoid:vs () in
       z,
-      mkTerm (Bind((mkReturn (mkTerm (Var z)),  Basetype.newty Basetype.OneW), (unusable_var, t)))
+      mkTerm (Bind((mkReturn (mkTerm (Var z)),  Basetype.newty Basetype.UnitB), (unusable_var, t)))
     | PatVar(z) -> z, t
     | PatPair(p1, p2) ->
       let z1, t1 = elim p1 t in
@@ -206,7 +206,7 @@ term:
           let x, t = elim_pattern $2 $4 in
           mkTerm (Fn((x, alpha), t)) }
     | COPY term AS identifier COMMA identifier IN term
-       { mkTerm (CopyU($2, ($4, $6, $8))) }
+       { mkTerm (Copy($2, ($4, $6, $8))) }
     | LET LPAREN identifier SHARP identifier RPAREN EQUALS term IN term
         { let alpha = Type.newty Type.Var in
           let beta = Type.newty Type.Var in
@@ -340,9 +340,9 @@ term_atom:
     | CALL LPAREN identifier COLON basetype TO basetype COMMA term RPAREN
         { mkTerm (App(mkTerm (Const(Ccall($3, $5, $7))), Type.newty Type.Var, $9)) }
     | HACK LPAREN term COLON inttype RPAREN
-       { mkTerm (HackU($5, $3)) }
+       { mkTerm (Direct($5, $3)) }
     | EXTERNAL LPAREN identifier COLON inttype RPAREN
-        { mkTerm (ExternalU(($3, $5), Type.newty Type.Var)) }
+        { mkTerm (External(($3, $5), Type.newty Type.Var)) }
     | PRINT STRING
        { mkTerm (App(mkTerm (Const(Cprint $2)), Type.newty Type.Var, mkTerm (UnitV))) }
 
@@ -397,27 +397,27 @@ basetype_summand:
     | basetype_factor
       { $1 }
     | basetype_summand PLUS basetype_factor
-      { Basetype.newty (Basetype.DataW(Basetype.Data.sumid 2, [$1; $3])) }
+      { Basetype.newty (Basetype.DataB(Basetype.Data.sumid 2, [$1; $3])) }
 
 basetype_factor:
     | basetype_atom
       { $1 }
     | basetype_factor TIMES basetype_atom
-      { Basetype.newty (Basetype.TensorW($1, $3)) }
+      { Basetype.newty (Basetype.PairB($1, $3)) }
 
 basetype_atom:
     | QUOTE identifier
       { basetype_var $2 }
     | UNIT
-      { Basetype.newty (Basetype.OneW) }
+      { Basetype.newty (Basetype.UnitB) }
     | NAT
-      { Basetype.newty (Basetype.NatW) }
+      { Basetype.newty (Basetype.IntB) }
     | BOX LANGLE basetype RANGLE
-      { Basetype.newty (Basetype.BoxW($3)) }
+      { Basetype.newty (Basetype.BoxB($3)) }
     | identifier
-      { Basetype.newty (Basetype.DataW($1, [])) }
+      { Basetype.newty (Basetype.DataB($1, [])) }
     | identifier LANGLE basetype_list RANGLE
-      { Basetype.newty (Basetype.DataW($1, $3)) }
+      { Basetype.newty (Basetype.DataB($1, $3)) }
     | LPAREN basetype RPAREN
       { $2 }
 
