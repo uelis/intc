@@ -45,6 +45,7 @@ let maptr = λ f ->
       let l1 = maprev f (l, Nil) in
       rev l1
 
+/* prints a list and deallocates the memory in the process */
 let printlist = tailrec (λ printlist ->
     fn l ->
        case l of
@@ -57,6 +58,26 @@ let printlist = tailrec (λ printlist ->
             let () = free(t) in
             printlist tail
     )
+
+/* duplicate a list */
+fn clone(l) =
+   tailrec (λ clone ->
+      fn (l, (l1, l2)) ->
+        case l of
+          Nil ->
+	    let rl1 = rev l1 in
+	    let rl2 = rev l2 in
+	     return (rl1, rl2)
+        | Cons(x, xs) ->
+	    let tl = load(xs) in
+	    let () = free(xs) in
+	    let t1 = alloc() in
+	    let () = store(t1, l1) in
+	    let t2 = alloc() in
+            let () = store(t2, l2) in
+            clone(tl, (Cons(x, t1), Cons(x, t2)))
+      )
+    (l, (Nil, Nil))
 
 fn upto(n) =
    tailrec (λ aux ->
@@ -71,6 +92,8 @@ fn upto(n) =
 
 let main =
    let l = upto 20 in
-   let l' = maptr (fn i -> intmul(2, i)) l in
-   let l'' = rev l' in
-   printlist l''
+   let l1 = maptr (fn i -> intmul(i, i)) l in
+   let (l2, l3) = clone l1 in
+   let l3' = rev l3 in
+   printlist l2;
+   printlist l3'

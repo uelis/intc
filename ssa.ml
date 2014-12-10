@@ -78,7 +78,7 @@ let rec subst_value (rho: Term.var -> value) (v: value) =
       | In((_, j, w), a) ->
         (* TODO: this is used in cbv.intml. Check that it's really ok. *)
         if i=j then w else
-          (* need to find the right type annotation *)
+          (* undefined *)
           let ai =
             match Basetype.finddesc a with
             | Basetype.DataW(id, params) ->

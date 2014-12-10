@@ -1,40 +1,42 @@
+/* This implementation of the fixed point combinator uses a stack,
+   which is more efficient than allocation of cons cells with alloc */
 fn fiximpl(x) =
-    case x of 
-    Inl(l, x) -> 
+    case x of
+    Inl(l, x) ->
         (case x of
            Inl(b, q) ->
              push(unit + 'b, Inr(b));
              return Inl((), Inr(q))
          | Inr(a) ->
 	     let u = pop(unit + 'b) in
-             (case u of 
+             (case u of
                 Inl -> return Inr(a)
               | Inr(hd) ->
                    return Inl((), Inl(hd, a))))
-  | Inr(q) -> 
+  | Inr(q) ->
      push(unit + 'b, Inl());
      return Inl((), Inr(q))
 
 let fix = direct(fiximpl:(''a -> ''a) -> ''a)
 
-let cons = λ x -> λ xs -> 
+let cons = λ x -> λ xs ->
    fn(i) ->
      let e = inteq(i, 0) in
      if e then x else
        let i' = intsub(i, 1) in
        xs i'
 
-let head = λ l -> fn () -> l(0) 
+let head = λ l -> fn () -> l(0)
 
-let tail = λ l -> fn i -> let i' = intadd(i, 1) in l(i') 
+let tail = λ l -> fn i -> let i' = intadd(i, 1) in l(i')
 
-let andalso = 
-   λ b1 -> λ b2 -> 
+let andalso =
+   λ b1 -> λ b2 ->
      let c = b1 in
      if c then b2 else return False
 
-let orelse = 
-   λ b1 -> λ b2 -> 
+let orelse =
+   λ b1 -> λ b2 ->
     let c = b1 in
     if c then return True else b2
 
@@ -49,8 +51,8 @@ let printlistaux = λ l ->
 	let i' = intadd(i, 1) in
         printlist (i', j)
    )
-          
-let printlist = λ l -> 
+
+let printlist = λ l ->
    fn i ->
       printlistaux l (0, i)
 
@@ -69,15 +71,15 @@ let aux = fix (λ aux ->
     λ n ->
       fn i ->
          let v = n in
-         cons (return 1) 
-           (cons (return v) 
-              (cons (return 1) 
+         cons (return 1)
+           (cons (return v)
+              (cons (return 1)
                   (aux (intadd (v, 2))))) i
       )
 
-let eContFrac = cons (return 2) (aux (return 2))                  
+let eContFrac = cons (return 2) (aux (return 2))
 
-let ratTrans = fix (λ ratTrans -> 
+let ratTrans = fix (λ ratTrans ->
    copy ratTrans as ratTrans1, ratTrans2 in
    fn a -> fn b -> fn c -> fn d ->
    λ xs ->
@@ -85,10 +87,10 @@ let ratTrans = fix (λ ratTrans ->
    copy xs23 as xs2, xs3 in
    fn i ->
      let cond =
-       andalso 
+       andalso
           (orelse (let sc = signum c in
 	           let sd = signum d in
-		   inteq(sc, sd)) 
+		   inteq(sc, sd))
                   (let ac = abs c in
 		   let ad = abs d in
 		   intslt(ac, ad)))
@@ -107,10 +109,10 @@ let ratTrans = fix (λ ratTrans ->
 	      	let v22 = intdiv(b, d) in
 	      	let v23 = intmul(v21, v22) in
 		let v2 = intadd(v23, v21) in
-	     	return (v1, v2) in 
+	     	return (v1, v2) in
 	      intslt(arg))) in
      if cond then
-       let iz = inteq(i, 0) in 
+       let iz = inteq(i, 0) in
        if iz then
          intdiv(b, d)
        else
@@ -126,12 +128,12 @@ let ratTrans = fix (λ ratTrans ->
          let v2 =
              let v1 = intmul(x, b) in
 	     intadd(a, v1) in
-	 let v4 = 
+	 let v4 =
 	     let v3 = intmul(x, d) in
 	     intadd(c, v3) in
        ratTrans2 b v2 d v4 (tail xs3) i
    )
-         
+
 let todigits = fix (λ todigits ->
     λ l ->
     copy l as l1, l2 in

@@ -1,23 +1,7 @@
-type list<'a> = Nil of unit | Cons of 'a * box<list<'a>>
+type list<'a> = Nil of unit
+              | Cons of 'a * box<list<'a>>
 
-let f1 = fn c -> print c
-let f1' = fn c -> return ()
-let f2 = fn c -> let x = return c in print x
-let f3 = fn c -> let c = return False in print 3
-let main43 =
-   fn c ->
-      case c of True -> (print 1) | False -> return ()
-
-
-let head = λ xs -> fn u -> xs 0
-let cons = λ x -> λ xs -> fn i -> let b = (i = 0) in if b then x() else xs(i-1)
-let tail = λ xs -> fn i -> xs (i+1)
-
-fn f3(x) =
-  case x of
-    Inl(a) -> let a1 = return 3 in return Inl((), a)
-  | Inr(x) -> return Inr((), 3)
-
+/* interaction strategy for tail recursion */
 fn tailrecimp(x) =
   case x of
     Inr(a, ()) -> return Inl((), Inr(a, ()))
@@ -26,36 +10,46 @@ fn tailrecimp(x) =
          Inr(b) -> return Inr(b)
        | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
 
+/* The tail recursion combinator is implemented by the above strategy */
 let tailrec =
    direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
 
+
+/* factorial with accumulator */
 let facaux = tailrec (λ facaux ->
-    fn (i, r) ->
-      let b = (i = 0) in
-      if b then return r else
-        let i' = i - 1 in
-	let r' = r * i in
-        facaux (i', r')
+    fn (i, acc) ->
+      let b = inteq(i, 0) in
+      if b then return acc else
+        let i' = intsub(i, 1) in
+	let acc' = intmul(acc, i) in
+        facaux (i', acc')
 )
 
+/* factorial */
 fn fac(i) =
    facaux (i, 1)
 
+/* factorial test */
 fn main1() =
    let v = fac 10 in
      print v
 
+/* stategy implementing the fixed point combinator */
 let fiximpl =
  fn x ->
   case x of
    Inl(l, x) ->
        (case x of
           Inl(b, q) ->
+	    /* allocate new cons cell */
 	    let a = alloc() in
+	    /* store Cons(b, l) in cell a */
 	    let () = store(a, Cons(b, l)) in
     	    return Inl(a, Inr(q))
         | Inr(a) ->
+	    /* load u from cell l */
 	    let u = load(l) in
+	    /* free cell l */
 	    let () = free(l) in
             case u of
                Nil -> return Inr(a)
@@ -65,8 +59,10 @@ let fiximpl =
     let () = store(a, Nil) in
     return Inl(a, Inr(q))
 
+/* fixed point combinator */
 let fix = direct(fiximpl: /*{box<list<'b>>}*/ ( /*{'b}*/(''a) -> ''a) -> ''a)
 
+/* fibonacci */
 let fib = fix (λ fib ->
    copy fib as fib1, fib2 in
    fn i ->
@@ -80,232 +76,10 @@ let fib = fix (λ fib ->
 	let f2 =
             let i2 = intsub(i, 2) in
 	    fib2 i2 in
-	let s = f1 + f2 in
+	let s = intadd(f1, f2) in
 	return s
    )
 
-fn main() =
-  let v = fib 38 in
-  print v
-
-/*
-
-let cons = λ x -> λ xs -> fn i { if i = 0 then x() else xs(i-1) }
-let head = λ xs -> fn u { xs 0 }
-let tail = λ xs -> fn i { xs (i+1) }
-
-fn tailrecimp(x) {
-  case x of
-    Inr(a) -> Inl((), Inr(a))
-  | Inl(u, s) ->
-      case s of
-         Inr(b) -> Inr(b)
-       | Inl(d, a) -> Inl((), Inr(a))
-}
-
-let tailrec =
-   direct(tailrecimp : {unit}( {'c}('a -> ['b]) -> 'a -> ['b] ) -> 'a -> ['b])
-
-let facaux = tailrec (λ facaux ->
-    fn (i, r) {
-      if i=0 then r else facaux (i-1, r*i)
-    }
-)
-
-fn fac(i) {
-   facaux (i, 1)
-}
-
-fn main12() {
-   let v = fac 10 in
-     print v
-}
-/*
-fn trivial() {
-   let x = Cons(1, box(Cons(2, box(Nil)))) in
-   let u = case x of
-                Nil -> 12
-              | Cons(z) -> let (h,t) = z in h in
-   print u
-}
-
-let faclistaux= tailrec (λ faclistaux ->
-    fn (i, (r, l)) {
-       if i=1 then l else faclistaux (i-1, (r*i, Cons(r*i, box(l))))
-    })
-
-fn faclist(i) {
-   faclistaux (i, (1, Nil()))
-}
-
-let printlist = tailrec (λ printlist ->
-    fn l {
-       case l of
-           Nil ->
-            print "\n"
-         | Cons(h, t) ->
-            print h;
-            print " ";
-            printlist (unbox t)
-    })
-
-fn main2() {
-   let x = Cons(1, box(Cons(2, box(Nil)))) in
-   let u1 = printlist x in
-   let y = faclist(12) in
-   printlist y
-}
-
-let fiximpl =
- fn x {
-  case x of
-   Inl(l, x) ->
-       (case x of
-          Inl(b, q) ->
-	    Inl(box(Cons(b, l)), Inr(q))
-        | Inr(a) ->
-            case (unbox l) of
-               Nil -> Inr(a)
-             | Cons(hd, tl) -> Inl(tl, Inl(hd, a)))
- | Inr(q) ->
-    Inl(box(Nil), Inr(q))
- }
-
-let fix = direct(fiximpl: {box<list<'b>>} | {'b}|''a| -> ''a| -> ''a)
-
-let fib = fix (λ fib ->
-   copy fib as fib1, fib2 in
-   fn i {
-      if i < 2 then 1 else
-      fib1(i-1) + fib2(i-2)
-   })
-
-fn main() {
-  let v = fib 38 in
-  print v
-}
-
-
-fn fixsimpl(x) {
-    case x of
-    Inl(lx) ->
-      let (l,x) = lx in
-        (case x of
-           Inl(b, q) ->
-             push(unit + 'b, Inr(b));
-             Inl((), Inr(q))
-         | Inr(a) ->
-             (case pop(unit + 'b) of
-                Inl -> Inr(a)
-              | Inr(hd) ->
-                   Inl((), Inl(hd, a))))
-  | Inr(q) ->
-     push(unit + 'b, Inl());
-     Inl((), Inr(q))
-}
-
-let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
-
-let fibs = fixs (λ fib ->
-   copy fib as fib1, fib2 in
-   fn i {
-      if i < 2 then 1
-      else
-       fib1(i-1) + fib2(i-2)
-   })
-
-let fibtr = fixs (λ fib ->
-   fn i {
-      tailrec (λ tr ->
-         fn (i, acc) {
-            if i < 2 then acc else
-              tr (i-2, fib(i-1) + acc)
-         }
-      ) (i, 1)
-   })
-
-fn main() {
-  let v = fibs 38 in
-  print v
-}
-
-let t0 =λ f ->  λ g ->
-      fn z {
-            let (x, xs) = z in
-            let v = f x in
-            v
-      }
-
-let t =λ f -> (λ mapf ->
-      fn l {
-        case l of
-          Nil -> Nil()
-        | Cons(x, xs) -> Cons(f x, box(mapf (unbox xs)))
-      })
-
-let map = λ f ->
-   fixs (λ mapf ->
-      fn l {
-        case l of
-          Nil -> Nil()
-        | Cons(x, xs) -> Cons(f x, box(mapf (unbox xs)))
-      })
-
-let maprev = λ f ->
-   tailrec (λ mapf ->
-      fn (l, r) {
-        case l of
-          Nil -> r
-        | Cons(x, xs) -> mapf(unbox xs, Cons(f x, box r))
-      })
-
-let revaux =
-   tailrec (λ rev ->
-      fn (l, r) {
-        case l of
-          Nil -> r
-        | Cons(x, xs) -> rev(unbox xs, Cons(x, box r))
-      })
-
-fn rev(l) {
-  revaux (l, Nil())
-}
-
-let maptr = λ f ->
-   fn l {
-      rev (maprev f (l, Nil))
-   }
-
-fn clone(l) {
-   tailrec (λ clone ->
-      fn (l, (l1, l2)) {
-        case l of
-          Nil -> (rev l1, rev l2)
-        | Cons(x, xs) -> clone(unbox xs, (Cons(x, box l1), Cons(x, box l2)))
-      })
-    (l, (Nil, Nil))
-}
-
-fn upto(n) {
-   tailrec (λ aux ->
-   fn (m, r) {
-      if m = 0 then r else aux (m - 1, Cons(m, box r))
-   }) (n, Nil)
-}
-
-fn main4() {
-   let x = upto 30 in
-   let y = maptr (fn i { i * i }) x in
-   let (y1, y2) = clone y in
-   printlist y1;
-   printlist y2
-}
-
-/*
 let main =
-   fn u ->
-      let v = head (tail (tail (cons (fn x -> 27) (fn i -> i)))) () in
-      print v
-      */
-      */
-*/
+  let v = fib 38 in
+  print v
