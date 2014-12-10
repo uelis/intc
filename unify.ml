@@ -85,14 +85,14 @@ module Unify(T : sig type t end) = struct
           | Tensor(t1, t2), Tensor(s1, s2) ->
             unify_raw (Type_eq (t1, s1, tag));
             unify_raw (Type_eq (t2, s2, tag))
-          | FunW(a1, t2), FunW(b1, s2) ->
+          | FunV(a1, t2), FunV(b1, s2) ->
             unify_raw (Basetype_eq (a1, b1, tag));
             unify_raw (Type_eq (t2, s2, tag))
-          | FunU(a1, t1, t2), FunU(b1, s1, s2) ->
+          | FunI(a1, t1, t2), FunI(b1, s1, s2) ->
             unify_raw (Basetype_eq (a1, b1, tag));
             unify_raw (Type_eq (t1, s1, tag));
             unify_raw (Type_eq (t2, s2, tag))
-          | Base _, _ | Tensor _ , _ | FunW _, _ | FunU _, _ ->
+          | Base _, _ | Tensor _ , _ | FunV _, _ | FunI _, _ ->
             raise (Not_Unifiable (Equation_failed c))
           | Link _, _ -> assert false
       end

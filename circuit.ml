@@ -157,11 +157,11 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
     | Term.App(s, a, t) ->
       begin
         match Type.finddesc a with
-        | Type.FunW _ ->
+        | Type.FunV _ ->
           let wr = fresh_wire () in
           let (w_s, i_s) = compile sigma gamma s in
           wr, App(flip w_s, (sigma, t), wr) :: i_s
-        | Type.FunU _ ->
+        | Type.FunI _ ->
           let gamma_s, gamma_t = split_context gamma s t in
           let (w_s, i_s) = compile sigma gamma_s s in
           let (w_t, i_t) = compile_in_box Term.unusable_var sigma gamma_t t in

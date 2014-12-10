@@ -431,11 +431,11 @@ inttype:
     | inttype_factor
       { $1 }
     | LBRACE basetype RBRACE inttype_atom TO inttype
-      { Type.newty (Type.FunU($2, $4, $6)) }
+      { Type.newty (Type.FunI($2, $4, $6)) }
     | inttype_factor TO inttype
-      { Type.newty (Type.FunU(Basetype.newty Basetype.Var, $1, $3)) }
+      { Type.newty (Type.FunI(Basetype.newty Basetype.Var, $1, $3)) }
     | basetype TO inttype
-      {  Type.newty (Type.FunW($1, $3)) }
+      {  Type.newty (Type.FunV($1, $3)) }
 
 inttype_factor:
     | inttype_atom

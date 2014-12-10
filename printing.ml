@@ -187,12 +187,12 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
       | None ->
         begin
           match Type.finddesc t with
-          | Type.FunW(a1, t1) ->
+          | Type.FunV(a1, t1) ->
             (* TODO: parenthesis needed? *)
             Buffer.add_string buf (string_of_basetype a1);
             Buffer.add_string buf " -> ";
             s_type t1
-          | Type.FunU(a1, t1, t2) ->
+          | Type.FunI(a1, t1, t2) ->
             (* TODO: put colours away *)
             if not concise then
               begin
@@ -223,7 +223,7 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
             s_factor t1;
             Buffer.add_string buf " # ";
             s_atom t2
-          | Type.Var | Type.Base _ | Type.FunW _ | Type.FunU _ ->
+          | Type.Var | Type.Base _ | Type.FunV _ | Type.FunI _ ->
             s_atom t
           | Type.Link _ -> assert false
         end
@@ -246,8 +246,8 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
             Buffer.add_string buf (string_of_basetype a);
             Buffer.add_string buf "]"
           | Type.Tensor _
-          | Type.FunW _
-          | Type.FunU _ ->
+          | Type.FunV _
+          | Type.FunI _ ->
             Buffer.add_char buf '(';
             s_type t;
             Buffer.add_char buf ')'
@@ -260,7 +260,7 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
 
 (* TODO: make tests
    let t1 = Type.newty Type.Var
-   let t2 = Type.newty (Type.FunU(Basetype.newtyvar(), t1 ,t1))
+   let t2 = Type.newty (Type.FunI(Basetype.newtyvar(), t1 ,t1))
    module U = Unify.Unify(struct type t = () end)
    let _ = U.unify_eqs [U.Type_eq(t1, t2, None)]
    let _ = Printf.printf "%s\n" (string_of_type t2)

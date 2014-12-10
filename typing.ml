@@ -153,12 +153,12 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     end
   | Const(Cprint _) ->
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty Basetype.UnitB,
          Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Cintprint) ->
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty Basetype.IntB,
          Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Cintadd)
@@ -167,56 +167,56 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
   | Const(Cintdiv) ->
     let intty = Basetype.newty Basetype.IntB in
     Type.newty (
-      Type.FunW(
+      Type.FunV(
         Basetype.newty (Basetype.PairB(intty, intty)),
         Type.newty (Type.Base intty)))
   | Const(Cinteq) ->
     let intty = Basetype.newty Basetype.IntB in
     let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty (Basetype.PairB(intty, intty)),
          Type.newty (Type.Base boolty)))
   | Const(Cintslt) ->
     let intty = Basetype.newty Basetype.IntB in
     let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty (Basetype.PairB(intty, intty)),
          Type.newty (Type.Base boolty)))
   | Const(Cpush(a)) ->
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          a,
          Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Cpop(a)) ->
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty Basetype.UnitB,
          Type.newty (Type.Base a)))
   | Const(Calloc(a)) ->
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty Basetype.UnitB,
          Type.newty (Type.Base (Basetype.newty (Basetype.BoxB a)))))
   | Const(Cfree(a)) ->
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty (Basetype.BoxB a),
          Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Cload(a)) ->
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty (Basetype.BoxB a),
          Type.newty (Type.Base a)))
   | Const(Cstore(a)) ->
     let boxa = Basetype.newty (Basetype.BoxB a) in
     Type.newty
-      (Type.FunW(
+      (Type.FunV(
          Basetype.newty (Basetype.PairB(boxa, a)),
          Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
   | Const(Ccall(_, a, b)) | Const(Cencode(a, b)) | Const(Cdecode(a, b)) ->
-    Type.newty (Type.FunW(a, Type.newty (Type.Base b)))
+    Type.newty (Type.FunV(a, Type.newty (Type.Base b)))
   | Return(t1, a) ->
     let a1 = ptV c t1 in
     beq_expected_constraint t1 ~actual:a1 ~expected:a;
@@ -235,7 +235,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     let alpha = Basetype.newty Basetype.Var in
     let b1 = pt ((x, alpha) :: c) phi t1 in
     beq_expected_constraint (Term.mkVar x) ~actual:alpha ~expected:a;
-    Type.newty (Type.FunW(alpha, b1))
+    Type.newty (Type.FunV(alpha, b1))
   | App(s, a, t) ->
     let t_is_int_var =
       match t.desc with
@@ -249,7 +249,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
         let b = pt c phi s in
         eq_expected_constraint s
           ~actual:b
-          ~expected:(Type.newty (Type.FunW(a1, beta)));
+          ~expected:(Type.newty (Type.FunV(a1, beta)));
         eq_expected_constraint s ~actual:b ~expected:a;
         beta
         end
@@ -262,7 +262,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
         let tyX = pt c delta t in
         eq_expected_constraint s
           ~actual:tyFun
-          ~expected:(Type.newty (Type.FunU(alpha, tyX, betaY)));
+          ~expected:(Type.newty (Type.FunI(alpha, tyX, betaY)));
         eq_expected_constraint s ~actual:tyFun ~expected:a;
         betaY
         end
@@ -271,7 +271,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     let beta = Type.newty Type.Var in
     let tyY = pt c ((x, beta) :: phi) t in
     eq_expected_constraint (Term.mkVar x) ~actual:beta ~expected:ty;
-    Type.newty (Type.FunU(a, beta, tyY))
+    Type.newty (Type.FunI(a, beta, tyY))
   | Copy(s, (x, y, t)) ->
     let gamma, delta = split_context phi s t in
     let beta = Type.newty Type.Var in
@@ -322,7 +322,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     eq_expected_constraint t
       ~actual:a1
       ~expected:(Type.newty
-                   (Type.FunW(
+                   (Type.FunV(
                       b_minus,
                       Type.newty (Type.Base b_plus))));
     b
@@ -364,9 +364,9 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
         check_wf_base b
       | Type.Tensor(b1, b2) ->
         check_wf b1; check_wf b2
-      | Type.FunW(b1, b2) ->
+      | Type.FunV(b1, b2) ->
         check_wf_base b1; check_wf b2
-      | Type.FunU(a1, b1, b2) ->
+      | Type.FunI(a1, b1, b2) ->
         check_wf_base a1; check_wf b1; check_wf b2
       | Type.Link _ -> assert false in
     check_wf ty;

@@ -9,8 +9,8 @@ and desc =
   | Var
   | Base of Basetype.t
   | Tensor of t * t
-  | FunW of Basetype.t * t
-  | FunU of Basetype.t * t * t
+  | FunV of Basetype.t * t
+  | FunI of Basetype.t * t * t
 with sexp
 
 let next_id = ref 0
@@ -47,8 +47,8 @@ let children a =
   match finddesc a with
   | Var | Base _ -> []
   | Tensor(b1, b2) -> [b1; b2]
-  | FunW(_, b) -> [b]
-  | FunU(_, b1, b2) -> [b1; b2]
+  | FunV(_, b) -> [b]
+  | FunI(_, b1, b2) -> [b1; b2]
   | Link _ -> assert false
 
 let rec subst (f: t -> t) (fbase: Basetype.t -> Basetype.t) (b: t) : t =
@@ -56,8 +56,8 @@ let rec subst (f: t -> t) (fbase: Basetype.t -> Basetype.t) (b: t) : t =
     | Var -> f (find b)
     | Base(a) -> newty (Base(Basetype.subst fbase a))
     | Tensor(b1, b2) -> newty(Tensor(subst f fbase b1, subst f fbase b2))
-    | FunW(b1, b2) -> newty (FunW(Basetype.subst fbase b1, subst f fbase b2))
-    | FunU(a1, b1, b2) -> newty(FunU(Basetype.subst fbase a1, subst f fbase b1, subst f fbase b2))
+    | FunV(b1, b2) -> newty (FunV(Basetype.subst fbase b1, subst f fbase b2))
+    | FunI(a1, b1, b2) -> newty(FunI(Basetype.subst fbase a1, subst f fbase b1, subst f fbase b2))
     | Link _ -> assert false
 
 let rec equals (u: t) (v: t) : bool =
@@ -72,12 +72,12 @@ let rec equals (u: t) (v: t) : bool =
           Basetype.equals a1 a2
         | Tensor(u1, u2), Tensor(v1, v2) ->
           (equals u1 v1) && (equals u2 v2)
-        | FunW(u1, u2), FunW(v1, v2) ->
+        | FunV(u1, u2), FunV(v1, v2) ->
           (Basetype.equals u1 v1) && (equals u2 v2)
-        | FunU(u1, u2, u3), FunU(v1, v2, v3) ->
+        | FunI(u1, u2, u3), FunI(v1, v2, v3) ->
           (Basetype.equals u1 v1) && (equals u2 v2) && (equals u3 v3)
         | Link _, _ | _, Link _ -> assert false
-        | Var, _ | Base _, _ | Tensor _, _ | FunW _, _ | FunU _, _ ->
+        | Var, _ | Base _, _ | Tensor _, _ | FunV _, _ | FunI _, _ ->
           false
 
 module Typetbl = Hashtbl.Make(
@@ -112,10 +112,10 @@ let rec map_index_types (a: t) (f: Basetype.t -> Basetype.t) : t =
       | Tensor(b1, b2) ->
         newty(Tensor(map_index_types b1 f,
                      map_index_types b2 f))
-      | FunW(a, b1) ->
-        newty(FunW(a, map_index_types b1 f))
-      | FunU(a, b1, b2) ->
-        newty(FunU(f a,
+      | FunV(a, b1) ->
+        newty(FunV(a, map_index_types b1 f))
+      | FunI(a, b1, b2) ->
+        newty(FunI(f a,
                    map_index_types b1 f,
                    map_index_types b2 f))
       | Link _ -> assert false
@@ -143,12 +143,12 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
           let open Basetype in
             newty (DataB(Data.sumid 2, [bm1; bm2])),
             newty (DataB(Data.sumid 2, [bp1; bp2]))
-      | FunW(a, b2) ->
+      | FunV(a, b2) ->
         let bm2, bp2 = qap b2 in
         let open Basetype in
         newty (PairB(a, bm2)),
         bp2
-      | FunU(a, b1, b2) ->
+      | FunI(a, b1, b2) ->
           let bm1, bp1 = qap b1 in
           let bm2, bp2 = qap b2 in
           let open Basetype in

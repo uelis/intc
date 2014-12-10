@@ -505,7 +505,7 @@ let term_to_ssa (t: Term.t)
     | Term.App({Term.desc = Term.Const(c); _}, a, arg) ->
       let retty =
         match Type.finddesc a with
-        | Type.FunW(_, r) ->
+        | Type.FunV(_, r) ->
           begin
             match Type.finddesc r with
             | Type.Base(ar) -> ar
