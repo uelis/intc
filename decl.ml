@@ -1,11 +1,9 @@
-exception Non_Wellformed of string * int * int
-
-type decl =
+type t =
   | TermDecl of Term.var * Term.t
 
-type decls = decl list
+exception Illformed_decl of string * int * int
 
-let subst_decl_in_term (d: decl) (s: Term.t) : Term.t =
+let expand_in_term (d: t) (s: Term.t) : Term.t =
   (* fsubst t v s substitutes t for v in s, such that each time t is
    * pasted all the type variables in t are replaced by fresh ones *)
   let rec fsubst t v s =
@@ -16,13 +14,12 @@ let subst_decl_in_term (d: decl) (s: Term.t) : Term.t =
     match d with
       | TermDecl(v, t) -> fsubst t v s
 
-(* expands d in decl *)
-let subst_decl_in_decl (d: decl) : decl -> decl =
+let expand (d: t) : t -> t =
   function
-    | TermDecl(w, s) -> TermDecl(w, subst_decl_in_term d s)
+    | TermDecl(w, s) -> TermDecl(w, expand_in_term d s)
 
-let rec subst_decls (ds: decls) : decls =
+let rec expand_all (ds: t list) : t list =
   match ds with
     | [] -> []
     | d :: rest ->
-        d :: subst_decls (List.map (subst_decl_in_decl d) rest)
+        d :: expand_all (List.map (expand d) rest)

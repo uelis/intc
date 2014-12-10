@@ -6,13 +6,12 @@ open Core.Std
 open Lexing
 open Parsing
 open Term
-open Decls
 
 let illformed msg =
   let s = Parsing.symbol_start_pos () in
   let line = s.pos_lnum in
   let column = s.pos_cnum - s.pos_bol + 1 in
-  raise (Decls.Non_Wellformed(msg, line, column))
+  raise (Decl.Illformed_decl (msg, line, column))
 
 let mkTerm_with_pos startp endp d : Term.t =
   let lp pos = {
@@ -98,7 +97,8 @@ let elim_pattern p t =
       let vs = Term.all_vars t in
       let z = Vargen.mkVarGenerator "u" ~avoid:vs () in
       z,
-      mkTerm (Bind((mkReturn (mkTerm (Var z)),  Basetype.newty Basetype.UnitB), (unusable_var, t)))
+      mkTerm (Bind((mkReturn (mkTerm (Var z)),
+                    Basetype.newty Basetype.UnitB), (unusable_var, t)))
     | PatVar(z) -> z, t
     | PatPair(p1, p2) ->
       let z1, t1 = elim p1 t in
@@ -151,7 +151,7 @@ let clear_type_vars () = Hashtbl.clear type_vars
 %nonassoc VERTBAR
 
 %start decls
-%type <Decls.decls> decls
+%type <Decl.t list> decls
 %type <Term.t> term
 %type <Basetype.t> basetype
 %type <Type.t> inttype
@@ -170,13 +170,13 @@ decl:
     | LET pattern EQUALS term
         { clear_type_vars ();
           match $2 with
-          | PatVar(x) -> TermDecl(x, $4)
+          | PatVar(x) -> Decl.TermDecl(x, $4)
           | _ -> illformed "Variable declaration expected."
         }
     | LET pattern COLON inttype EQUALS term
         { clear_type_vars ();
           match $2 with
-          | PatVar(x) -> TermDecl(x, mkTerm (TypeAnnot($6, $4)))
+          | PatVar(x) -> Decl.TermDecl(x, mkTerm (TypeAnnot($6, $4)))
           | _ -> illformed "Variable declaration expected."
         }
     | FN identifier pattern EQUALS term
@@ -184,7 +184,7 @@ decl:
           let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $3 $5 in
           let def = mkTerm (Fn((x, alpha), t)) in
-          TermDecl($2, def) }
+          Decl.TermDecl($2, def) }
 
 identifier:
     | IDENT
@@ -220,7 +220,8 @@ term:
                         [(unusable_var, $4); (unusable_var, $6)])) }
     | CASE term OF term_cases
         {let id, c = $4 in
-         let sorted_c = List.sort ~cmp:(fun (i, _, _) (j, _, _) -> compare i j) c in
+         let sorted_c = List.sort c
+                          ~cmp:(fun (i, _, _) (j, _, _) -> compare i j) in
          let indices = List.map ~f:(fun (i, _, _) -> i) sorted_c in
          let cases = List.map ~f:(fun (_, x, t) -> (x, t)) sorted_c in
          let n = List.length (Basetype.Data.constructor_names id) in
@@ -332,11 +333,15 @@ term_atom:
           mkTerm (Const(Cencode(alpha, beta))) }
     | DECODE LPAREN basetype COMMA term RPAREN
        { let alpha = Basetype.newty Basetype.Var in
-          mkTerm (App(mkTerm (Const(Cdecode(alpha, $3))), Type.newty Type.Var, $5)) }
+         mkTerm (App(mkTerm (Const(Cdecode(alpha, $3))),
+                     Type.newty Type.Var,
+                     $5)) }
     | PUSH LPAREN basetype COMMA term RPAREN
         { mkTerm (App(mkTerm (Const(Cpush($3))), Type.newty Type.Var, $5)) }
     | POP LPAREN basetype RPAREN
-        { mkTerm (App(mkTerm (Const(Cpop($3))), Type.newty Type.Var, mkTerm UnitV)) }
+        { mkTerm (App(mkTerm (Const(Cpop($3))),
+                      Type.newty Type.Var,
+                      mkTerm UnitV)) }
     | CALL LPAREN identifier COLON basetype TO basetype COMMA term RPAREN
         { mkTerm (App(mkTerm (Const(Ccall($3, $5, $7))), Type.newty Type.Var, $9)) }
     | HACK LPAREN term COLON inttype RPAREN
@@ -344,7 +349,9 @@ term_atom:
     | EXTERNAL LPAREN identifier COLON inttype RPAREN
         { mkTerm (External(($3, $5), Type.newty Type.Var)) }
     | PRINT STRING
-       { mkTerm (App(mkTerm (Const(Cprint $2)), Type.newty Type.Var, mkTerm (UnitV))) }
+        { mkTerm (App(mkTerm (Const(Cprint $2)),
+                      Type.newty Type.Var,
+                      mkTerm (UnitV))) }
 
 pattern:
     | identifier

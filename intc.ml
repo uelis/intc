@@ -1,7 +1,6 @@
 open Core.Std
 open Lexing
 open Opts
-open Decls
 
 let parse_error_loc lexbuf =
   let start_pos = lexbuf.lex_start_p in
@@ -13,14 +12,14 @@ let print_error loc msg = print_string (error_msg loc msg)
 let line_column_loc (line : int) (column : int ) =
   Printf.sprintf "line %i, column %i:" line column
 
-let parse (s: string) : decls =
+let parse (s: string) : Decl.t list =
   let lexbuf = Lexing.from_string s in
   try
     Parser.decls Lexer.main lexbuf
   with
   | Parsing.Parse_error ->
     failwith (error_msg (parse_error_loc lexbuf) "Parse error")
-  | Decls.Non_Wellformed(msg, l, c) ->
+  | Decl.Illformed_decl(msg, l, c) ->
     failwith (error_msg (line_column_loc l c) ("Syntax error. " ^ msg))
 
 (* For error reporting: compute a string of where the error occurred *)
@@ -40,7 +39,7 @@ let term_loc (s : Term.t option) =
         loc.end_pos.line loc.end_pos.column
     | None -> "Term " ^ (Printing.string_of_term s)
 
-let compile_decl (d: decl) : unit =
+let compile (d: Decl.t) : unit =
   match d with
   | TermDecl(f, t) ->
     let b =
@@ -118,8 +117,8 @@ let main =
           Printf.printf "*** Writing llvm bitcode files.\n";
         let input = In_channel.read_all !file_name in
         let decls = parse input in
-        let substituted_decls = subst_decls decls in
-        List.iter ~f:compile_decl substituted_decls
+        let substituted_decls = Decl.expand_all decls in
+        List.iter ~f:compile substituted_decls
       end
   with
   | Failure msg -> Printf.printf "%s\n" msg
