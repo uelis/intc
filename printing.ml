@@ -406,13 +406,13 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
     | PairV((t1, _), (t2, _)) ->
       fprintf f "(@[";
       s_term t1;
-      fprintf f "@], @[";
+      fprintf f "@],@ @[";
       s_term t2;
       fprintf f "@])";
     | Pair(t1, t2) ->
       fprintf f "(@[";
       s_term t1;
-      fprintf f "@] # @[";
+      fprintf f "@] #@ @[";
       s_term t2;
       fprintf f "@])";
     | SelectV(_, _, t1, i) ->

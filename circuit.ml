@@ -125,20 +125,10 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
   let rec compile (sigma: Term.var list) (gamma: wire context) (t: Term.t) =
     match t.Term.desc with
     | Term.Var(x) ->
-      if List.mem sigma x then
-        begin
-          let w = fresh_wire () in
-          (w, [Base(w, (sigma,Term.mkReturn (Term.mkVar x)))])
-        end
-      else
-        begin
-          let wx = List.Assoc.find_exn gamma x in
-          let w = fresh_wire () in
-          let w' = fresh_wire () in
-          (w, [Der(flip w', w,
-                   (sigma, Term.mkUnitV));
-               LWeak(flip wx, w')])
-        end
+      let wx = List.Assoc.find_exn gamma x in
+      let w = fresh_wire () in
+      let w' = fresh_wire () in
+      w, [Der(flip w', w, (sigma, Term.mkUnitV)); LWeak(flip wx, w')]
     | Term.Return(_, a) ->
       let w = fresh_wire () in
       let s = Basetype.newty Basetype.Var in
@@ -177,7 +167,8 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       let wr = fresh_wire () in
       wr, Tensor(flip w_s, flip w_t, wr) :: i_s @ i_t
     | Term.LetPair(s, ((x, _), (y, _), t)) ->
-      let gamma_s, gamma_t = split_context gamma s t in
+      let gamma_s, rest = take_subcontext gamma s in
+      let gamma_t, _ = take_subcontext rest t in
       let (gamma_s_inbox, i_enter_box) = enter_box gamma_s in
       let (w_s, i_s) = compile sigma gamma_s_inbox s in
       let w_s_left = fresh_wire () in
@@ -255,7 +246,7 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
           type_back = tensor sigma2 (tensor a tym)} in
       let w = fresh_wire () in
       let (w_s, i_s) = (compile sigma ((x, wx) :: gamma) s) in
-      (w, Tensor(wx, flip w_s, w) :: i_s)
+      w, Tensor(wx, flip w_s, w) :: i_s
     | Term.TypeAnnot (t, ty) ->
       let (w, ins) = compile sigma gamma t in
       let tyTensor (s, t) = Basetype.newty (Basetype.PairB(s, t)) in
@@ -263,7 +254,7 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       let tym, typ = Type.question_answer_pair ty in
       U.unify w.type_forward (tyTensor(sigma1, typ));
       U.unify w.type_back (tyTensor(sigma1, tym));
-      (w, ins)
+      w, ins
     | Term.Fn((x, a), t) ->
       let (w_t, i_t) = compile_in_box x sigma gamma t in
       let sigmat = Basetype.newty Basetype.Var in

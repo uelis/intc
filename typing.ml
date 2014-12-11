@@ -285,7 +285,10 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     let tyY = pt c delta t in
     Type.newty (Type.Tensor(tyX, tyY))
   | LetPair(s, ((x, a), (y, b), t)) ->
-    let gamma, delta = split_context phi s t in
+    if x = y then
+      raise (Typing_error (Some t, "Duplicate variable in pattern."));
+    let gamma, rest = take_subcontext phi s in
+    let delta, _ = take_subcontext rest t in
     let tyX = pt c gamma s in
     let tyY = pt c ([(x, a); (y, b)] @ delta) t in
     let ab = Type.newty (Type.Tensor(a, b)) in
