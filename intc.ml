@@ -41,13 +41,13 @@ let term_loc (s : Term.t option) =
 
 let compile (d: Decl.t) : unit =
   match d with
-  | TermDecl(f, t) ->
+  | Decl.TermDecl(f, t) ->
     let b =
       try
         Typing.principal_type [] [] t
       with Typing.Typing_error(s, err) ->
-        let msg = "Typing error when checking upper " ^
-                  "class declaration of '" ^ f ^ "'.\n" ^ err ^ "\n" in
+        let msg = "Typing error when checking" ^
+                  "declaration of '" ^ f ^ "'.\n" ^ err ^ "\n" in
         raise (Failure (error_msg (term_loc s) msg)) in
     let circuit = Circuit.circuit_of_term t in
     Printf.printf "%s : %s\n" f
@@ -58,11 +58,11 @@ let compile (d: Decl.t) : unit =
         let target = Printf.sprintf "%s.dot" f in
         Out_channel.write_all target ~data:(Circuit.dot_of_circuit circuit)
       end;
-    let ssa_func = Ssa.circuit_to_ssa f circuit in
-    let ssa_traced = Trace.trace ssa_func in
-    let ssa_shortcut = Trace.shortcut_jumps ssa_traced in
     if !opt_keep_ssa then
       begin
+        let ssa_func = Ssa.circuit_to_ssa f circuit in
+        let ssa_traced = Trace.trace ssa_func in
+        let ssa_shortcut = Trace.shortcut_jumps ssa_traced in
         let write_ssa filename ssafunc =
           Out_channel.with_file filename
             ~f:(fun c -> Ssa.fprint_func c ssafunc) in
@@ -81,10 +81,13 @@ let compile (d: Decl.t) : unit =
       end;
     if !opt_llvm_compile && (f = "main") then
       begin
+        let ssa_func = Ssa.circuit_to_ssa f circuit in
+        let ssa_traced = Trace.trace ssa_func in
+        let ssa_shortcut = Trace.shortcut_jumps ssa_traced in
         let target = Printf.sprintf "%s.bc" f in
         let llvm_module = Llvmcodegen.llvm_compile ssa_shortcut in
         ignore (Llvm_bitwriter.write_bitcode_file llvm_module target)
-      end
+       end
 
 let arg_spec =
   [("--type-details",

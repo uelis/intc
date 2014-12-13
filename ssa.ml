@@ -444,6 +444,25 @@ let unPairB a =
   | Basetype.PairB(a1, a2) -> a1, a2
   | _ -> assert false
 
+let unSumB a =
+  match Basetype.finddesc a with
+  | Basetype.DataB(id, params) ->
+    begin
+      assert (id = Basetype.Data.sumid 2);
+      match params with
+      | [a1; a2] -> a1, a2
+      | _ -> assert false
+    end
+  | _ -> assert false
+
+let inl a v =
+  let id = Basetype.Data.sumid 2 in
+  In((id, 0, v), a)
+
+let inr a v =
+  let id = Basetype.Data.sumid 2 in
+  In((id, 1, v), a)
+
 let term_value_to_ssa (t: Term.t)
   : let_bindings * value =
   (* Add type annotations in various places *)
@@ -545,30 +564,12 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
 
   let make_block src dst =
     let z = fresh_var() in
-    let sigma = Term.mkReturn (Term.mkFstV (Term.mkVar z)) in
-    let m = Term.mkReturn (Term.mkSndV (Term.mkVar z)) in
-    let (>>=) t f =
-      let open Term in
-      let z1 = fresh_var () in
-      mkBind t
-        (z1, mkReturn (f (mkVar z1))) in
-    let mkFst t1 =
-      let open Term in
-      let z1 = fresh_var () in
-      mkBind t1
-        (z1, mkReturn (mkFstV (mkVar z1))) in
-    let mkSnd t1 =
-      let open Term in
-      let z1 = fresh_var () in
-      mkBind t1
-        (z1, mkReturn (mkSndV (mkVar z1))) in
-    let mkPair t1 t2 =
-      let open Term in
-      let z1 = fresh_var () in
-      let z2 = fresh_var () in
-      mkBind t1
-        (z1, mkBind t2
-               (z2, mkReturn (mkPairV (mkVar z1) (mkVar z2)))) in
+    let sigma_type, m_type = unPairB src.message_type in
+    let sigma_term = Term.mkReturn (Term.mkFstV (Term.mkVar z)) in
+    let m_term = Term.mkReturn (Term.mkSndV (Term.mkVar z)) in
+    let sigma_val = Fst(Var z, sigma_type, m_type) in
+    let m_val = Snd(Var z, sigma_type, m_type) in
+
     let to_ssa t target_type =
       let a = Typing.principal_type [(z, src.message_type)] [] t in
       U.unify_eqs [U.Type_eq(a, (Type.newty (Type.Base target_type)), None)];
@@ -581,8 +582,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
     if not (Hashtbl.mem nodes_by_src dst) then
       begin
         if dst = c.output.dst then
-          let lt, v = to_ssa (mkPair sigma m) c.output.type_forward in
-          Return(src, z, lt, v, c.output.type_forward)
+          Return(src, z, [], Var(z), c.output.type_forward)
         else
           (* unreachable *)
           Unreachable(src)
@@ -596,8 +596,10 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
              local name supply. *)
           let gamma = List.map gamma ~f:Term.variant_var in
           let t = Term.variant f in
-          let t1 = Term.mkBind sigma (x, Term.mkBindList x (gamma, t)) in
-          let lt, vt = to_ssa (mkPair sigma t1) w1.type_forward in
+          let t1 = Term.mkBind sigma_term (x, Term.mkBindList x (gamma, t)) in
+          let _, t1_type = unPairB w1.type_forward in
+          let lt, m' = to_ssa t1 t1_type in
+          let vt = Pair(sigma_val, m') in
           Direct(src, z, lt, vt, label_of_dst w1)
         else
           assert false
@@ -605,156 +607,144 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
         if dst = w1.src then
           let _, a = unPairB w1.type_back in
           let _, b = unPairB w1.type_forward in
-          let lt, vt =
-            to_ssa (mkPair sigma ((Circuit.embed a b m)))
-              w1.type_forward in
+          let lt, m' = to_ssa (Circuit.embed a b m_term) b in
+          let vt = Pair(sigma_val, m') in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
       | Circuit.Decode(w1) ->
         if dst = w1.src then
           let _, a = unPairB w1.type_back in
           let _, b = unPairB w1.type_forward in
-          let lt, vt =
-            to_ssa (mkPair sigma ((Circuit.project b a m)))
-              w1.type_forward in
+          let lt, m' = to_ssa (Circuit.project b a m_term) b in
+          let vt = Pair(sigma_val, m') in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
       | Circuit.Tensor(w1, w2, w3) ->
         if dst = w1.src then
           (* <sigma, v> @ w1       |-->  <sigma, inl(v)> @ w3 *)
-          let lt, vt = to_ssa (mkPair sigma (m >>= Term.mkInlV)) w3.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w3)
+          let _, m'_type = unPairB w3.type_forward in
+          let vt = Pair(sigma_val, inl m'_type m_val) in
+          Direct(src, z, [], vt, label_of_dst w3)
         else if dst = w2.src then
           (* <sigma, v> @ w2       |-->  <sigma, inr(v)> @ w3 *)
-          let lt, vt = to_ssa (mkPair sigma (m >>= Term.mkInrV)) w3.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w3)
+          let _, m'_type = unPairB w3.type_forward in
+          let vt = Pair(sigma_val, inr m'_type m_val) in
+          Direct(src, z, [], vt, label_of_dst w3)
         else if dst = w3.src then
           (* <sigma, inl(v)> @ w3  |-->  <sigma, v> @ w1
              <sigma, inr(v)> @ w3  |-->  <sigma, v> @ w2 *)
           (* no additional type constraints needed; use variables *)
-          let alpha = Basetype.newtyvar () in
-          let beta1 = Basetype.newtyvar () in
-          let beta2 = Basetype.newtyvar () in
-          let beta = Basetype.newty (Basetype.DataB(Basetype.Data.sumid 2,
-                                                    [beta1; beta2])) in
-          let lsigma, vsigma = to_ssa sigma alpha in
-          let lm, vm = to_ssa m beta in
+          let m_type1, m_type2 = unSumB m_type in
           let m' = fresh_var () in
-          Branch(src, z, lm @ lsigma,
-                 (Basetype.Data.sumid 2,
-                  [beta1; beta2],
-                  vm,
-                  [(m', Pair(vsigma, Var(m')), label_of_dst w1);
-                   (m', Pair(vsigma, Var(m')), label_of_dst w2)]))
+          Branch(src, z, [],
+                 (Basetype.Data.sumid 2, [m_type1; m_type2], m_val,
+                  [(m', Pair(sigma_val, Var(m')), label_of_dst w1);
+                   (m', Pair(sigma_val, Var(m')), label_of_dst w2)]))
         else assert false
       | Circuit.Der(w1 (* \Tens A X *), w2 (* X *), (gamma, f)) ->
         if dst = w1.src then
-          let lt, vt = to_ssa (mkPair sigma (mkSnd m)) w2.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w2)
+          let m1_type, m2_type = unPairB m_type in
+          let m2 = Snd(m_val, m1_type, m2_type) in
+          let vt = Pair(sigma_val, m2) in
+          Direct(src, z, [], vt, label_of_dst w2)
         else if dst = w2.src then
           let gamma = List.map gamma ~f:Term.variant_var in
           let f = Term.variant f in
-          let t =
-            let x = fresh_var () in
-            mkPair sigma
-              (mkPair (Term.mkBind sigma
-                         (x, Term.mkBindList x (gamma, Term.mkReturn f))) m) in
-          let lt, vt = to_ssa t w1.type_forward in
+          let x = fresh_var () in
+          let t1 = Term.mkBind sigma_term
+                     (x, Term.mkBindList x (gamma, Term.mkReturn f)) in
+          let _, cm_type = unPairB w1.type_forward in
+          let c_type, _= unPairB cm_type in
+          let lt, c = to_ssa t1 c_type in
+          let vt = Pair(sigma_val, Pair(c, m_val)) in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
       | Circuit.App(w1 (* (A => X) *), (gamma, f), w2 (* X *)) ->
         if dst = w1.src then
-          let lt, vt = to_ssa (mkPair sigma m) w2.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w2)
+          Direct(src, z, [], Var(z), label_of_dst w2)
         else if dst = w2.src then
           let gamma = List.map gamma ~f:Term.variant_var in
           let f = Term.variant f in
-          let t =
-            let x = fresh_var () in
-            mkPair sigma
-              (mkPair (Term.mkBind sigma
-                         (x, Term.mkBindList x (gamma, Term.mkReturn f))) m) in
-          let lt, vt = to_ssa t w1.type_forward in
+          let x = fresh_var () in
+          let t1 = Term.mkBind sigma_term
+                     (x, Term.mkBindList x (gamma, Term.mkReturn f)) in
+          let _, cm_type = unPairB w1.type_forward in
+          let c_type, _ = unPairB cm_type in
+          let lt, c = to_ssa t1 c_type in
+          let vt = Pair(sigma_val, Pair(c, m_val)) in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
       | Circuit.Door(w1 (* X *), w2 (* \Tens A X *)) ->
         if dst = w1.src then
-          let sigma' = mkFst sigma in
-          let c = mkSnd sigma in
-          let lt, vt =
-            to_ssa (mkPair sigma' (mkPair c m)) w2.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w2)
+          let sigma'_type, c_type = unPairB sigma_type in
+          let sigma' = Fst(sigma_val, sigma'_type, c_type) in
+          let c = Snd(sigma_val, sigma'_type, c_type) in
+          let vt = Pair(sigma', Pair(c, m_val)) in
+          Direct(src, z, [], vt, label_of_dst w2)
         else if dst = w2.src then
-          let c = mkFst m in
-          let m' = mkSnd m in
-          let lt, vt =
-            to_ssa (mkPair (mkPair sigma c) m') w1.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          let c_type, m'_type = unPairB m_type in
+          let c = Fst(m_val, c_type, m'_type) in
+          let m' = Snd(m_val, c_type, m'_type) in
+          let vt = Pair(Pair(sigma_val, c), m') in
+          Direct(src, z, [], vt, label_of_dst w1)
         else assert false
       | Circuit.Bind(w1 (* \Tens A X *), w2 (*  A => X *)) ->
         if dst = w1.src then
-          (* TODO: deconstruct A *)
-          let b = mkSnd m in
-          let lt, vt = to_ssa (mkPair sigma b) w2.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w2)
+          let m1_type, b_type = unPairB m_type in
+          let b = Snd(m_val, m1_type, b_type) in
+          let vt = Pair(sigma_val, b) in
+          Direct(src, z, [], vt, label_of_dst w2)
         else if dst = w2.src then
-          let lt, vt =
-            to_ssa (mkPair sigma m) w1.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          Direct(src, z, [], Var(z), label_of_dst w1)
         else assert false
       | Circuit.Assoc(w1 (* \Tens (A x B) X *), w2 (* \Tens A \Tens B X *)) ->
         if dst = w1.src then
-          let cd = mkFst m in
-          let c = mkFst cd in
-          let d = mkSnd cd in
-          let m' = mkSnd m in
-          let lt, vt =
-            to_ssa (mkPair sigma (mkPair c (mkPair d m')))
-              w2.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w2)
+          let cd_type, m'_type = unPairB m_type in
+          let cd = Fst(m_val, cd_type, m'_type) in
+          let m' = Snd(m_val, cd_type, m'_type) in
+          let c_type, d_type = unPairB cd_type in
+          let c = Fst(cd, c_type, d_type) in
+          let d = Snd(cd, c_type, d_type) in
+          let vt = Pair(sigma_val, Pair(c, Pair(d, m'))) in
+          Direct(src, z, [], vt, label_of_dst w2)
         else if dst = w2.src then
-          let c = mkFst m in
-          let dm' = mkSnd m in
-          let d = mkFst dm' in
-          let m' = mkSnd dm' in
-          let lt, vt =
-            to_ssa (mkPair sigma (mkPair (mkPair c d) m'))
-              w1.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          let c_type, dm'_type = unPairB m_type in
+          let d_type, m'_type = unPairB dm'_type in
+          let c = Fst(m_val, c_type, dm'_type) in
+          let dm' = Snd(m_val, c_type, dm'_type) in
+          let d = Fst(dm', d_type, m'_type) in
+          let m' = Snd(dm', d_type, m'_type) in
+          let vt = Pair(sigma_val, Pair(Pair(c, d), m')) in
+          Direct(src, z, [], vt, label_of_dst w1)
         else assert false
       | Circuit.Direct(w1 (* (X- => TX+)^* *), w2 (* X *)) ->
         if dst = w1.src then
-          let lt, vt = to_ssa (mkPair sigma m) w2.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w2)
+          Direct(src, z, [], Var(z), label_of_dst w2)
         else if dst = w2.src then
-          let lt, vt =
-            to_ssa (mkPair sigma (mkPair m (Term.mkReturn Term.mkUnitV)))
-              w1.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          let vt = Pair(sigma_val, Pair(m_val, Unit)) in
+          Direct(src, z, [], vt, label_of_dst w1)
         else assert false
       | Circuit.LWeak(w1 (* \Tens A X *),
                       w2 (* \Tens B X *)) (* B <= A *) ->
         if dst = w1.src then
           let _, a_token = unPairB w1.type_back in
-          let a, _ = unPairB a_token in
+          let a, m'_type = unPairB a_token in
           let _, b_token = unPairB w2.type_forward in
           let b, _ = unPairB b_token in
-          let c = mkFst m in
-          let m' = mkSnd m in
-          let lt, vt =
-            to_ssa (mkPair sigma (mkPair (Circuit.project b a c) m'))
-              w2.type_forward in
+          let c = Term.mkReturn (Term.mkFstV (Term.mkSndV (Term.mkVar z))) in
+          let lt, d = to_ssa (Circuit.project b a c) b in
+          let m' = Snd(m_val, a, m'_type) in
+          let vt = Pair(sigma_val, Pair(d, m')) in
           Direct(src, z, lt, vt, label_of_dst w2)
         else if dst = w2.src then
           let _, a_token = unPairB w1.type_forward in
-          let a, _ = unPairB a_token in
+          let a, m'_type = unPairB a_token in
           let _, b_token = unPairB w2.type_back in
           let b, _ = unPairB b_token in
-          let c = mkFst m in
-          let m' = mkSnd m in
-          let lt, vt =
-            to_ssa (mkPair sigma (mkPair (Circuit.embed b a c) m'))
-              w1.type_forward in
+          let c = Term.mkReturn (Term.mkFstV (Term.mkSndV (Term.mkVar z))) in
+          let m' = Snd(m_val, b, m'_type) in
+          let lt, d = to_ssa (Circuit.embed b a c) a in
+          let vt = Pair(sigma_val, Pair(d, m')) in
           Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
       | Circuit.Seq(w1 (* TA^* *), w2 (* \Tensor A TB^* *), w3 (* TB *)) ->
@@ -763,16 +753,14 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           Direct(src, z, [], Var z, label_of_dst w1)
         else if dst = w1.src then
           (* <sigma, m> @ w1      |-->  <sigma, m> @ w2 *)
-          let lt, vt =
-            to_ssa (mkPair sigma (mkPair m (Term.mkReturn Term.mkUnitV)))
-              w2.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w2)
+          let vt = Pair(sigma_val, Pair(m_val, Unit)) in
+          Direct(src, z, [], vt, label_of_dst w2)
         else if dst = w2.src then
           (* <sigma, m> @ w2  |-->  <sigma, m> @ w3 *)
-          let lt, vt =
-            to_ssa (mkPair sigma (mkSnd m))
-              w3.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w3)
+          let m1_type, m2_type = unPairB m_type in
+          let m2 = Snd(m_val, m1_type, m2_type) in
+          let vt = Pair(sigma_val, m2) in
+          Direct(src, z, [], vt, label_of_dst w3)
         else assert false
       | Circuit.Case(id, params, w1, ws) ->
         assert (Basetype.Data.is_discriminated id);
@@ -784,32 +772,26 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
             | w :: rest ->
               if dst = w.src then i else find_src (i+1) rest in
           let i = find_src 0 ws in
-          let c = mkFst m in
-          let m' = mkSnd m in
-          let t1 =
-            let x = fresh_var () in
-            Term.mkBind c (x, Term.mkReturn (Term.mkInV id i (Term.mkVar x))) in
-          let lt, vt =
-            to_ssa (mkPair sigma (mkPair t1 m'))
-              w1.type_forward in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          let c_type, m'_type = unPairB m_type in
+          let c = Fst(m_val, c_type, m'_type) in
+          let m' = Snd(m_val, c_type, m'_type) in
+          let _, t1m'_type = unPairB w1.type_forward in
+          let t1_type, _ = unPairB t1m'_type in
+          let t1 = In((id, i, c), t1_type) in
+          let vt = Pair(sigma_val, Pair(t1, m')) in
+          Direct(src, z, [], vt, label_of_dst w1)
         else if dst = w1.src then
           (*   <sigma, <inl(v), w>> @ w1   |-->  <sigma, <v,w>> @ w2
                <sigma, <inr(v), w>> @ w1   |-->  <sigma, <v,w>> @ w3 *)
-          let c = mkFst m in
-          let m' = mkSnd m in
-          let alpha = Basetype.newtyvar () in
-          let beta = Basetype.newtyvar () in
-          let delta = Basetype.newtyvar () in
-          let lsigma, vsigma = to_ssa sigma alpha in
-          let lc, vc = to_ssa c beta in
-          let lm', vm' = to_ssa m' delta in
+          let c_type, m'_type = unPairB m_type in
+          let c = Fst(m_val, c_type, m'_type) in
+          let m' = Snd(m_val, c_type, m'_type) in
           let y = fresh_var () in
-          Branch(src, z, lm' @ lc @ lsigma,
-                 (id, params, vc,
+          Branch(src, z, [],
+                 (id, params, c,
                   List.map ws
                     ~f:(fun w ->
-                      (y, Pair(vsigma, Pair(Var(y), vm')), label_of_dst w))
+                      (y, Pair(sigma_val, Pair(Var(y), m')), label_of_dst w))
                     ))
         else assert false
   in
