@@ -1,32 +1,33 @@
-fn fixsimpl(x) {
-    case x of 
-    Inl(lx) -> 
-      let (l,x) = lx in
+fn fiximpl(x) =
+    case x of
+    Inl(l, x) ->
         (case x of
            Inl(b, q) ->
              push(unit + 'b, Inr(b));
-             Inl((), Inr(q))
+             return Inl((), Inr(q))
          | Inr(a) ->
-             (case pop(unit + 'b) of 
-                Inl -> Inr(a)
+	     let u = pop(unit + 'b) in
+             (case u of
+                Inl -> return Inr(a)
               | Inr(hd) ->
-                   Inl((), Inl(hd, a))))
-  | Inr(q) -> 
+                   return Inl((), Inl(hd, a))))
+  | Inr(q) ->
      push(unit + 'b, Inl());
-     Inl((), Inr(q))
-}
+     return Inl((), Inr(q))
 
-let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+let fix = direct(fiximpl:(''a -> ''a) -> ''a)
 
-let fibs = fixs (λ fib ->
+let fibs = fix (λ fib ->
    copy fib as fib1, fib2 in
-   fn i {
-      if i < 2 then 1
-      else 
-       fib1(i-1) + fib2(i-2)
-   })
+   fn i ->
+     let b = intslt(i, 2) in
+     if b then return 1
+     else
+       let f1 = let i' = intsub(i,1) in fib1 i' in
+       let f2 = let i' = intsub(i,2) in fib2 i' in
+       intadd(f1, f2)
+   )
 
-fn main() {
-  let v = fibs 38 in
+let main =
+  let v = fibs 37 in
   print v
-}

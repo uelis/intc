@@ -1,31 +1,44 @@
 type list<'a> = Nil of unit | Cons of 'a * box<list<'a>>
 
-let fiximpl = 
- fn x {
-  case x of 
-   Inl(l, x) -> 
+/* stategy implementing the fixed point combinator */
+let fiximpl =
+ fn x ->
+  case x of
+   Inl(l, x) ->
        (case x of
-          Inl(b, q) -> Inl(box (Cons(b, l)), Inr(q))
+          Inl(b, q) ->
+	    /* allocate new cons cell */
+	    let a = alloc() in
+	    /* store Cons(b, l) in cell a */
+	    let () = store(a, Cons(b, l)) in
+    	    return Inl(a, Inr(q))
         | Inr(a) ->
-            case (unbox l) of 
-               Nil -> Inr(a)
-             | Cons(hd, tl) -> Inl(tl, Inl(hd, a)))
- | Inr(q) -> 
-    Inl(box(Nil), Inr(q))
- }
+	    /* load u from cell l */
+	    let u = load(l) in
+	    /* free cell l */
+	    let () = free(l) in
+            case u of
+               Nil -> return Inr(a)
+             | Cons(hd, tl) -> return Inl(tl, Inl(hd, a)))
+ | Inr(q) ->
+    let a = alloc() in
+    let () = store(a, Nil) in
+    return Inl(a, Inr(q))
 
-let fix = direct(fiximpl: {box<list<'b>>} | {'b}|''a| -> ''a| -> ''a)
-
+/* fixed point combinator */
+let fix = direct(fiximpl: /*{box<list<'b>>}*/ ( /*{'b}*/(''a) -> ''a) -> ''a)
 
 let fibs = fix (λ fib ->
    copy fib as fib1, fib2 in
-   fn i {
-      if i < 2 then 1
-      else 
-       fib1(i-1) + fib2(i-2)
-   })
+   fn i ->
+     let b = intslt(i, 2) in
+     if b then return 1
+     else
+       let f1 = let i' = intsub(i,1) in fib1 i' in
+       let f2 = let i' = intsub(i,2) in fib2 i' in
+       intadd(f1, f2)
+   )
 
-fn main() {
+let main =
   let v = fibs 37 in
   print v
-}

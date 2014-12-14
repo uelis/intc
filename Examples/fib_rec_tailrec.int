@@ -1,47 +1,50 @@
-
-fn tailrecimp(x) {
-  case x of 
-    Inr(a) -> Inl((), Inr(a))
+/* interaction strategy for tail recursion */
+fn tailrecimp(x) =
+  case x of
+    Inr(a, ()) -> return Inl((), Inr(a, ()))
   | Inl(u, s) ->
       case s of
-         Inr(b) -> Inr(b)
-       | Inl(d, a) -> Inl((), Inr(a))
-}       
+         Inr(b) -> return Inr(b)
+       | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
 
-let tailrec = 
-   direct(tailrecimp : {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+/* The tail recursion combinator is implemented by the above strategy */
+let tailrec =
+   direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
 
-fn fixsimpl(x) {
-    case x of 
-    Inl(lx) -> 
-      let (l,x) = lx in
+fn fiximpl(x) =
+    case x of
+    Inl(l, x) ->
         (case x of
            Inl(b, q) ->
              push(unit + 'b, Inr(b));
-             Inl((), Inr(q))
+             return Inl((), Inr(q))
          | Inr(a) ->
-             (case pop(unit + 'b) of 
-                Inl -> Inr(a)
+	     let u = pop(unit + 'b) in
+             (case u of
+                Inl -> return Inr(a)
               | Inr(hd) ->
-                   Inl((), Inl(hd, a))))
-  | Inr(q) -> 
+                   return Inl((), Inl(hd, a))))
+  | Inr(q) ->
      push(unit + 'b, Inl());
-     Inl((), Inr(q))
-}
+     return Inl((), Inr(q))
 
-let fixs = direct(fixsimpl: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+let fix = direct(fiximpl:(''a -> ''a) -> ''a)
 
-let fibtr = fixs (λ fib ->
-   fn i {
+let fibtr = fix (λ fib ->
+   fn i ->
       tailrec (λ tr ->
-         fn (i, acc) {
-            if i < 2 then acc else 
-              tr (i-2, fib(i-1) + acc)
-         }
+         fn (i, acc) ->
+            let b = intslt(i, 2) in
+            if b then return acc else
+              let i' = intsub(i, 2) in
+              let acc' =
+                  let i1 = intsub(i, 1) in
+                  let f = fib(i1) in
+                  intadd(f, acc) in
+              tr (i', acc')
       ) (i, 1)
-   })
+   )
 
-fn main() {
+let main =
   let v = fibtr 38 in
   print v
-}

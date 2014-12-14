@@ -1,3 +1,8 @@
+/* TODO: This file still uses the old syntax and needs
+   to be updated. It can be compiled with the old version:
+   https://github.com/uelis/intc/tree/ppdp14
+*/
+
 fn tailrecimp(x) {
   case x of
     Inr(a) -> Inl((), Inr(a))
