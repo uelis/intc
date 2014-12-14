@@ -1,6 +1,12 @@
 # Experimental Int Compiler
 
 This is an experimental implementation of an Int compiler.
+The core of the language is described in the PPDP 2014 paper
+(Organising Low-Level Programs using Higher Types)[http://www2.tcs.ifi.lmu.de/~schoepp/Docs/ssa.pdf].
+The syntax in the implementation has changed since the submission
+of this paper. The implementation referred to in this paper is
+available with tag
+(ppdp14)[https://github.com/uelis/intc/tree/ppdp14].
 
 The type system currently implements the fragment of types
 written mathematically as
