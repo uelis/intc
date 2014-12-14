@@ -153,11 +153,12 @@ let fprint_term (oc: Out_channel.t) (t: term) : unit =
     Out_channel.output_string oc ")"
   | Const(c, v) ->
     Out_channel.output_string oc (Printing.string_of_op_const c);
+    Out_channel.output_string oc "(";
     fprint_value oc v;
     Out_channel.output_string oc ")"
 
 let fprint_letbndgs (oc: Out_channel.t) (bndgs: let_bindings) : unit =
-  List.iter bndgs
+  List.iter (List.rev bndgs)
     ~f:(function
       | Let((x, _), t) ->
         Printf.fprintf oc "   let %s = " x (* Printing.string_of_basetype a *);

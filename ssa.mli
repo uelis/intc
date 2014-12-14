@@ -26,6 +26,8 @@ val subst_term: (Term.var -> value) -> term -> term
 (** Straight-line programs are given by let bindings *)
 type let_binding =
   | Let of (Term.var * Basetype.t) * term
+
+(** A block is a list of let bindings in reverse order. *)
 type let_bindings = let_binding list
 
 (** Programs consist of a list of blocks, which each defines a label.*)
