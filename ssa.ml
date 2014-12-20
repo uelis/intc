@@ -307,7 +307,13 @@ let typecheck_term
   | Const(Term.Cintadd, v)
   | Const(Term.Cintsub, v)
   | Const(Term.Cintmul, v)
-  | Const(Term.Cintdiv, v) ->
+  | Const(Term.Cintdiv, v)
+  | Const(Term.Cintshl, v)
+  | Const(Term.Cintshr, v)
+  | Const(Term.Cintsar, v)
+  | Const(Term.Cintand, v)
+  | Const(Term.Cintor, v)
+  | Const(Term.Cintxor, v) ->
     let b = typeof_value gamma v in
     let intty = newty IntB in
     equals_exn b (newty (PairB(intty, intty)));

@@ -30,6 +30,12 @@ type op_const =
   | Cintdiv
   | Cinteq
   | Cintslt
+  | Cintshl
+  | Cintshr
+  | Cintsar
+  | Cintand
+  | Cintor
+  | Cintxor
   | Cintprint
   | Calloc of Basetype.t
   | Cfree of Basetype.t

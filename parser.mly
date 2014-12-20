@@ -135,6 +135,7 @@ let clear_type_vars () = Hashtbl.clear type_vars
 %token FN LAMBDA TYPE UNIT PUSH POP BOX ARRAY ALLOC FREE LOAD STORE CALL NAT
 %token ENCODE DECODE
 %token INTADD INTSUB INTMUL INTDIV INTEQ INTSLT
+%token INTSHL INTSHR INTSAR INTAND INTOR INTXOR 
 %token ARRAYALLOC ARRAYFREE ARRAYGET
 %token IF THEN ELSE PRINT HACK LET AS OF IN RETURN
 %token COPY CASE EXTERNAL
@@ -316,6 +317,18 @@ term_atom:
        { mkTerm (Const(Cinteq))}
     | INTSLT
        { mkTerm (Const(Cintslt))}
+    | INTSHL
+       { mkTerm (Const(Cintshl))}
+    | INTSHR
+       { mkTerm (Const(Cintshr))}
+    | INTSAR
+       { mkTerm (Const(Cintsar))}
+    | INTAND
+       { mkTerm (Const(Cintand))}
+    | INTOR
+       { mkTerm (Const(Cintor))}
+    | INTXOR
+       { mkTerm (Const(Cintxor))}
     | ALLOC
        { let alpha = Basetype.newty Basetype.Var in
          mkTerm (Const(Calloc(alpha)))}

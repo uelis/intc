@@ -62,6 +62,12 @@ rule main = parse
   | "intmul"   { INTMUL }
   | "intdiv"   { INTDIV }
   | "inteq"    { INTEQ }
+  | "intshl"   { INTSHL }
+  | "intshr"   { INTSHR }
+  | "intsar"   { INTSAR }
+  | "intand"   { INTAND }
+  | "intor"    { INTOR }
+  | "intxor"   { INTXOR }
   | "intslt"   { INTSLT }
   | "alloc"    { ALLOC }
   | "free"     { FREE }

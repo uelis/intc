@@ -28,6 +28,12 @@ type op_const =
   | Cintdiv
   | Cinteq
   | Cintslt
+  | Cintshl
+  | Cintshr
+  | Cintsar
+  | Cintand
+  | Cintor
+  | Cintxor
   | Cintprint
   | Calloc of Basetype.t
   | Cfree of Basetype.t
@@ -419,6 +425,12 @@ let freshen_type_vars t =
     | Const(Cintdiv)
     | Const(Cinteq)
     | Const(Cintslt)
+    | Const(Cintshl)
+    | Const(Cintshr)
+    | Const(Cintsar)
+    | Const(Cintand)
+    | Const(Cintor)
+    | Const(Cintxor)
     | Const(Cintprint)
     | Const(Cprint _) ->
       term

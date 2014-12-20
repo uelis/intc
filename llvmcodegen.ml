@@ -427,6 +427,12 @@ let build_term
   | Ssa.Const(Term.Cintdiv as const, arg)
   | Ssa.Const(Term.Cinteq as const, arg)
   | Ssa.Const(Term.Cintslt as const, arg)
+  | Ssa.Const(Term.Cintshl as const, arg)
+  | Ssa.Const(Term.Cintshr as const, arg)
+  | Ssa.Const(Term.Cintsar as const, arg)
+  | Ssa.Const(Term.Cintand as const, arg)
+  | Ssa.Const(Term.Cintor as const, arg)
+  | Ssa.Const(Term.Cintxor as const, arg)
   | Ssa.Const(Term.Cintprint as const, arg)
   | Ssa.Const(Term.Calloc _ as const, arg)
   | Ssa.Const(Term.Cfree _ as const, arg)
@@ -464,6 +470,36 @@ let build_term
          attrib = Bitvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Sge x y "slt" builder )}
       | Term.Cintslt, _ -> failwith "internal: wrong argument to intslt"
+      | Term.Cintshl, [x; y] ->
+        {payload = [];
+         attrib = Bitvector.singleton 1
+                    (Llvm.build_shl x y "shl" builder )}
+      | Term.Cintshl, _ -> failwith "internal: wrong argument to intshl"
+      | Term.Cintshr, [x; y] ->
+        {payload = [];
+         attrib = Bitvector.singleton 1
+                    (Llvm.build_ashr x y "shr" builder )}
+      | Term.Cintshr, _ -> failwith "internal: wrong argument to intshr"
+      | Term.Cintsar, [x; y] ->
+        {payload = [];
+         attrib = Bitvector.singleton 1
+                    (Llvm.build_lshr x y "sar" builder )}
+      | Term.Cintsar, _ -> failwith "internal: wrong argument to intsar"
+      | Term.Cintand, [x; y] ->
+        {payload = [];
+         attrib = Bitvector.singleton 1
+                    (Llvm.build_and x y "and" builder )}
+      | Term.Cintand, _ -> failwith "internal: wrong argument to intand"
+      | Term.Cintor, [x; y] ->
+        {payload = [];
+         attrib = Bitvector.singleton 1
+                    (Llvm.build_or x y "or" builder )}
+      | Term.Cintor, _ -> failwith "internal: wrong argument to intor"
+      | Term.Cintxor, [x; y] ->
+        {payload = [];
+         attrib = Bitvector.singleton 1
+                    (Llvm.build_xor x y "xor" builder )}
+      | Term.Cintxor, _ -> failwith "internal: wrong argument to intxor"
       | Term.Cintprint, [x] ->
         let i8a = Llvm.pointer_type (Llvm.i8_type context) in
         let i64 = Llvm.i64_type context in

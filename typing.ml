@@ -164,19 +164,19 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
   | Const(Cintadd)
   | Const(Cintsub)
   | Const(Cintmul)
-  | Const(Cintdiv) ->
+  | Const(Cintdiv)
+  | Const(Cintshl)
+  | Const(Cintshr)
+  | Const(Cintsar)
+  | Const(Cintand)
+  | Const(Cintor)
+  | Const(Cintxor) ->
     let intty = Basetype.newty Basetype.IntB in
     Type.newty (
       Type.FunV(
         Basetype.newty (Basetype.PairB(intty, intty)),
         Type.newty (Type.Base intty)))
-  | Const(Cinteq) ->
-    let intty = Basetype.newty Basetype.IntB in
-    let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
-    Type.newty
-      (Type.FunV(
-         Basetype.newty (Basetype.PairB(intty, intty)),
-         Type.newty (Type.Base boolty)))
+  | Const(Cinteq) 
   | Const(Cintslt) ->
     let intty = Basetype.newty Basetype.IntB in
     let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
