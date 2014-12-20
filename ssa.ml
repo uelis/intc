@@ -340,6 +340,18 @@ let typecheck_term
     let c = typeof_value gamma v in
     equals_exn c (newty (PairB(newty (BoxB b), b)));
     equals_exn a (newty UnitB)
+  | Const(Term.Carrayalloc(b), v) ->
+    let c = typeof_value gamma v in
+    equals_exn c (newty IntB);
+    equals_exn a (newty (ArrayB b))
+  | Const(Term.Carrayfree(b), v) ->
+    let c = typeof_value gamma v in
+    equals_exn c (newty (ArrayB b));
+    equals_exn a (newty UnitB)
+  | Const(Term.Carrayget(b), v) ->
+    let c = typeof_value gamma v in
+    equals_exn c (newty (PairB(newty (ArrayB b), newty IntB)));
+    equals_exn a (newty (BoxB(b)))
   | Const(Term.Cpush(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c b;

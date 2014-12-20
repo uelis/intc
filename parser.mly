@@ -52,7 +52,7 @@ let mkDatatype id params constructors =
       (* check that all recursive occurrences of the type are under a box. *)
       let rec check_rec_occ a =
         match Basetype.finddesc a with
-        | Var | IntB | UnitB | ZeroB | BoxB _ -> ()
+        | Var | IntB | UnitB | ZeroB | BoxB _ | ArrayB _ -> ()
         | PairB(a1, a2) ->
           check_rec_occ a1;
           check_rec_occ a2
@@ -132,9 +132,10 @@ let clear_type_vars () = Hashtbl.clear type_vars
 %token LBRACE RBRACE LPAREN RPAREN LANGLE RANGLE LBRACKET RBRACKET
 %token PLUS MINUS TIMES DIV
 %token COMMA QUOTE DOUBLEQUOTE COLON SEMICOLON SHARP EQUALS TO VERTBAR
-%token FN LAMBDA TYPE UNIT PUSH POP BOX ALLOC FREE LOAD STORE CALL NAT
+%token FN LAMBDA TYPE UNIT PUSH POP BOX ARRAY ALLOC FREE LOAD STORE CALL NAT
 %token ENCODE DECODE
 %token INTADD INTSUB INTMUL INTDIV INTEQ INTSLT
+%token ARRAYALLOC ARRAYFREE ARRAYGET
 %token IF THEN ELSE PRINT HACK LET AS OF IN RETURN
 %token COPY CASE EXTERNAL
 %token <int> NUM
@@ -327,6 +328,15 @@ term_atom:
     | STORE
        { let alpha = Basetype.newty Basetype.Var in
          mkTerm (Const(Cstore(alpha))) }
+    | ARRAYALLOC
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Const(Carrayalloc(alpha)))}
+    | ARRAYFREE
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Const(Carrayfree(alpha)))}
+    | ARRAYGET
+       { let alpha = Basetype.newty Basetype.Var in
+         mkTerm (Const(Carrayget(alpha)))}
     | ENCODE
        { let alpha = Basetype.newty Basetype.Var in
          let beta = Basetype.newty Basetype.Var in
@@ -421,6 +431,8 @@ basetype_atom:
       { Basetype.newty (Basetype.IntB) }
     | BOX LANGLE basetype RANGLE
       { Basetype.newty (Basetype.BoxB($3)) }
+    | ARRAY LANGLE basetype RANGLE
+      { Basetype.newty (Basetype.ArrayB($3)) }
     | identifier
       { Basetype.newty (Basetype.DataB($1, [])) }
     | identifier LANGLE basetype_list RANGLE

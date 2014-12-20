@@ -35,6 +35,9 @@ type op_const =
   | Cstore of Basetype.t
   | Cpush of Basetype.t
   | Cpop of Basetype.t
+  | Carrayalloc of Basetype.t
+  | Carrayfree of Basetype.t
+  | Carrayget of Basetype.t
   | Ccall of string * Basetype.t * Basetype.t
   | Cencode of Basetype.t * Basetype.t
   | Cdecode of Basetype.t * Basetype.t
@@ -69,45 +72,51 @@ and t_desc =
   | TypeAnnot of t * Type.t
 
 let mkTerm d = { desc = d; loc = None }
-let mkVar x = { desc = Var(x); loc = None }
-let mkConstV n = { desc = ConstV(n); loc = None }
-let mkConst n = { desc = Const(n); loc = None }
-let mkUnitV = { desc = UnitV; loc = None}
+
+let mkVar x = mkTerm (Var(x))
+let mkConstV n = mkTerm (ConstV(n))
+let mkConst n = mkTerm (Const(n))
+let mkUnitV = mkTerm UnitV
 let mkPairV s t =
   let alpha = Basetype.newtyvar() in
   let beta = Basetype.newtyvar() in
-  { desc = PairV((s, alpha), (t, beta)); loc = None }
+  mkTerm (PairV((s, alpha), (t, beta)))
 let mkFstV s =
   let alpha = Basetype.newtyvar() in
   let beta = Basetype.newtyvar() in
-  { desc = FstV(s, alpha, beta); loc = None }
+  mkTerm (FstV(s, alpha, beta))
 let mkSndV s =
   let alpha = Basetype.newtyvar() in
   let beta = Basetype.newtyvar() in
-  { desc = SndV(s, alpha, beta); loc = None }
-let mkInV n k t = { desc = InV((n, k, t), Basetype.newtyvar()); loc = None }
+  mkTerm (SndV(s, alpha, beta))
+let mkInV n k t =
+  mkTerm (InV((n, k, t), Basetype.newtyvar()))
 let mkInlV t =
-  { desc = InV((Basetype.Data.sumid 2, 0, t), Basetype.newtyvar());
-    loc = None }
+  mkTerm (InV((Basetype.Data.sumid 2, 0, t), Basetype.newtyvar()))
 let mkInrV t =
-  { desc = InV((Basetype.Data.sumid 2, 1, t), Basetype.newtyvar());
-    loc = None }
+  mkTerm (InV((Basetype.Data.sumid 2, 1, t), Basetype.newtyvar()))
 let mkCase id s l =
   let n = Basetype.Data.params id in
   let params = List.init n ~f:(fun _ -> Basetype.newtyvar ()) in
-  { desc = Case(id, params, s, l); loc = None }
-let mkApp s t = { desc = App(s, Type.newty Type.Var, t); loc = None }
-let mkFn ((x, ty), t) = { desc = Fn((x, ty), t); loc = None }
+  mkTerm (Case(id, params, s, l))
+let mkApp s t =
+  mkTerm (App(s, Type.newty Type.Var, t))
+let mkFn ((x, ty), t) =
+  mkTerm (Fn((x, ty), t))
 let mkReturn v =
   let alpha = Basetype.newtyvar() in
-  { desc = Return(v, alpha); loc = None }
+  mkTerm (Return(v, alpha))
 let mkBind s (x ,t) =
   let alpha = Basetype.newtyvar() in
-  { desc = Bind((s, alpha), (x, t)); loc = None }
-let mkFun ((x, a, ty), t) = { desc = Fun((x, a, ty), t); loc = None }
-let mkCopy s ((x, y), t) = { desc = Copy(s, (x, y, t)); loc = None }
-let mkDirect ty t = { desc = Direct(ty, t); loc = None }
-let mkTypeAnnot t a = { desc = TypeAnnot(t, a); loc = None }
+  mkTerm (Bind((s, alpha), (x, t)))
+let mkFun ((x, a, ty), t) =
+  mkTerm (Fun((x, a, ty), t))
+let mkCopy s ((x, y), t) =
+  mkTerm (Copy(s, (x, y, t)))
+let mkDirect ty t =
+  mkTerm (Direct(ty, t))
+let mkTypeAnnot t a =
+  mkTerm (TypeAnnot(t, a))
 let mkBox t =
   let alpha = Basetype.newtyvar() in
   let addr = "addr" in
@@ -391,6 +400,12 @@ let freshen_type_vars t =
       { term with desc = Const(Cpush(fbase a)) }
     | Const(Cpop(a)) ->
       { term with desc = Const(Cpop(fbase a)) }
+    | Const(Carrayalloc(a)) ->
+      { term with desc = Const(Carrayalloc(fbase a)) }
+    | Const(Carrayget(a)) ->
+      { term with desc = Const(Carrayget(fbase a)) }
+    | Const(Carrayfree(a)) ->
+      { term with desc = Const(Carrayfree(fbase a)) }
     | Const(Ccall(s, a, b)) ->
       { term with desc = Const(Ccall(s, fbase a, fbase b)) }
     | Const(Cencode(a, b)) ->

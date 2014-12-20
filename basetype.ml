@@ -12,6 +12,7 @@ and desc =
   | ZeroB
   | UnitB
   | BoxB of t
+  | ArrayB of t
   | PairB of t * t
   | DataB of string * t list
 with sexp
@@ -52,6 +53,7 @@ let children a =
   match finddesc a with
   | Var | IntB | ZeroB | UnitB -> []
   | BoxB(b1) -> [b1]
+  | ArrayB(b1) -> [b1]
   | PairB(b1, b2) -> [b1; b2]
   | DataB(_, bs) -> bs
   | Link _ -> assert false
@@ -61,6 +63,7 @@ let rec free_vars (b: t) : t list =
     | Var -> [find b]
     | IntB | ZeroB | UnitB -> []
     | BoxB(b1) -> free_vars b1
+    | ArrayB(b1) -> free_vars b1
     | PairB(b1, b2) -> free_vars b1 @ (free_vars b2)
     | DataB(_, bs) -> List.concat (List.map ~f:free_vars bs)
     | Link _ -> assert false
@@ -72,6 +75,7 @@ let rec subst (f: t -> t) (b: t) : t =
     | ZeroB -> newty ZeroB
     | UnitB -> newty UnitB
     | BoxB(b1) -> newty(BoxB(subst f b1))
+    | ArrayB(b1) -> newty(ArrayB(subst f b1))
     | PairB(b1, b2) -> newty(PairB(subst f b1, subst f b2))
     | DataB(id, bs) -> newty(DataB(id, List.map ~f:(subst f) bs))
     | Link _ -> assert false
@@ -88,6 +92,8 @@ let rec equals (u: t) (v: t) : bool =
             true
         | BoxB(u1), BoxB(v1)  ->
             equals u1 v1
+        | ArrayB(u1), ArrayB(v1)  ->
+            equals u1 v1
         | PairB(u1, u2), PairB(v1, v2)  ->
             equals u1 v1 && equals u2 v2
         | DataB(idu, lu), DataB(idv, lv) ->
@@ -95,7 +101,7 @@ let rec equals (u: t) (v: t) : bool =
             List.for_all2_exn lu lv ~f:equals
         | Link _, _ | _, Link _ -> assert false
         | Var, _ | IntB, _ | ZeroB, _ | UnitB, _
-        | BoxB _, _ | PairB _ , _ | DataB _ , _ ->
+        | BoxB _, _ | ArrayB _ , _ | PairB _ , _ | DataB _ , _ ->
             false
 
 let freshen_list ts =
@@ -196,6 +202,7 @@ struct
       match finddesc a with
         | Var | ZeroB | UnitB | IntB -> false
         | BoxB(b1) -> check_rec b1
+        | ArrayB(b1) -> check_rec b1
         | PairB(b1, b2) -> check_rec b1 && check_rec b2
         | DataB(id', bs) -> id = id' || List.exists ~f:check_rec bs
         | Link _ -> assert false in
@@ -264,6 +271,7 @@ struct
         else
           List.iter params ~f:check_rec_occ
       | BoxB _ -> ()
+      | ArrayB _ -> ()
       | Link _ -> assert false
     in
     check_rec_occ argtype;

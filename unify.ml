@@ -58,6 +58,8 @@ module Unify(T : sig type t end) = struct
             ()
           | BoxB(t1), BoxB(s1) ->
             unify_raw (Basetype_eq(t1, s1, tag))
+          | ArrayB(t1), ArrayB(s1) ->
+            unify_raw (Basetype_eq(t1, s1, tag))
           | PairB(t1, t2), PairB(s1, s2) ->
             unify_raw (Basetype_eq(t1, s1, tag));
             unify_raw (Basetype_eq(t2, s2, tag))
@@ -66,7 +68,7 @@ module Unify(T : sig type t end) = struct
               (fun (t, s) -> unify_raw (Basetype_eq (t, s, tag)))
               (List.combine ts ss)
           | IntB, _ | ZeroB, _ | UnitB, _
-          | BoxB _, _ | PairB _, _ | DataB _, _ ->
+          | BoxB _, _ | ArrayB _, _ | PairB _, _ | DataB _, _ ->
             raise (Not_Unifiable (Equation_failed c))
           | Link _, _ -> assert false
       end

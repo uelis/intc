@@ -283,7 +283,10 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
     | Term.Const(Term.Cprint _ as c) | Term.Const(Term.Cpop(_) as c)
     | Term.Const(Term.Cpush _ as c) | Term.Const(Term.Ccall _ as c)
     | Term.Const(Term.Calloc _ as c) | Term.Const(Term.Cfree _ as c)
-    | Term.Const(Term.Cload _ as c) | Term.Const(Term.Cstore _ as c) ->
+    | Term.Const(Term.Cload _ as c) | Term.Const(Term.Cstore _ as c) 
+    | Term.Const(Term.Carrayalloc _ as c)
+    | Term.Const(Term.Carrayfree _ as c)
+    | Term.Const(Term.Carrayget _ as c) ->
       let w = fresh_wire () in
       let w1 = fresh_wire () in
       let w2 = fresh_wire () in

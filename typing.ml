@@ -215,6 +215,24 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
       (Type.FunV(
          Basetype.newty (Basetype.PairB(boxa, a)),
          Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
+  | Const(Carrayalloc(a)) ->
+    Type.newty
+      (Type.FunV(
+         Basetype.newty Basetype.IntB,
+         Type.newty (Type.Base (Basetype.newty (Basetype.ArrayB a)))))
+  | Const(Carrayfree(a)) ->
+    Type.newty
+      (Type.FunV(
+         Basetype.newty (Basetype.ArrayB a),
+         Type.newty (Type.Base (Basetype.newty Basetype.UnitB))))
+  | Const(Carrayget(a)) ->
+    let arraya = Basetype.newty (Basetype.ArrayB a) in
+    let boxa = Basetype.newty (Basetype.BoxB a) in
+    let intB = Basetype.newty Basetype.IntB in
+    Type.newty
+      (Type.FunV(
+         Basetype.newty (Basetype.PairB(arraya, intB)),
+         Type.newty (Type.Base boxa)))
   | Const(Ccall(_, a, b)) | Const(Cencode(a, b)) | Const(Cdecode(a, b)) ->
     Type.newty (Type.FunV(a, Type.newty (Type.Base b)))
   | Return(t1, a) ->
@@ -340,6 +358,8 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
       match (Basetype.find b).Basetype.desc with
       | Basetype.Var | Basetype.IntB | Basetype.ZeroB | Basetype.UnitB -> ()
       | Basetype.BoxB(b1) ->
+        check_wf_base b1
+      | Basetype.ArrayB(b1) ->
         check_wf_base b1
       | Basetype.PairB(b1, b2) ->
         check_wf_base b1;

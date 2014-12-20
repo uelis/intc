@@ -1,0 +1,11 @@
+let main =
+  let a = arrayalloc(5) in
+  let a0 = arrayget(a,0) in
+  let a1 = arrayget(a,1) in
+  let () = store(a0, (2, False)) in
+  let () = store(a1, (3, True)) in
+  let (b1, u) = load(a1) in
+  (if u then print b1 else return ());
+  let (b0, u) = load(a0) in
+  (if u then print b0 else return ());
+  arrayfree(a)

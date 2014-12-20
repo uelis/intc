@@ -205,6 +205,7 @@ let payload_size (a: Basetype.t) : int =
     | Var -> 0
     | IntB -> 1
     | BoxB _ -> 1
+    | ArrayB _ -> 1
     | PairB(a1, a2) -> p_s a1 + (p_s a2)
     | DataB(id, ps) ->
       let cs = Basetype.Data.constructor_types id ps in
@@ -217,7 +218,7 @@ let attrib_size (a: Basetype.t) : profile =
     let open Basetype in
     match finddesc a with
     | Link _ -> assert false
-    | Var | ZeroB | UnitB | IntB | BoxB _ -> M.empty
+    | Var | ZeroB | UnitB | IntB | BoxB _ | ArrayB _ -> M.empty
     | PairB(a1, a2) -> add_profiles (a_s a1) (a_s a2)
     | DataB(id, ps) ->
       begin
@@ -430,7 +431,10 @@ let build_term
   | Ssa.Const(Term.Calloc _ as const, arg)
   | Ssa.Const(Term.Cfree _ as const, arg)
   | Ssa.Const(Term.Cload _ as const, arg)
-  | Ssa.Const(Term.Cstore _ as const, arg) ->
+  | Ssa.Const(Term.Cstore _ as const, arg) 
+  | Ssa.Const(Term.Carrayalloc _ as const, arg)
+  | Ssa.Const(Term.Carrayfree _ as const, arg)
+  | Ssa.Const(Term.Carrayget _ as const, arg) ->
     begin
       let argenc = build_value the_module ctx arg in
       match const, argenc.payload with
@@ -513,6 +517,39 @@ let build_term
         ignore (Llvm.build_store v_packed mem_ptr builder);
         {payload = []; attrib = Bitvector.null}
       | Term.Cstore _, _ -> failwith "internal: wrong argument to store"
+      | Term.Carrayalloc a, [length] ->
+        let i64 = Llvm.i64_type context in
+        let a_struct = packing_type a in
+        let malloctype = Llvm.function_type
+                           (Llvm.pointer_type (Llvm.i8_type context))
+                           (Array.of_list [i64]) in
+        let malloc = Llvm.declare_function "malloc" malloctype the_module in
+        let byte_size =
+          Llvm.build_mul length (Llvm.size_of a_struct) "size" builder in
+        let mem_i8ptr = Llvm.build_call malloc
+                          (Array.of_list [byte_size])
+                          "memi8" builder in
+        let addr = Llvm.build_ptrtoint mem_i8ptr i64 "memint" builder in
+        {payload = [addr]; attrib = Bitvector.null}
+      | Term.Carrayalloc _, _ -> failwith "internal: wrong argument to arrayalloc"
+      | Term.Carrayfree _, [addr] ->
+        let i64 = Llvm.i64_type context in
+        let freetype = Llvm.function_type
+                         (Llvm.pointer_type (Llvm.i8_type context))
+                         (Array.of_list [i64]) in
+        let free = Llvm.declare_function "free" freetype the_module in
+        ignore (Llvm.build_call free (Array.of_list [addr]) "free" builder);
+        {payload = []; attrib = Bitvector.null}
+      | Term.Carrayfree _, _ -> failwith "internal: wrong argument to arrayfree"
+      | Term.Carrayget a, [addr; idx] ->
+        let i64 = Llvm.i64_type context in
+        let a_struct = packing_type a in
+        let offset =
+          let p1 = Llvm.build_mul idx (Llvm.size_of a_struct) "p1" builder in
+          let p2 = Llvm.build_add p1 (Llvm.const_int i64 8) "p2" builder in
+          Llvm.build_add addr p2 "offset" builder in
+        {payload = [offset]; attrib = Bitvector.null}
+      | Term.Carrayget _, _ -> failwith "internal: wrong argument to arrayget"
       | Term.Cprint _, _
       | Term.Cpush _, _
       | Term.Cpop _, _
@@ -693,5 +730,5 @@ let llvm_compile (ssa_func : Ssa.t) : Llvm.llmodule =
       ignore (Llvm.build_call func args "ret" builder);
       ignore (Llvm.build_ret_void builder)
     end;
-  (*    Llvm.dump_module the_module; *)
+  (* Llvm.dump_module the_module; *)
   the_module

@@ -34,6 +34,7 @@ and desc =
   | ZeroB
   | UnitB
   | BoxB of t
+  | ArrayB of t
   | PairB of t * t
   | DataB of string * t list
 

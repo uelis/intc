@@ -101,7 +101,7 @@ let string_of_basetype (ty: Basetype.t): string =
                 Buffer.add_string buf ", ";
                 s_summand t2);
             Buffer.add_string buf ">"
-          | PairB _ | Var | IntB | ZeroB | UnitB | BoxB _ ->
+          | PairB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
             s_factor t
           | Link _ -> assert false
         end
@@ -119,7 +119,7 @@ let string_of_basetype (ty: Basetype.t): string =
             s_factor t1;
             Buffer.add_string buf " * ";
             s_atom t2
-          | DataB _ | Var | IntB | ZeroB | UnitB | BoxB _ ->
+          | DataB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
             s_atom t
           | Link _ -> assert false
         end
@@ -142,6 +142,10 @@ let string_of_basetype (ty: Basetype.t): string =
           | UnitB -> Buffer.add_string buf "unit"
           | BoxB(b) ->
             Buffer.add_string buf "box<";
+            s_atom b;
+            Buffer.add_char buf '>';
+          | ArrayB(b) ->
+            Buffer.add_string buf "array<";
             s_atom b;
             Buffer.add_char buf '>';
           | DataB _ | PairB _  ->
@@ -309,6 +313,9 @@ let string_of_op_const (c: Term.op_const) : string =
   | Cfree(_) -> "free"
   | Cload(_) -> "load"
   | Cstore(_) -> "store"
+  | Carrayalloc _ -> "arrayalloc"
+  | Carrayget _ -> "arrayget"
+  | Carrayfree _ -> "arrayfree"
   | Cpush(_) -> "push"
   | Cpop(_) -> "pop"
   | Ccall(f, a, b) -> "call(" ^ f ^ ": " ^ (string_of_basetype a) ^

@@ -55,6 +55,7 @@ rule main = parse
   | "type"     { TYPE }
   | "unit"     { UNIT }
   | "box"      { BOX }
+  | "array"    { ARRAY }
   | "print"    { PRINT }
   | "intadd"   { INTADD }
   | "intsub"   { INTSUB }
@@ -66,6 +67,9 @@ rule main = parse
   | "free"     { FREE }
   | "load"     { LOAD }
   | "store"    { STORE }
+  | "arrayalloc" { ARRAYALLOC }
+  | "arrayfree" { ARRAYFREE }
+  | "arrayget" { ARRAYGET }
   | "push"     { PUSH }
   | "pop"      { POP }
   | "call"     { CALL }
