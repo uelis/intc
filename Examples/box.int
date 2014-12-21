@@ -19,10 +19,10 @@ let maprev = λ f ->
         case l of
           Nil -> return r
         | Cons(x, xs) ->
-            let tail = load(xs) in
+            val tail = load(xs) in
             /* reuse memory */
-            let () = store(xs, r) in
-            let y = f x in
+            val () = store(xs, r) in
+            val y = f x in
             mapf(tail, Cons(y, xs))
       )
 
@@ -32,8 +32,8 @@ let revaux =
         case l of
           Nil -> return r
         | Cons(x, xs) ->
-           let tail = load(xs) in
-           let () = store(xs, r) in
+           val tail = load(xs) in
+           val () = store(xs, r) in
            rev(tail, Cons(x, xs))
       )
 
@@ -42,7 +42,7 @@ fn rev(l) =
 
 let maptr = λ f ->
    fn l ->
-      let l1 = maprev f (l, Nil) in
+      val l1 = maprev f (l, Nil) in
       rev l1
 
 /* prints a list and deallocates the memory in the process */
@@ -54,8 +54,8 @@ let printlist = tailrec (λ printlist ->
          | Cons(h, t) ->
             print h;
             print " ";
-            let tail = load(t) in
-            let () = free(t) in
+            val tail = load(t) in
+            val () = free(t) in
             printlist tail
     )
 
@@ -65,16 +65,16 @@ fn clone(l) =
       fn (l, (l1, l2)) ->
         case l of
           Nil ->
-	    let rl1 = rev l1 in
-	    let rl2 = rev l2 in
+	    val rl1 = rev l1 in
+	    val rl2 = rev l2 in
 	     return (rl1, rl2)
         | Cons(x, xs) ->
-	    let tl = load(xs) in
-	    let () = free(xs) in
-	    let t1 = alloc() in
-	    let () = store(t1, l1) in
-	    let t2 = alloc() in
-            let () = store(t2, l2) in
+	    val tl = load(xs) in
+	    val () = free(xs) in
+	    val t1 = alloc() in
+	    val () = store(t1, l1) in
+	    val t2 = alloc() in
+            val () = store(t2, l2) in
             clone(tl, (Cons(x, t1), Cons(x, t2)))
       )
     (l, (Nil, Nil))
@@ -82,18 +82,18 @@ fn clone(l) =
 fn upto(n) =
    tailrec (λ aux ->
    fn (m, r) ->
-      let b = inteq(m, 0) in
+      val b = inteq(m, 0) in
       if b then return r else
-        let m' = intsub(m, 1) in
-        let tail = alloc() in
-        let () = store(tail, r) in
+        val m' = intsub(m, 1) in
+        val tail = alloc() in
+        val () = store(tail, r) in
         aux (m', Cons(m, tail))
    ) (n, Nil)
 
 let main =
-   let l = upto 20 in
-   let l1 = maptr (fn i -> intmul(i, i)) l in
-   let (l2, l3) = clone l1 in
-   let l3' = rev l3 in
+   val l = upto 20 in
+   val l1 = maptr (fn i -> intmul(i, i)) l in
+   val (l2, l3) = clone l1 in
+   val l3' = rev l3 in
    printlist l2;
    printlist l3'

@@ -307,6 +307,7 @@ let string_of_op_const (c: Term.op_const) : string =
   | Cintmul -> "intmul"
   | Cintdiv -> "intdiv"
   | Cinteq -> "inteq"
+  | Cintlt -> "intlt"
   | Cintslt -> "intslt"
   | Cintshl -> "intshl"
   | Cintshr -> "intshr"
@@ -348,10 +349,10 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "@[<hv 2>fun (%s) ->@;" x;
       s_term t1;
       fprintf f "@]"
-    | Copy(t1, (x, y, t2)) ->
+    | Copy(t1, (xs, t2)) ->
       fprintf f "copy @[";
       s_term t1;
-      fprintf f "@] as %s,%s in@ @[" x y;
+      fprintf f "@] as %s in@ @[" (String.concat ~sep:", " xs);
       s_term t2;
       fprintf f "@]"
     | LetPair(t1, ((x, _), (y, _), t2)) ->

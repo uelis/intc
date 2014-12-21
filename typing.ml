@@ -177,6 +177,7 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
         Basetype.newty (Basetype.PairB(intty, intty)),
         Type.newty (Type.Base intty)))
   | Const(Cinteq) 
+  | Const(Cintlt) 
   | Const(Cintslt) ->
     let intty = Basetype.newty Basetype.IntB in
     let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
@@ -290,10 +291,11 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Term.t)
     let tyY = pt c ((x, beta) :: phi) t in
     eq_expected_constraint (Term.mkVar x) ~actual:beta ~expected:ty;
     Type.newty (Type.FunI(a, beta, tyY))
-  | Copy(s, (x, y, t)) ->
+  | Copy(s, (xs, t)) ->
     let gamma, delta = split_context phi s t in
     let beta = Type.newty Type.Var in
-    let tyY = pt c ([(x, beta); (y, beta)] @ delta) t in
+    let delta1 = List.map ~f:(fun x -> (x, beta)) xs in
+    let tyY = pt c (delta1 @ delta) t in
     let tyX = pt c gamma s in
     eq_expected_constraint s ~actual:tyX ~expected:beta;
     tyY

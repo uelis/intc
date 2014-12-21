@@ -19,7 +19,7 @@ fn fiximpl(x) =
              push(unit + 'b, Inr(b));
              return Inl((), Inr(q))
          | Inr(a) ->
-	     let u = pop(unit + 'b) in
+	     val u = pop(unit + 'b) in
              (case u of
                 Inl -> return Inr(a)
               | Inr(hd) ->
@@ -34,17 +34,17 @@ let fibtr = fix (λ fib ->
    fn i ->
       tailrec (λ tr ->
          fn (i, acc) ->
-            let b = intslt(i, 2) in
+            val b = intslt(i, 2) in
             if b then return acc else
-              let i' = intsub(i, 2) in
-              let acc' =
-                  let i1 = intsub(i, 1) in
-                  let f = fib(i1) in
+              val i' = intsub(i, 2) in
+              val acc' =
+                  val i1 = intsub(i, 1) in
+                  val f = fib(i1) in
                   intadd(f, acc) in
               tr (i', acc')
       ) (i, 1)
    )
 
 let main =
-  let v = fibtr 38 in
+  val v = fibtr 38 in
   print v

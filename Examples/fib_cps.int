@@ -6,7 +6,7 @@ fn fiximpl(x) =
              push(unit + 'b, Inr(b));
              return Inl((), Inr(q))
          | Inr(a) ->
-	     let u = pop(unit + 'b) in
+	     val u = pop(unit + 'b) in
              (case u of
                 Inl -> return Inr(a)
               | Inr(hd) ->
@@ -17,11 +17,11 @@ fn fiximpl(x) =
 
 let fix = direct(fiximpl:(''a -> ''a) -> ''a)
 
-let val = λ n -> λ k -> k n
+let vl = λ n -> λ k -> k n
 let add = λ k -> k (λ n -> λ k1 ->
-                            let nv = n in
+                            val nv = n in
                             k1 (λ m -> λ k2 ->
-                                    let mv = m in
+                                    val mv = m in
                                     k2 (intadd(nv, mv))
                                )
                    )
@@ -31,12 +31,12 @@ let mem = λ f -> λ k ->  k (f (λ r -> r))
 let step =
    λ f ->
    copy f as f1, f2 in
-     val (λ x ->
+     vl (λ x ->
           mem (λ k ->
-              let xv = x in
-	      let b = intslt(xv, 2) in
+              val xv = x in
+	      val b = intslt(xv, 2) in
               (if b then
-                 val (return 1) k
+                 vl (return 1) k
               else
                 app (app add (f1 (intsub(xv, 1)))) (f2 (intsub(xv, 2))) k)
             )
@@ -44,6 +44,6 @@ let step =
 let fixv = fix (λ a -> step (λ x -> λ k -> a (λ b -> b x k)))
 
 let main =
-   let v = app fixv (val (return 38)) (λ r -> r) in
+   val v = app fixv (vl (return 38)) (λ r -> r) in
    print v
 

@@ -1,21 +1,21 @@
 let test1 =
-  let a = arrayalloc(5) in
-  let a0 = arrayget(a,0) in
-  let a1 = arrayget(a,1) in
+  val a = arrayalloc(5) in
+  val a0 = arrayget(a,0) in
+  val a1 = arrayget(a,1) in
   store(a0, (2, False));
   store(a1, (3, True));
-  let (b1, u) = load(a1) in
+  val (b1, u) = load(a1) in
   (if u then print b1 else return ());
-  let (b0, u) = load(a0) in
+  val (b0, u) = load(a0) in
   (if u then print b0 else return ());
   arrayfree(a)
 
 let newarray =
   fn size ->
     \ b ->
-      let a = arrayalloc(size) in
-      let r = b (\ e ->
-                   let i = e in
+      val a = arrayalloc(size) in
+      val r = b (\ e ->
+                   val i = e in
 		   arrayget(a, i)
 		) in
       arrayfree(a);
@@ -23,18 +23,16 @@ let newarray =
 
 let test2 =
   newarray 12 (\ v ->
-     copy v as v1, v' in
-     copy v' as v2, v'' in
-     copy v'' as v3, v4 in
-     let b = v1 (return 0) in
+     copy v as v1, v2, v3, v4 in
+     val b = v1 (return 0) in
      store(b, 12);
-     let b = v2 (return 11) in
+     val b = v2 (return 11) in
      store(b, 24);
-     let b = v3 (return 0) in
-     let r1 = load(b) in
-     let b = v4 (return 11) in
-     let r2 = load(b) in
-     let r = intadd(r1, r2) in
+     val b = v3 (return 0) in
+     val r1 = load(b) in
+     val b = v4 (return 11) in
+     val r2 = load(b) in
+     val r = intadd(r1, r2) in
      print r)
 
 let main =

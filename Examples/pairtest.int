@@ -3,7 +3,7 @@ let f =
     λ y -> (x # y)
 
 let g = λ z ->
-    let x # y = z in
+    let (x # y) = z in
     x
 
 let main = g ((print 2; print "\n") # (print 3))

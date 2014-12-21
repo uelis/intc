@@ -29,6 +29,7 @@ type op_const =
   | Cintmul
   | Cintdiv
   | Cinteq
+  | Cintlt
   | Cintslt
   | Cintshl
   | Cintshr
@@ -91,7 +92,7 @@ type t = {
   | Fun of (var * Basetype.t * Type.t) * t
   | App of t * Type.t * t
   | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
-  | Copy of t * (var * var * t)
+  | Copy of t * (var list * t)
   | Pair of t * t
   | LetPair of t* ((var * Type.t) * (var * Type.t) * t)
   | Direct of Type.t * t
@@ -117,7 +118,7 @@ val mkFn : (var * Basetype.t) * t -> t
 val mkReturn : t -> t
 val mkBind : t -> (var * t) -> t
 val mkFun : (var * Basetype.t * Type.t) * t -> t
-val mkCopy : t -> (var * var) * t -> t
+val mkCopy : t -> var list * t -> t
 val mkDirect : Type.t -> t -> t
 val mkTypeAnnot : t -> Type.t -> t
 val mkBox : t -> t

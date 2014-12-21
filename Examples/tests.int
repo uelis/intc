@@ -18,10 +18,10 @@ let tailrec =
 /* factorial with accumulator */
 let facaux = tailrec (λ facaux ->
     fn (i, acc) ->
-      let b = inteq(i, 0) in
+      val b = inteq(i, 0) in
       if b then return acc else
-        let i' = intsub(i, 1) in
-	let acc' = intmul(acc, i) in
+        val i' = intsub(i, 1) in
+	val acc' = intmul(acc, i) in
         facaux (i', acc')
 )
 
@@ -31,7 +31,7 @@ fn fac(i) =
 
 /* factorial test */
 fn main1() =
-   let v = fac 10 in
+   val v = fac 10 in
      print v
 
 /* stategy implementing the fixed point combinator */
@@ -42,21 +42,21 @@ let fiximpl =
        (case x of
           Inl(b, q) ->
 	    /* allocate new cons cell */
-	    let a = alloc() in
+	    val a = alloc() in
 	    /* store Cons(b, l) in cell a */
-	    let () = store(a, Cons(b, l)) in
+	    val () = store(a, Cons(b, l)) in
     	    return Inl(a, Inr(q))
         | Inr(a) ->
 	    /* load u from cell l */
-	    let u = load(l) in
+	    val u = load(l) in
 	    /* free cell l */
-	    let () = free(l) in
+	    val () = free(l) in
             case u of
                Nil -> return Inr(a)
              | Cons(hd, tl) -> return Inl(tl, Inl(hd, a)))
  | Inr(q) ->
-    let a = alloc() in
-    let () = store(a, Nil) in
+    val a = alloc() in
+    val () = store(a, Nil) in
     return Inl(a, Inr(q))
 
 /* fixed point combinator */
@@ -66,20 +66,20 @@ let fix = direct(fiximpl: /*{box<list<'b>>}*/ ( /*{'b}*/(''a) -> ''a) -> ''a)
 let fib = fix (λ fib ->
    copy fib as fib1, fib2 in
    fn i ->
-      let t = intslt(i, 2) in
+      val t = intslt(i, 2) in
       if t then
         return 1
       else
-	let f1 =
-            let i1 = intsub(i, 1) in
+	val f1 =
+            val i1 = intsub(i, 1) in
 	    fib1 i1 in
-	let f2 =
-            let i2 = intsub(i, 2) in
+	val f2 =
+            val i2 = intsub(i, 2) in
 	    fib2 i2 in
-	let s = intadd(f1, f2) in
+	val s = intadd(f1, f2) in
 	return s
    )
 
 let main =
-  let v = fib 38 in
+  val v = fib 38 in
   print v

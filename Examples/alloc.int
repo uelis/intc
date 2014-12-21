@@ -12,23 +12,23 @@ let tailrec =
 /* Combinators in the style of Idealised Algol */
 
 fn skip() = return ()
-let seq = λ c1 -> λ c2 -> let () = c1 in c2
+let seq = λ c1 -> λ c2 -> val () = c1 in c2
 
-let pr = λ e -> let x = e in print x; print "\n"
-let dec = λ e -> let x = e in intsub(x, 1)
+let pr = λ e -> val x = e in print x; print "\n"
+let dec = λ e -> val x = e in intsub(x, 1)
 
-let ispositive = λ e -> let x = e in intslt(0, x)
+let ispositive = λ e -> val x = e in intslt(0, x)
 
 let cif =
   λ e -> λ ct -> λ cf ->
-    let x = e in
+    val x = e in
     if x then ct else cf
 
 let while =
    λ e -> λ c ->
     (tailrec (λ f ->
         fn () ->
-          let x = e in
+          val x = e in
           if x then (c; f ()) else return ()))()
 
 let allocimp = fn x ->
@@ -50,7 +50,7 @@ let newvar1 =
 let newvar = fn initial -> λ body -> newvar1 body initial
 
 let main_ia = newvar 0 (λ write -> λ read ->
-   copy (λ e -> let v = e in write(v)) as write1, write2 in
+   copy (λ e -> val v = e in write(v)) as write1, write2 in
    copy read as read1, read23 in
    copy read23 as read2, read3 in
      seq (write1 (return 12))
@@ -63,10 +63,10 @@ let main_ia = newvar 0 (λ write -> λ read ->
 let main = newvar 0 (λ write -> λ read ->
    copy write as write1, write2 in
    copy read as read1, read2 in
-     let u = write1 12 in
+     val u = write1 12 in
      while (ispositive read1) (
-       let v = read2 in
+       val v = read2 in
        print v; print "\n";
-       let v' = intsub(v, 1) in
+       val v' = intsub(v, 1) in
        write2(v')
      ))

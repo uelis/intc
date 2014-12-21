@@ -134,10 +134,10 @@ let clear_type_vars () = Hashtbl.clear type_vars
 %token COMMA QUOTE DOUBLEQUOTE COLON SEMICOLON SHARP EQUALS TO VERTBAR
 %token FN LAMBDA TYPE UNIT PUSH POP BOX ARRAY ALLOC FREE LOAD STORE CALL NAT
 %token ENCODE DECODE
-%token INTADD INTSUB INTMUL INTDIV INTEQ INTSLT
-%token INTSHL INTSHR INTSAR INTAND INTOR INTXOR 
+%token INTADD INTSUB INTMUL INTDIV INTEQ INTLT INTSLT
+%token INTSHL INTSHR INTSAR INTAND INTOR INTXOR
 %token ARRAYALLOC ARRAYFREE ARRAYGET
-%token IF THEN ELSE PRINT HACK LET AS OF IN RETURN
+%token IF THEN ELSE PRINT HACK LET VAL AS OF IN RETURN
 %token COPY CASE EXTERNAL
 %token <int> NUM
 %token <string> IDENT
@@ -192,6 +192,12 @@ identifier:
     | IDENT
         { $1 }
 
+identifier_list:
+    | IDENT
+        { [$1] }
+    | IDENT COMMA identifier_list
+        { $1 :: $3 }
+
 term:
     | RETURN term
         { let alpha = Basetype.newty Basetype.Var in
@@ -207,13 +213,13 @@ term:
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $2 $4 in
           mkTerm (Fn((x, alpha), t)) }
-    | COPY term AS identifier COMMA identifier IN term
-       { mkTerm (Copy($2, ($4, $6, $8))) }
+    | COPY term AS identifier_list IN term
+       { mkTerm (Copy($2, ($4, $6))) }
     | LET LPAREN identifier SHARP identifier RPAREN EQUALS term IN term
         { let alpha = Type.newty Type.Var in
           let beta = Type.newty Type.Var in
            mkTerm (LetPair($8, (($3, alpha), ($5, beta), $10))) }
-    | LET pattern EQUALS term IN term
+    | VAL pattern EQUALS term IN term
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $2 $6 in
           mkTerm (Bind(($4, alpha), (x, t))) }
@@ -303,6 +309,8 @@ term_atom:
        { mkTerm (Pair($2, $4)) }
     | NUM
        { mkTerm (ConstV(Cintconst($1))) }
+    | MINUS NUM
+       { mkTerm (ConstV(Cintconst(-$2))) }
     | PRINT term_atom
        { mkTerm (App(mkTerm (Const(Cintprint)), Type.newty Type.Var, $2)) }
     | INTADD
@@ -315,6 +323,8 @@ term_atom:
        { mkTerm (Const(Cintdiv))}
     | INTEQ
        { mkTerm (Const(Cinteq))}
+    | INTLT
+       { mkTerm (Const(Cintlt))}
     | INTSLT
        { mkTerm (Const(Cintslt))}
     | INTSHL

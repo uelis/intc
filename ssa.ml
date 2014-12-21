@@ -319,6 +319,7 @@ let typecheck_term
     equals_exn b (newty (PairB(intty, intty)));
     equals_exn a intty
   | Const(Term.Cinteq, v)
+  | Const(Term.Cintlt, v) 
   | Const(Term.Cintslt, v) ->
     let b = typeof_value gamma v in
     let intty = newty IntB in

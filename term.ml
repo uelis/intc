@@ -27,6 +27,7 @@ type op_const =
   | Cintmul
   | Cintdiv
   | Cinteq
+  | Cintlt
   | Cintslt
   | Cintshl
   | Cintshr
@@ -70,7 +71,7 @@ and t_desc =
   | Fun of (var * Basetype.t * Type.t) * t
   | App of t * Type.t * t
   | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
-  | Copy of t * (var * var * t)
+  | Copy of t * (var list * t)
   | Pair of t * t
   | LetPair of t* ((var * Type.t) * (var * Type.t) * t)
   | Direct of Type.t * t
@@ -117,8 +118,8 @@ let mkBind s (x ,t) =
   mkTerm (Bind((s, alpha), (x, t)))
 let mkFun ((x, a, ty), t) =
   mkTerm (Fun((x, a, ty), t))
-let mkCopy s ((x, y), t) =
-  mkTerm (Copy(s, (x, y, t)))
+let mkCopy s (xs, t) =
+  mkTerm (Copy(s, (xs, t)))
 let mkDirect ty t =
   mkTerm (Direct(ty, t))
 let mkTypeAnnot t a =
@@ -151,6 +152,7 @@ let rec is_value (term: t) : bool =
 
 let rec free_vars (term: t) : var list =
   let abs x l = List.filter l ~f:(fun z -> not (String.equal z x)) in
+  let abs_list xs l = List.filter l ~f:(fun z -> not (List.mem xs z)) in
   match term.desc with
   | Var(v) -> [v]
   | ConstV _ | Const(_) | UnitV | External _ -> []
@@ -159,8 +161,8 @@ let rec free_vars (term: t) : var list =
   | Direct(_, s) -> free_vars s
   | PairV((s, _), (t, _)) | App(s, _, t) ->
     (free_vars s) @ (free_vars t)
-  | Copy(s, (x, y, t)) ->
-    (free_vars s) @ (abs x (abs y (free_vars t)))
+  | Copy(s, (xs, t)) ->
+    (free_vars s) @ (abs_list xs (free_vars t))
   | Fn((x, _), t) | Fun((x, _, _), t) ->
     abs x (free_vars t)
   | Bind((s, _), (x, t)) ->
@@ -183,7 +185,7 @@ let rec all_vars (term: t) : var list =
   | Return(s, _) | SelectV(_, _, s, _)
   | Direct(_, s) -> all_vars s
   | PairV((s, _), (t, _)) | App(s, _, t)
-  | Copy(s, (_, _, t)) ->
+  | Copy(s, (_, t)) ->
     all_vars s @ all_vars t
   | Fn((x, _), t) | Fun((x, _, _), t) ->
     x :: all_vars t
@@ -219,8 +221,8 @@ let rename_vars (f: var -> var) (term: t) : t =
       { term with desc = PairV((rn s, a), (rn t, b)) }
     | App(s, a, t) ->
       { term with desc = App(rn s, a, rn t) }
-    | Copy(s, (x, y, t)) ->
-      { term with desc = Copy(rn s, (f x, f y, rn t)) }
+    | Copy(s, (xs, t)) ->
+      { term with desc = Copy(rn s, (List.map ~f:f xs, rn t)) }
     | Fn((x, ty), t) ->
       { term with desc = Fn((f x, ty), rn t) }
     | Fun((x, a, ty), t) ->
@@ -295,8 +297,8 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
       { term with desc = PairV((sub sigma s, a), (sub sigma t, b)) }
     | App (s, a, t) ->
       { term with desc = App(sub sigma s, a, sub sigma t) }
-    | Copy(s, (x, y, t)) ->
-      { term with desc = Copy(sub sigma s, abs2 sigma (x, y, t)) }
+    | Copy(s, (xs, t)) ->
+      { term with desc = Copy(sub sigma s, abs_list sigma (xs, t)) }
     | Fn((x, ty), t) ->
       let (x', t') = abs sigma (x, t) in
       { term with desc = Fn((x', ty), t') }
@@ -424,6 +426,7 @@ let freshen_type_vars t =
     | Const(Cintmul)
     | Const(Cintdiv)
     | Const(Cinteq)
+    | Const(Cintlt)
     | Const(Cintslt)
     | Const(Cintshl)
     | Const(Cintshr)
@@ -446,8 +449,8 @@ let freshen_type_vars t =
       { term with desc = PairV((mta s, fbase a), (mta t, fbase b)) }
     | App(s, a, t) ->
       { term with desc = App(mta s, f a, mta t) }
-    | Copy(s, (x, y, t)) ->
-      { term with desc = Copy(mta s, (x, y, mta t)) }
+    | Copy(s, (xs, t)) ->
+      { term with desc = Copy(mta s, (xs, mta t)) }
     | Fn((x, a), t) ->
       { term with desc = Fn((x, fbase a), mta t) }
     | Fun((x, a, ty), t) ->

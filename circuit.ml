@@ -180,16 +180,17 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
                         Door(flip w_s_right, w_y)] in
       let (w_t, i_t) = compile sigma ((y, w_y) :: (x, w_x) :: gamma_t) t in
       w_t, i_t @ i_s @ i_enter_box @ i_unpair @ i_leavebox
-    | Term.Copy(s, (x, y, t)) ->
+    | Term.Copy(s, (xs, t)) ->
       let gamma_s, gamma_t = split_context gamma s t in
-      let (w_s, i_s) = compile_in_box Term.unusable_var sigma gamma_s s in
-      let w_x = fresh_wire () in
-      let w_y = fresh_wire () in
-      let (w_t, i_t) = compile sigma ((x, w_x) :: (y, w_y) :: gamma_t) t in
+      let w_s, i_s = compile_in_box Term.unusable_var sigma gamma_s s in
+      let delta  = List.map ~f:(fun x -> (x, fresh_wire())) xs in
+      let ws = List.map ~f:(fun (_, w) -> w) delta in
+      let w_types = List.map ~f:(fun _ -> Basetype.newtyvar()) ws in
+      let n = List.length ws in
+      let w_t, i_t = compile sigma (delta @ gamma_t) t in
       (* TODO: check that types are really inferred! *)
-      (w_t, Case(Basetype.Data.sumid 2, [Basetype.newtyvar();
-                                         Basetype.newtyvar()],
-                 flip w_s, [w_x; w_y]) :: i_s @ i_t)
+      (w_t, Case(Basetype.Data.sumid n, w_types,
+                 flip w_s, ws) :: i_s @ i_t)
     | Term.Case(id, params, f, ts) ->
       (* [(x, s); (y, t)]) when id = Type.Data.sumid 2 -> *)
       let n = List.length ts in
@@ -276,26 +277,6 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
     | Term.InV _ ->
       let w = fresh_wire () in
       w, [Base(w, (sigma, Term.mkReturn t))]
-    | Term.Const(Term.Cintprint as c)
-    | Term.Const(Term.Cintadd as c) | Term.Const(Term.Cintsub as c)
-    | Term.Const(Term.Cintmul as c) | Term.Const(Term.Cintdiv as c)
-    | Term.Const(Term.Cinteq as c) | Term.Const(Term.Cintslt as c)
-    | Term.Const(Term.Cintshl as c) | Term.Const(Term.Cintshr as c)
-    | Term.Const(Term.Cintsar as c) | Term.Const(Term.Cintand as c)
-    | Term.Const(Term.Cintor as c) | Term.Const(Term.Cintxor as c)
-    | Term.Const(Term.Cprint _ as c) | Term.Const(Term.Cpop(_) as c)
-    | Term.Const(Term.Cpush _ as c) | Term.Const(Term.Ccall _ as c)
-    | Term.Const(Term.Calloc _ as c) | Term.Const(Term.Cfree _ as c)
-    | Term.Const(Term.Cload _ as c) | Term.Const(Term.Cstore _ as c) 
-    | Term.Const(Term.Carrayalloc _ as c)
-    | Term.Const(Term.Carrayfree _ as c)
-    | Term.Const(Term.Carrayget _ as c) ->
-      let w = fresh_wire () in
-      let w1 = fresh_wire () in
-      let w2 = fresh_wire () in
-      let x = Term.variant_var_avoid "x" sigma in
-      w, [Bind(flip w1, w); Door(flip w2, w1);
-          Base(w2, (x :: sigma, Term.mkApp (Term.mkConst c) (Term.mkVar x)))]
     | Term.Const(Term.Cencode(a, b)) ->
       let w = fresh_wire () in
       let sigma = Basetype.newty Basetype.Var in
@@ -308,6 +289,13 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       U.unify w.type_back (tensor sigma a);
       U.unify w.type_forward (tensor sigma b);
       w, [Decode(w)]
+    | Term.Const(c) ->
+      let w = fresh_wire () in
+      let w1 = fresh_wire () in
+      let w2 = fresh_wire () in
+      let x = Term.variant_var_avoid "x" sigma in
+      w, [Bind(flip w1, w); Door(flip w2, w1);
+          Base(w2, (x :: sigma, Term.mkApp (Term.mkConst c) (Term.mkVar x)))]
     | Term.External _ ->
       failwith "circuit: term not canonized"
   and compile_in_box (c: Term.var) (sigma: Term.var list)

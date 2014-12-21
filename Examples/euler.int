@@ -8,7 +8,7 @@ fn fiximpl(x) =
              push(unit + 'b, Inr(b));
              return Inl((), Inr(q))
          | Inr(a) ->
-	     let u = pop(unit + 'b) in
+	     val u = pop(unit + 'b) in
              (case u of
                 Inl -> return Inr(a)
               | Inr(hd) ->
@@ -21,34 +21,34 @@ let fix = direct(fiximpl:(''a -> ''a) -> ''a)
 
 let cons = λ x -> λ xs ->
    fn(i) ->
-     let e = inteq(i, 0) in
+     val e = inteq(i, 0) in
      if e then x else
-       let i' = intsub(i, 1) in
+       val i' = intsub(i, 1) in
        xs i'
 
 let head = λ l -> fn () -> l(0)
 
-let tail = λ l -> fn i -> let i' = intadd(i, 1) in l(i')
+let tail = λ l -> fn i -> val i' = intadd(i, 1) in l(i')
 
 let andalso =
    λ b1 -> λ b2 ->
-     let c = b1 in
+     val c = b1 in
      if c then b2 else return False
 
 let orelse =
    λ b1 -> λ b2 ->
-    let c = b1 in
+    val c = b1 in
     if c then return True else b2
 
 let printlistaux = λ l ->
    fix (λ printlist ->
    fn (i, j) ->
-     let e = inteq(i, j) in
+     val e = inteq(i, j) in
      if e then return ()
      else
-        (let v = l i in print v);
+        (val v = l i in print v);
         print "\n";
-	let i' = intadd(i, 1) in
+	val i' = intadd(i, 1) in
         printlist (i', j)
    )
 
@@ -57,20 +57,20 @@ let printlist = λ l ->
       printlistaux l (0, i)
 
 fn signum(x) =
-  let c = intslt(0, x) in
+  val c = intslt(0, x) in
   if c then return 1 else
-    let c = inteq(x, 0) in
+    val c = inteq(x, 0) in
     if c then return 0 else intsub(0, 1)
 
 fn abs(x) =
-  let c = intslt(0, x) in
+  val c = intslt(0, x) in
    if c then return x else
      intsub(0, x)
 
 let aux = fix (λ aux ->
     λ n ->
       fn i ->
-         let v = n in
+         val v = n in
          cons (return 1)
            (cons (return v)
               (cons (return 1)
@@ -83,53 +83,52 @@ let ratTrans = fix (λ ratTrans ->
    copy ratTrans as ratTrans1, ratTrans2 in
    fn a -> fn b -> fn c -> fn d ->
    λ xs ->
-   copy xs as xs1, xs23 in
-   copy xs23 as xs2, xs3 in
+   copy xs as xs1, xs2, xs3 in
    fn i ->
-     let cond =
+     val cond =
        andalso
-          (orelse (let sc = signum c in
-	           let sd = signum d in
+          (orelse (val sc = signum c in
+	           val sd = signum d in
 		   inteq(sc, sd))
-                  (let ac = abs c in
-		   let ad = abs d in
+                  (val ac = abs c in
+		   val ad = abs d in
 		   intslt(ac, ad)))
           (andalso (
-	            let v1 =
-		      let v11 = intadd(c, d) in
-	              let v12 = intdiv(b, d) in
+	            val v1 =
+		      val v11 = intadd(c, d) in
+	              val v12 = intdiv(b, d) in
 		      intmul(v11, v12) in
-	            let v21 = intadd(a, b) in
-	            let v2 = intadd(v21, 1) in
+	            val v21 = intadd(a, b) in
+	            val v2 = intadd(v21, 1) in
 		    intslt(v1, v2))
              (
-	      let arg =
-	        let v1 = intadd(a, b) in
-	        let v21 = intadd(c, d) in
-	      	let v22 = intdiv(b, d) in
-	      	let v23 = intmul(v21, v22) in
-		let v2 = intadd(v23, v21) in
+	      val arg =
+	        val v1 = intadd(a, b) in
+	        val v21 = intadd(c, d) in
+	      	val v22 = intdiv(b, d) in
+	      	val v23 = intmul(v21, v22) in
+		val v2 = intadd(v23, v21) in
 	     	return (v1, v2) in
 	      intslt(arg))) in
      if cond then
-       let iz = inteq(i, 0) in
+       val iz = inteq(i, 0) in
        if iz then
          intdiv(b, d)
        else
-         let v1 = intdiv(b, d) in
-    	 let v2 = intmul(v1, c) in
-    	 let v3 = intsub(a, v2) in
-    	 let v4 = intmul(v1, d) in
-    	 let v5 = intsub(b, v4) in
-         let i' = intsub(i,1) in
+         val v1 = intdiv(b, d) in
+    	 val v2 = intmul(v1, c) in
+    	 val v3 = intsub(a, v2) in
+    	 val v4 = intmul(v1, d) in
+    	 val v5 = intsub(b, v4) in
+         val i' = intsub(i,1) in
          ratTrans1 c d v3 v5 xs1 i'
      else
-         let x = xs2(0) in
-         let v2 =
-             let v1 = intmul(x, b) in
+         val x = xs2(0) in
+         val v2 =
+             val v1 = intmul(x, b) in
 	     intadd(a, v1) in
-	 let v4 =
-	     let v3 = intmul(x, d) in
+	 val v4 =
+	     val v3 = intmul(x, d) in
 	     intadd(c, v3) in
        ratTrans2 b v2 d v4 (tail xs3) i
    )
@@ -138,9 +137,9 @@ let todigits = fix (λ todigits ->
     λ l ->
     copy l as l1, l2 in
     fn(i) ->
-      let c = inteq(i, 0) in
+      val c = inteq(i, 0) in
       if c then l1(i) else
-        let i' = intsub(i, 1) in
+        val i' = intsub(i, 1) in
         todigits (ratTrans 10 0 0 1 (tail l2)) i'
   )
 

@@ -68,6 +68,7 @@ rule main = parse
   | "intand"   { INTAND }
   | "intor"    { INTOR }
   | "intxor"   { INTXOR }
+  | "intlt"    { INTLT }
   | "intslt"   { INTSLT }
   | "alloc"    { ALLOC }
   | "free"     { FREE }
@@ -88,6 +89,7 @@ rule main = parse
   | "direct"   { HACK }
   | "copy"     { COPY }
   | "let"      { LET }
+  | "val"      { VAL }
   | "as"       { AS }
   | "of"       { OF }
   | "in"       { IN }

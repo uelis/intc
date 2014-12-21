@@ -426,6 +426,7 @@ let build_term
   | Ssa.Const(Term.Cintmul as const, arg)
   | Ssa.Const(Term.Cintdiv as const, arg)
   | Ssa.Const(Term.Cinteq as const, arg)
+  | Ssa.Const(Term.Cintlt as const, arg)
   | Ssa.Const(Term.Cintslt as const, arg)
   | Ssa.Const(Term.Cintshl as const, arg)
   | Ssa.Const(Term.Cintshr as const, arg)
@@ -465,40 +466,39 @@ let build_term
          attrib = Bitvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Ne x y "eq" builder)}
       | Term.Cinteq, _ -> failwith "internal: wrong argument to inteq"
+      | Term.Cintlt, [x; y] ->
+        {payload = [];
+         attrib = Bitvector.singleton 1
+                    (Llvm.build_icmp Llvm.Icmp.Uge x y "lt" builder )}
+      | Term.Cintlt, _ -> failwith "internal: wrong argument to intslt"
       | Term.Cintslt, [x; y] ->
         {payload = [];
          attrib = Bitvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Sge x y "slt" builder )}
       | Term.Cintslt, _ -> failwith "internal: wrong argument to intslt"
       | Term.Cintshl, [x; y] ->
-        {payload = [];
-         attrib = Bitvector.singleton 1
-                    (Llvm.build_shl x y "shl" builder )}
+        {payload = [Llvm.build_shl x y "shl" builder];
+         attrib = Bitvector.null}
       | Term.Cintshl, _ -> failwith "internal: wrong argument to intshl"
       | Term.Cintshr, [x; y] ->
-        {payload = [];
-         attrib = Bitvector.singleton 1
-                    (Llvm.build_ashr x y "shr" builder )}
+        {payload = [Llvm.build_lshr x y "shr" builder ];
+         attrib = Bitvector.null}
       | Term.Cintshr, _ -> failwith "internal: wrong argument to intshr"
       | Term.Cintsar, [x; y] ->
-        {payload = [];
-         attrib = Bitvector.singleton 1
-                    (Llvm.build_lshr x y "sar" builder )}
+        {payload = [Llvm.build_ashr x y "sar" builder ];
+         attrib = Bitvector.null}
       | Term.Cintsar, _ -> failwith "internal: wrong argument to intsar"
       | Term.Cintand, [x; y] ->
-        {payload = [];
-         attrib = Bitvector.singleton 1
-                    (Llvm.build_and x y "and" builder )}
+        {payload = [Llvm.build_and x y "and" builder ];
+         attrib = Bitvector.null}
       | Term.Cintand, _ -> failwith "internal: wrong argument to intand"
       | Term.Cintor, [x; y] ->
-        {payload = [];
-         attrib = Bitvector.singleton 1
-                    (Llvm.build_or x y "or" builder )}
+        {payload = [Llvm.build_or x y "or" builder ];
+         attrib = Bitvector.null}
       | Term.Cintor, _ -> failwith "internal: wrong argument to intor"
       | Term.Cintxor, [x; y] ->
-        {payload = [];
-         attrib = Bitvector.singleton 1
-                    (Llvm.build_xor x y "xor" builder )}
+        {payload = [Llvm.build_xor x y "xor" builder ];
+         attrib = Bitvector.null}
       | Term.Cintxor, _ -> failwith "internal: wrong argument to intxor"
       | Term.Cintprint, [x] ->
         let i8a = Llvm.pointer_type (Llvm.i8_type context) in
