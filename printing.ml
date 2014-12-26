@@ -342,11 +342,11 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       s_term t;
       fprintf f "@]"
     | Fn((x, _), t1) ->
-      fprintf f "@[<hv 2>fn (%s) ->@;" x;
+      fprintf f "@[<hv 1>fn %s ->@;" x;
       s_term t1;
       fprintf f "@]"
     | Fun((x, _, _), t1) ->
-      fprintf f "@[<hv 2>fun (%s) ->@;" x;
+      fprintf f "@[<hv 1>\\%s ->@;" x;
       s_term t1;
       fprintf f "@]"
     | Copy(t1, (xs, t2)) ->
@@ -356,13 +356,13 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       s_term t2;
       fprintf f "@]"
     | LetPair(t1, ((x, _), (y, _), t2)) ->
-      fprintf f "@[<hv 2>let %s # %s =@ " x y;
+      fprintf f "@[<hv 1>let %s # %s =@ " x y;
       s_term t1;
       fprintf f "@] in@ @[";
       s_term t2;
       fprintf f "@]"
     | Bind((t1, _), (x, t2)) ->
-      fprintf f "@[<hv 2>let %s =@ " x;
+      fprintf f "@[<hv 1>val %s =@ " x;
       s_term t1;
       fprintf f "@] in@ @[";
       s_term t2;

@@ -3,6 +3,8 @@ open Core.Std
 let context = Llvm.global_context ()
 let builder = Llvm.builder context
 
+let native_int = Llvm.i64_type context
+
 let position_at_start block builder =
   let block_begin = Llvm.instr_begin block in
   Llvm.position_builder block_begin builder
@@ -247,18 +249,17 @@ let build_truncate_extend (enc : encoded_value) (a : Basetype.t) =
   let rec mk_payload p n =
     if n = 0 then [] else
       match p with
-      | [] -> Llvm.undef (Llvm.i64_type context) :: (mk_payload [] (n-1))
+      | [] -> Llvm.undef (native_int) :: (mk_payload [] (n-1))
       | x::xs -> x :: (mk_payload xs (n-1)) in
   let x_payload = mk_payload enc.payload a_payload_size in
   let x_attrib = Bitvector.coerce enc.attrib a_attrib_bitlen in
   { payload = x_payload; attrib = x_attrib }
 
 let packing_type (a: Basetype.t) : Llvm.lltype =
-  let i64 = Llvm.i64_type context in
   let len_p = payload_size a in
   let struct_members =
     Array.append
-      (Array.create ~len:len_p i64)
+      (Array.create ~len:len_p native_int)
       (Array.create ~len:1 (Bitvector.packing_type (attrib_size a))) in
   let struct_type = Llvm.packed_struct_type context struct_members in
   struct_type
@@ -289,7 +290,7 @@ let rec build_value
   | Ssa.Var(x) ->
     List.Assoc.find_exn ctx x
   | Ssa.IntConst(i) ->
-    let vali = Llvm.const_int (Llvm.i64_type context) i in
+    let vali = Llvm.const_int (native_int) i in
     {payload = [vali]; attrib = Bitvector.null;}
   | Ssa.Unit ->
     {payload = []; attrib = Bitvector.null}
@@ -365,10 +366,9 @@ let build_term
   match t with
   | Ssa.Val(v) -> build_value the_module ctx v
   | Ssa.Const(Term.Cpush(a), v) ->
-    let i64 = Llvm.i64_type context in
     let salloctype = Llvm.function_type
                        (Llvm.pointer_type (Llvm.i8_type context))
-                       (Array.of_list [i64]) in
+                       (Array.of_list [native_int]) in
     let salloc = Llvm.declare_function "salloc" salloctype the_module in
     let a_struct = packing_type a in
     let mem_i8ptr = Llvm.build_call salloc
@@ -381,10 +381,9 @@ let build_term
     ignore (Llvm.build_store v_packed mem_ptr builder);
     {payload = []; attrib = Bitvector.null}
   | Ssa.Const(Term.Cpop(a), _) ->
-    let i64 = Llvm.i64_type context in
     let spoptype = Llvm.function_type
                      (Llvm.pointer_type (Llvm.i8_type context))
-                     (Array.of_list [i64]) in
+                     (Array.of_list [native_int]) in
     let spop = Llvm.declare_function "spop" spoptype the_module in
     let a_struct = packing_type a in
     let mem_i8ptr = Llvm.build_call spop (Array.of_list [Llvm.size_of a_struct])
@@ -394,19 +393,18 @@ let build_term
     let lstruct = Llvm.build_load mem_ptr "lstruct" builder in
     unpack_encoded_value lstruct a
   | Ssa.Const(Term.Cprint(s), _) ->
-    let i64 = Llvm.i64_type context in
     let str = Llvm.build_global_string s "s" builder in
     let strptr = Llvm.build_in_bounds_gep str
-                   (Array.create ~len:2 (Llvm.const_null i64)) "strptr" builder in
-    let strptrint = Llvm.build_ptrtoint strptr i64 "strptrint" builder in
+                   (Array.create ~len:2 (Llvm.const_null native_int)) "strptr" builder in
+    let strptrint = Llvm.build_ptrtoint strptr native_int "strptrint" builder in
     (* declare puts *)
     let i8a = Llvm.pointer_type (Llvm.i8_type context) in
     let formatstr = Llvm.build_global_string "%s" "format" builder in
     let formatstrptr = Llvm.build_in_bounds_gep formatstr
-                         (Array.create ~len:2 (Llvm.const_null i64))
+                         (Array.create ~len:2 (Llvm.const_null native_int))
                          "forrmatptr" builder in
-    let printftype = Llvm.function_type (Llvm.i64_type context)
-                       (Array.of_list [i8a; i64]) in
+    let printftype = Llvm.function_type (native_int)
+                       (Array.of_list [i8a; native_int]) in
     let printf = Llvm.declare_function "printf" printftype the_module in
     let args = Array.of_list [formatstrptr; strptrint] in
     ignore (Llvm.build_call printf args "i" builder);
@@ -415,7 +413,7 @@ let build_term
     let a_struct = packing_type a in
     let b_struct = packing_type b in
     let etype = Llvm.function_type b_struct (Array.of_list [a_struct]) in
-    let efunc = Llvm.declare_function ("IntML" ^ e) etype the_module in
+    let efunc = Llvm.declare_function e etype the_module in
     let venc = build_value the_module ctx v in
     let v_packed = pack_encoded_value (build_truncate_extend venc a) a in
     let args = Array.of_list [v_packed] in
@@ -502,36 +500,33 @@ let build_term
       | Term.Cintxor, _ -> failwith "internal: wrong argument to intxor"
       | Term.Cintprint, [x] ->
         let i8a = Llvm.pointer_type (Llvm.i8_type context) in
-        let i64 = Llvm.i64_type context in
         let formatstr = Llvm.build_global_string "%i" "format" builder in
         let formatstrptr = Llvm.build_in_bounds_gep formatstr
-                             (Array.create ~len:2 (Llvm.const_null i64))
+                             (Array.create ~len:2 (Llvm.const_null native_int))
                              "forrmatptr" builder in
-        let printftype = Llvm.function_type (Llvm.i64_type context)
-                           (Array.of_list [i8a; i64]) in
+        let printftype = Llvm.function_type (native_int)
+                           (Array.of_list [i8a; native_int]) in
         let printf = Llvm.declare_function "printf" printftype the_module in
         let args = Array.of_list [formatstrptr; x] in
         ignore (Llvm.build_call printf args "i" builder);
         {payload = []; attrib = Bitvector.null }
       | Term.Cintprint, _ -> failwith "internal: wrong argument to intprint"
       | Term.Calloc(a), _ ->
-        let i64 = Llvm.i64_type context in
-        let malloctype = Llvm.function_type
-                           (Llvm.pointer_type (Llvm.i8_type context))
-                           (Array.of_list [i64]) in
-        let malloc = Llvm.declare_function "malloc" malloctype the_module in
+        let malloc =
+          match Llvm.lookup_function "malloc" the_module with
+          | Some malloc -> malloc
+          | None -> assert false in
         let a_struct = packing_type a in
         let mem_i8ptr = Llvm.build_call malloc
                           (Array.of_list [Llvm.size_of a_struct])
                           "memi8" builder in
-        let addr = Llvm.build_ptrtoint mem_i8ptr i64 "memint" builder in
+        let addr = Llvm.build_ptrtoint mem_i8ptr native_int "memint" builder in
         {payload = [addr]; attrib = Bitvector.null}
       | Term.Cfree _, [addr] ->
-        let i64 = Llvm.i64_type context in
-        let freetype = Llvm.function_type
-                         (Llvm.pointer_type (Llvm.i8_type context))
-                         (Array.of_list [i64]) in
-        let free = Llvm.declare_function "free" freetype the_module in
+        let free =
+          match Llvm.lookup_function "free" the_module with
+          | Some free -> free
+          | None -> assert false in
         ignore (Llvm.build_call free (Array.of_list [addr]) "free" builder);
         {payload = []; attrib = Bitvector.null}
       | Term.Cfree _, _ -> failwith "internal: wrong argument to free"
@@ -554,36 +549,32 @@ let build_term
         {payload = []; attrib = Bitvector.null}
       | Term.Cstore _, _ -> failwith "internal: wrong argument to store"
       | Term.Carrayalloc a, [length] ->
-        let i64 = Llvm.i64_type context in
         let a_struct = packing_type a in
-        let malloctype = Llvm.function_type
-                           (Llvm.pointer_type (Llvm.i8_type context))
-                           (Array.of_list [i64]) in
-        let malloc = Llvm.declare_function "malloc" malloctype the_module in
+        let malloc =
+          match Llvm.lookup_function "malloc" the_module with
+          | Some malloc -> malloc
+          | None -> assert false in
         let byte_size =
           Llvm.build_mul length (Llvm.size_of a_struct) "size" builder in
         let mem_i8ptr = Llvm.build_call malloc
                           (Array.of_list [byte_size])
                           "memi8" builder in
-        let addr = Llvm.build_ptrtoint mem_i8ptr i64 "memint" builder in
+        let addr = Llvm.build_ptrtoint mem_i8ptr native_int "memint" builder in
         {payload = [addr]; attrib = Bitvector.null}
       | Term.Carrayalloc _, _ -> failwith "internal: wrong argument to arrayalloc"
       | Term.Carrayfree _, [addr] ->
-        let i64 = Llvm.i64_type context in
-        let freetype = Llvm.function_type
-                         (Llvm.pointer_type (Llvm.i8_type context))
-                         (Array.of_list [i64]) in
-        let free = Llvm.declare_function "free" freetype the_module in
+        let free =
+          match Llvm.lookup_function "free" the_module with
+          | Some free -> free
+          | None -> assert false in
         ignore (Llvm.build_call free (Array.of_list [addr]) "free" builder);
         {payload = []; attrib = Bitvector.null}
       | Term.Carrayfree _, _ -> failwith "internal: wrong argument to arrayfree"
       | Term.Carrayget a, [addr; idx] ->
-        let i64 = Llvm.i64_type context in
         let a_struct = packing_type a in
         let offset =
           let p1 = Llvm.build_mul idx (Llvm.size_of a_struct) "p1" builder in
-          let p2 = Llvm.build_add p1 (Llvm.const_int i64 8) "p2" builder in
-          Llvm.build_add addr p2 "offset" builder in
+          Llvm.build_add addr p1 "offset" builder in
         {payload = [offset]; attrib = Bitvector.null}
       | Term.Carrayget _, _ -> failwith "internal: wrong argument to arrayget"
       | Term.Cprint _, _
@@ -746,13 +737,24 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
 
 (* Must be applied to circuit of type [A] *)
 let llvm_compile (ssa_func : Ssa.t) : Llvm.llmodule =
-  let the_module = Llvm.create_module context "intml" in
-  (*  let ssa_func = Ssa.trace c in *)
+  let the_module = Llvm.create_module context "int" in
+  
+  (* General function declarations *)
+  let malloctype = Llvm.function_type
+                     (Llvm.pointer_type (Llvm.i8_type context))
+                     (Array.of_list [native_int]) in
+  ignore (Llvm.declare_function "malloc" malloctype the_module);
+  let freetype = Llvm.function_type
+                   (Llvm.pointer_type (Llvm.i8_type context))
+                   (Array.of_list [native_int]) in
+  ignore (Llvm.declare_function "free" freetype the_module);
+
+  (* Main function *)
   let arg_ty = packing_type ssa_func.Ssa.entry_label.Ssa.message_type in
   let ret_ty = packing_type ssa_func.Ssa.return_type in
   let ft = Llvm.function_type ret_ty (Array.create ~len:1 arg_ty) in
   let func = Llvm.declare_function
-               ("IntML" ^ ssa_func.Ssa.func_name) ft the_module in
+               ("Int" ^ ssa_func.Ssa.func_name) ft the_module in
   build_ssa_blocks the_module func ssa_func;
   (* make main function *)
   if ssa_func.Ssa.func_name = "main" then
@@ -768,3 +770,4 @@ let llvm_compile (ssa_func : Ssa.t) : Llvm.llmodule =
     end;
   (* Llvm.dump_module the_module; *)
   the_module
+

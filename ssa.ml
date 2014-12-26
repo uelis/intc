@@ -441,7 +441,7 @@ let make ~func_name:(func_name: string)
       ~entry_label:(entry_label: label)
       ~blocks:(blocks: block list)
       ~return_type:(return_type: Basetype.t) =
-  check_blocks_invariant entry_label blocks;
+  assert (check_blocks_invariant entry_label blocks = ());
   assert (typecheck blocks = ()); (* execute for effect *)
   { func_name = func_name;
     entry_label = entry_label;
