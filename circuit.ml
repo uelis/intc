@@ -726,9 +726,13 @@ let infer_types (c : t) : unit =
     failwith "Internal error: cannot unify constraints in compilation"
 
 let circuit_of_term (t : Term.t) : t =
-  let c = raw_circuit_of_term [] [] t in
-  let _ = infer_types c in
-  c
+  try
+    let c = raw_circuit_of_term [] [] t in
+    ignore(infer_types c);
+    c
+  with
+  | U.Not_Unifiable _ ->
+    raise (Typing_error(None, "Cannot unify index types: invalid direct definition."))
 
 (* TODO: This function should be cleaned up *)
 let dot_of_circuit

@@ -7,7 +7,7 @@ let parse_error_loc lexbuf =
   Printf.sprintf "line %i, character %i:"
     (start_pos.pos_lnum) (start_pos.pos_cnum - start_pos.pos_bol + 1)
 
-let error_msg loc msg = loc ^ " " ^ msg
+let error_msg loc msg = if loc = "" then msg else loc ^ " " ^ msg
 let print_error loc msg = print_string (error_msg loc msg)
 let line_column_loc (line : int) (column : int ) =
   Printf.sprintf "line %i, column %i:" line column
@@ -42,16 +42,17 @@ let term_loc (s : Term.t option) =
 let compile (d: Decl.t) : unit =
   match d with
   | Decl.TermDecl(f, t) ->
-    let b =
+    let circuit =
       try
-        Typing.principal_type [] [] t
+        let b = Typing.principal_type [] [] t in
+        let circuit = Circuit.circuit_of_term t in
+        Printf.printf "%s : %s\n" f
+          (Printing.string_of_type ~concise:(not !opt_print_type_details) b);
+        circuit
       with Typing.Typing_error(s, err) ->
-        let msg = "Typing error when checking" ^
+        let msg = "Typing error when checking " ^
                   "declaration of '" ^ f ^ "'.\n" ^ err ^ "\n" in
         raise (Failure (error_msg (term_loc s) msg)) in
-    let circuit = Circuit.circuit_of_term t in
-    Printf.printf "%s : %s\n" f
-      (Printing.string_of_type ~concise:(not !opt_print_type_details) b);
     flush stdout;
     if !opt_keep_circuits then
       begin
