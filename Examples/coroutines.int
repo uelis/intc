@@ -1,68 +1,72 @@
-fn tailrecimp(x) {
-  case x of 
-    Inr(a) -> Inl((), Inr(a))
+/* interaction strategy for tail recursion */
+fn tailrecimp(x) =
+  case x of
+    Inr(a, ()) -> return Inl((), Inr(a, ()))
   | Inl(u, s) ->
       case s of
-         Inr(b) -> Inr(b)
-       | Inl(d, a) -> Inl((), Inr(a))
-}       
+         Inr(b) -> return Inr(b)
+       | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
 
-let tailrec = direct(tailrecimp: {unit}| {'c}|'a -> 'b| -> 'a -> 'b| -> 'a -> 'b)
+/* The tail recursion combinator is implemented by the above strategy */
+let tailrec =
+   direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
 
-fn coroutimpl(x) {
+/* interaction strategies for coroutines */
+let coroutimpl= fn x ->
   case x of 
     Inl(ud, m) ->
         (case m of
-          Inl(e, a) ->
+          Inl(e, (a, ())) ->
             (case ud of 
-               Inl() -> Inr(Inl((e, Inr(a))))
-             | Inr(d) -> Inr(Inl(e, Inl(d, a))))
-        | Inr(c) -> Inr(Inr(c)))
+               Inl() -> return Inr(Inl(e, Inr(a, ())))
+             | Inr(d) -> return Inr(Inl(e, Inl(d, a))))
+        | Inr(c) -> return Inr(Inr(c)))
   | Inr(r) -> 
       (case r of 
         Inl(e, m) ->
             (case m of
-              Inl(d, b) -> 
-               Inl(Inr(d), Inl(e, b))
+              Inl(d, (b, ())) -> 
+               return Inl(Inr(d), Inl(e, b))
             | Inr(c) -> 
-                Inr(Inr(c)))
-      | Inr(u) -> Inl(Inl(), Inr()))
-}
+                return Inr(Inr(c)))
+      | Inr() -> return Inl(Inl(), Inr()))
 
+/* coroutine combinator */      
 let corout = direct(coroutimpl
-   :{unit+'d}| {'e}|'a -> 'b| -> (unit -> 'c) |  -> 
-    {'e} | {'d}|'b -> 'a| -> ('a -> 'c) | -> (unit -> 'c))
+   : (('a -> ['b]) -> ['c]) ->
+     (('b -> ['a]) -> ('a -> ['c])) ->
+     ['c] )
 
-fn println(i) {
+let println = fn i -> 
    print i;
    print "\n"
-}
 
+/* Example */
+   
 let proc1 = λ yield ->
-   fn () {
      tailrec (λ proc1 ->
-       fn j {
+       fn j ->
          print "p1: ";
          println j;
-         let i = yield (j+2) in
+	 val j' = intadd(j, 2) in
+         val i = yield j' in
          proc1 i
-       }) 3
-   }
+       ) 3
 
 let proc2 = λ yield ->
    copy yield as yield1, yield2 in
    tailrec (λ proc2 ->
-     fn j {
+     fn j ->
        print "p2: ";
        println j;
-       let k = yield1 (j-1) in
+       val j' = intsub(j, 1) in
+       val k = yield1 j' in
        print "p2: got ";
        println k;
-       let i = yield2 (k-1) in
+       val k' = intsub(k, 1) in
+       val i = yield2 k' in
        proc2 i
-     }
-   )
+   ) 
 
-fn main() {
-   corout proc1 proc2 ()
-}
+let main =
+   corout proc1 proc2
