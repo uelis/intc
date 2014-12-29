@@ -5,7 +5,7 @@
 open Core.Std
 open Lexing
 open Parsing
-open Term
+open Ast
 
 let illformed msg =
   let s = Parsing.symbol_start_pos () in
@@ -13,18 +13,18 @@ let illformed msg =
   let column = s.pos_cnum - s.pos_bol + 1 in
   raise (Decl.Illformed_decl (msg, line, column))
 
-let mkTerm_with_pos startp endp d : Term.t =
+let mkAst_with_pos startp endp d : Ast.t =
   let lp pos = {
     Location.line = pos.pos_lnum;
     Location.column = pos.pos_cnum - pos.pos_bol + 1 } in
-  { Term.desc = d;
+  { Ast.desc = d;
     loc = Some{Location.start_pos = lp startp;
                Location.end_pos = lp endp } }
 
-let mkTerm d : Term.t =
+let mkAst d : Ast.t =
   let s = Parsing.symbol_start_pos () in
   let e = Parsing.symbol_end_pos () in
-  mkTerm_with_pos s e d
+  mkAst_with_pos s e d
 
 let mkDatatype id params constructors =
   let n = List.length params in
@@ -94,17 +94,19 @@ let elim_pattern p t =
   let rec elim p t =
     match p with
     | PatUnit ->
-      let vs = Term.all_vars t in
+      let vs = Ast.all_vars t in
       let z = Vargen.mkVarGenerator "u" ~avoid:vs () in
+      let unitB = Basetype.newty Basetype.UnitB in
       z,
-      mkTerm (Bind((mkReturn (mkTerm (Var z)),
-                    Basetype.newty Basetype.UnitB), (unusable_var, t)))
+      mkAst (Bind(mkAst (TypeAnnot(mkAst (Return(mkAst (Var z))),
+                                   Type.newty (Type.Base unitB))),
+                  (unusable_var, t)))
     | PatVar(z) -> z, t
     | PatPair(p1, p2) ->
       let z1, t1 = elim p1 t in
       let z2, t2 = elim p2 t1 in
-      z1, Term.subst (mkSndV (mkVar z1)) z2
-            (Term.subst (mkFstV (mkVar z1)) z1 t2) in
+      z1, Ast.subst (mkSndV (mkVar z1)) z2
+            (Ast.subst (mkFstV (mkVar z1)) z1 t2) in
   elim p t
 
 let type_vars = String.Table.create ()
@@ -138,7 +140,7 @@ let clear_type_vars () = Hashtbl.clear type_vars
 %token INTSHL INTSHR INTSAR INTAND INTOR INTXOR
 %token ARRAYALLOC ARRAYFREE ARRAYGET
 %token IF THEN ELSE PRINT HACK LET VAL AS OF IN RETURN
-%token COPY CASE EXTERNAL
+%token COPY CASE
 %token <int> NUM
 %token <string> IDENT
 %token <string> CONSTR
@@ -154,7 +156,7 @@ let clear_type_vars () = Hashtbl.clear type_vars
 
 %start decls
 %type <Decl.t list> decls
-%type <Term.t> term
+%type <Ast.t> term
 %type <Basetype.t> basetype
 %type <Type.t> inttype
 
@@ -178,14 +180,14 @@ decl:
     | LET pattern COLON inttype EQUALS term
         { clear_type_vars ();
           match $2 with
-          | PatVar(x) -> Decl.TermDecl(x, mkTerm (TypeAnnot($6, $4)))
+          | PatVar(x) -> Decl.TermDecl(x, mkAst (TypeAnnot($6, $4)))
           | _ -> illformed "Variable declaration expected."
         }
     | FN identifier pattern EQUALS term
         { clear_type_vars ();
           let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $3 $5 in
-          let def = mkTerm (Fn((x, alpha), t)) in
+          let def = mkAst (Fn((x, alpha), t)) in
           Decl.TermDecl($2, def) }
 
 identifier:
@@ -200,31 +202,27 @@ identifier_list:
 
 term:
     | RETURN term
-        { let alpha = Basetype.newty Basetype.Var in
-          mkTerm (Return($2, alpha)) }
+        { mkAst (Return($2)) }
     | LAMBDA identifier TO term
         { let alpha = Basetype.newty Basetype.Var in
           let ty = Type.newty Type.Var in
-          mkTerm (Fun(($2, alpha, ty), $4)) }
+          mkAst (Fun(($2, alpha, ty), $4)) }
     | LAMBDA LPAREN identifier COLON inttype RPAREN TO term
         { let alpha = Basetype.newty Basetype.Var in
-          mkTerm (Fun (($3, alpha, $5), $8)) }
+          mkAst (Fun (($3, alpha, $5), $8)) }
     | FN pattern TO term
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern $2 $4 in
-          mkTerm (Fn((x, alpha), t)) }
+          mkAst (Fn((x, alpha), t)) }
     | COPY term AS identifier_list IN term
-       { mkTerm (Copy($2, ($4, $6))) }
+       { mkAst (Copy($2, ($4, $6))) }
     | LET LPAREN identifier SHARP identifier RPAREN EQUALS term IN term
-        { let alpha = Type.newty Type.Var in
-          let beta = Type.newty Type.Var in
-           mkTerm (LetPair($8, (($3, alpha), ($5, beta), $10))) }
+        { mkAst (LetPair($8, ($3, $5, $10))) }
     | VAL pattern EQUALS term IN term
-        { let alpha = Basetype.newty Basetype.Var in
-          let x, t = elim_pattern $2 $6 in
-          mkTerm (Bind(($4, alpha), (x, t))) }
+        { let x, t = elim_pattern $2 $6 in
+          mkAst (Bind($4, (x, t))) }
     | IF term THEN term ELSE term
-        { mkTerm (Case(Basetype.Data.boolid, [], $2,
+        { mkAst (Case(Basetype.Data.boolid, $2,
                         [(unusable_var, $4); (unusable_var, $6)])) }
     | CASE term OF term_cases
         {let id, c = $4 in
@@ -233,27 +231,21 @@ term:
          let indices = List.map ~f:(fun (i, _, _) -> i) sorted_c in
          let cases = List.map ~f:(fun (_, x, t) -> (x, t)) sorted_c in
          let n = List.length (Basetype.Data.constructor_names id) in
-         let params = List.init
-                        (Basetype.Data.params id)
-                        ~f:(fun _ -> Basetype.newtyvar ()) in
          (* Check that there is a case for all constructors *)
          if (indices = List.init n ~f:(fun i -> i)) then
-           mkTerm (Case(id, params, $2, cases))
+           mkAst (Case(id, $2, cases))
          else
            illformed "case must match each constructor exactly once!"
        }
     | term_app SEMICOLON term
-        { let alpha = Basetype.newty Basetype.Var in
-          let x, t = elim_pattern PatUnit $3 in
-          mkTerm (Bind(($1, alpha), (x, t))) }
+        { let x, t = elim_pattern PatUnit $3 in
+          mkAst (Bind($1, (x, t))) }
     | term_app
        { $1 }
     | term_constr
-       { let alpha = Basetype.newty Basetype.Var in
-         let id, i = $1 in mkTerm (InV((id, i,  mkTerm (UnitV)), alpha)) }
+       { let id, i = $1 in mkAst (InV(id, i,  mkAst (UnitV))) }
     | term_constr term_atom
-       { let alpha = Basetype.newty Basetype.Var in
-         let id, i = $1 in mkTerm (InV((id, i, $2), alpha)) }
+       { let id, i = $1 in mkAst (InV(id, i, $2)) }
 
 term_constr:
     | CONSTR
@@ -288,103 +280,93 @@ term_app:
     | term_atom
        { $1 }
     | term_app term_atom
-       { mkTerm (App($1, Type.newty Type.Var, $2))  }
+       { mkAst (App($1, $2))  }
 
 term_atom:
     | identifier
-       { mkTerm (Term.Var($1)) }
+       { mkAst (Ast.Var($1)) }
     | LPAREN RPAREN
-       { mkTerm UnitV }
+       { mkAst UnitV }
     | LPAREN term RPAREN
        { $2 }
     | LBRACE term RBRACE
         { let alpha = Basetype.newty Basetype.Var in
           let x, t = elim_pattern PatUnit $2 in
-          mkTerm (Fn((x, alpha), t)) }
+          mkAst (Fn((x, alpha), t)) }
     | LPAREN term COMMA term RPAREN
-       { let alpha = Basetype.newty Basetype.Var in
-         let beta = Basetype.newty Basetype.Var in
-         mkTerm (PairV(($2, alpha), ($4, beta))) }
+       { mkAst (PairV($2, $4)) }
     | LPAREN term SHARP term RPAREN
-       { mkTerm (Pair($2, $4)) }
+       { mkAst (Pair($2, $4)) }
     | NUM
-       { mkTerm (ConstV(Cintconst($1))) }
+       { mkAst (ConstV(Cintconst($1))) }
     | MINUS NUM
-       { mkTerm (ConstV(Cintconst(-$2))) }
+       { mkAst (ConstV(Cintconst(-$2))) }
     | PRINT term_atom
-       { mkTerm (App(mkTerm (Const(Cintprint)), Type.newty Type.Var, $2)) }
+       { mkAst (App(mkAst (Const(Cintprint)), $2)) }
     | INTADD
-       { mkTerm (Const(Cintadd))}
+       { mkAst (Const(Cintadd))}
     | INTSUB
-       { mkTerm (Const(Cintsub))}
+       { mkAst (Const(Cintsub))}
     | INTMUL
-       { mkTerm (Const(Cintmul))}
+       { mkAst (Const(Cintmul))}
     | INTDIV
-       { mkTerm (Const(Cintdiv))}
+       { mkAst (Const(Cintdiv))}
     | INTEQ
-       { mkTerm (Const(Cinteq))}
+       { mkAst (Const(Cinteq))}
     | INTLT
-       { mkTerm (Const(Cintlt))}
+       { mkAst (Const(Cintlt))}
     | INTSLT
-       { mkTerm (Const(Cintslt))}
+       { mkAst (Const(Cintslt))}
     | INTSHL
-       { mkTerm (Const(Cintshl))}
+       { mkAst (Const(Cintshl))}
     | INTSHR
-       { mkTerm (Const(Cintshr))}
+       { mkAst (Const(Cintshr))}
     | INTSAR
-       { mkTerm (Const(Cintsar))}
+       { mkAst (Const(Cintsar))}
     | INTAND
-       { mkTerm (Const(Cintand))}
+       { mkAst (Const(Cintand))}
     | INTOR
-       { mkTerm (Const(Cintor))}
+       { mkAst (Const(Cintor))}
     | INTXOR
-       { mkTerm (Const(Cintxor))}
+       { mkAst (Const(Cintxor))}
     | ALLOC
        { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Const(Calloc(alpha)))}
+         mkAst (Const(Calloc(alpha)))}
     | FREE
        { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Const(Cfree(alpha))) }
+         mkAst (Const(Cfree(alpha))) }
     | LOAD
        { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Const(Cload(alpha))) }
+         mkAst (Const(Cload(alpha))) }
     | STORE
        { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Const(Cstore(alpha))) }
+         mkAst (Const(Cstore(alpha))) }
     | ARRAYALLOC
        { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Const(Carrayalloc(alpha)))}
+         mkAst (Const(Carrayalloc(alpha)))}
     | ARRAYFREE
        { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Const(Carrayfree(alpha)))}
+         mkAst (Const(Carrayfree(alpha)))}
     | ARRAYGET
        { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (Const(Carrayget(alpha)))}
+         mkAst (Const(Carrayget(alpha)))}
     | ENCODE
        { let alpha = Basetype.newty Basetype.Var in
          let beta = Basetype.newty Basetype.Var in
-          mkTerm (Const(Cencode(alpha, beta))) }
+          mkAst (Const(Cencode(alpha, beta))) }
     | DECODE LPAREN basetype COMMA term RPAREN
        { let alpha = Basetype.newty Basetype.Var in
-         mkTerm (App(mkTerm (Const(Cdecode(alpha, $3))),
-                     Type.newty Type.Var,
-                     $5)) }
+         mkAst (App(mkAst (Const(Cdecode(alpha, $3))), $5)) }
     | PUSH LPAREN basetype COMMA term RPAREN
-        { mkTerm (App(mkTerm (Const(Cpush($3))), Type.newty Type.Var, $5)) }
+        { mkAst (App(mkAst (Const(Cpush($3))), $5)) }
     | POP LPAREN basetype RPAREN
-        { mkTerm (App(mkTerm (Const(Cpop($3))),
-                      Type.newty Type.Var,
-                      mkTerm UnitV)) }
+        { mkAst (App(mkAst (Const(Cpop($3))), mkAst UnitV)) }
     | CALL LPAREN identifier COLON basetype TO basetype COMMA term RPAREN
-        { mkTerm (App(mkTerm (Const(Ccall($3, $5, $7))), Type.newty Type.Var, $9)) }
+        { mkAst (App(mkAst (Const(Ccall($3, $5, $7))), $9)) }
     | HACK LPAREN term COLON inttype RPAREN
-       { mkTerm (Direct($5, $3)) }
-    | EXTERNAL LPAREN identifier COLON inttype RPAREN
-        { mkTerm (External(($3, $5), Type.newty Type.Var)) }
+       { mkAst (Direct($5, $3)) }
     | PRINT STRING
-        { mkTerm (App(mkTerm (Const(Cprint $2)),
-                      Type.newty Type.Var,
-                      mkTerm (UnitV))) }
+        { mkAst (App(mkAst (Const(Cprint $2)), mkAst (UnitV))) }
 
 pattern:
     | identifier

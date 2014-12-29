@@ -23,22 +23,24 @@ let flip (w: wire) = {
   type_back = w.type_forward
 }
 
+type value_context = Basetype.t Typing.context
+
 (* All wires are meant to 'leave' the instructions, i.e. they are all affixed
 *  with their src-label to the instruction.
 *  The type of the respective wires is indicated in the comments. *)
 type instruction =
-  | Base of wire (* TA *) * (Term.var list * Term.t)
+  | Base of wire (* TA *) * (Basetype.t Typing.context * Typedterm.t)
   | Seq of wire (* (TA)^* *) * wire (* \Tens A (TB)^* *) * wire (* TB *)
   | Encode of wire (* A => B *)
   | Decode of wire (* B => A *)
   | Tensor of wire (* X *) * wire (* Y *) * wire (* X \otimes Y *)
-  | Der of wire (* \Tens A X *) * wire (* X *) * (Term.var list * Term.t)
+  | Der of wire (* \Tens A X *) * wire (* X *) * (Basetype.t Typing.context * Typedterm.value)
   | Case of Basetype.Data.id * Basetype.t list * wire * (wire list)
   | Door of wire (* X *) * wire (* \Tens A X *)
   | Assoc of wire (* \Tens (A x B) X *) * wire (* \Tens A (\Tens B X) *)
   | LWeak of wire (* \Tens A X *) * wire (* \Tens B X *) (* where B \lhd A *)
   | Bind of wire (* \Tens A X *) * wire (* (A -> X) *)
-  | App of wire (* (A -> X) *) * (Term.var list * Term.t) * wire (* X *)
+  | App of wire (* (A -> X) *) * (Basetype.t Typing.context * Typedterm.value) * wire (* X *)
   | Direct of wire (* (X- -> X+) *) * wire (* X *)
 
 type t =
@@ -99,10 +101,16 @@ let sum s t = Basetype.newty (Basetype.DataB(Basetype.Data.sumid 2, [s; t]))
   *)
 (* ASSUMPTION: all type annotations in t may only contain index types
  * that are variables, i.e. not {1+1}'a --o 'b, for example. *)
-let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t): t =
+let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
+      (t: Typedterm.t): t =
   let used_wirenames =
     List.fold_right gamma ~f:(fun (_, w) wns -> w.src :: w.dst :: wns) ~init:[] in
   let next_wirename = ref ((List.fold_right used_wirenames ~f:max ~init:(-1)) + 1) in
+  let restrict_context gamma t =
+    List.filter gamma
+      ~f:(fun (x, _) -> List.Assoc.mem t.Typedterm.t_context x) in
+  let remove_context gamma ls =
+    List.filter gamma ~f:(fun (x, _) -> not (List.mem ls x)) in
   let fresh_wire () =
     let n = !next_wirename in
     next_wirename := !next_wirename + 2;
@@ -122,21 +130,25 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       (x, w3) :: d,
       LWeak(flip w, w1) :: Assoc(flip w1, w2) :: Door(w3, flip w2) :: i
   in
-  let rec compile (sigma: Term.var list) (gamma: wire context) (t: Term.t) =
-    match t.Term.desc with
-    | Term.Var(x) ->
+  let rec compile (sigma: value_context) (gamma: wire context)
+            (t: Typedterm.t) =
+    match t.Typedterm.t_desc with
+    | Typedterm.Var(x) ->
       let wx = List.Assoc.find_exn gamma x in
       let w = fresh_wire () in
       let w' = fresh_wire () in
-      w, [Der(flip w', w, (sigma, Term.mkUnitV)); LWeak(flip wx, w')]
-    | Term.Return(_, a) ->
+      let v = { Typedterm.value_desc = Typedterm.UnitV;
+                Typedterm.value_type = Basetype.newty Basetype.UnitB;
+                Typedterm.value_loc = Ast.Location.none } in
+      w, [Der(flip w', w, (sigma, v)); LWeak(flip wx, w')]
+    | Typedterm.Return(v) ->
       let w = fresh_wire () in
       let s = Basetype.newty Basetype.Var in
       let one = Basetype.newty Basetype.UnitB in
       U.unify w.type_back (tensor s one);
-      U.unify w.type_forward (tensor s a);
+      U.unify w.type_forward (tensor s v.Typedterm.value_type);
       w, [Base(w, (sigma, t))]
-    | Term.Direct(ty, t) ->
+    | Typedterm.Direct(ty, t) ->
       let tym, typ = Type.question_answer_pair ty in
       let w_t, i_t = compile sigma gamma t in
       let w = fresh_wire () in
@@ -144,33 +156,30 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       U.unify w.type_back (tensor sigma tym);
       U.unify w.type_forward (tensor sigma typ);
       w, Direct(flip w_t, w) :: i_t
-    | Term.App(s, a, t) ->
-      begin
-        match Type.finddesc a with
-        | Type.FunV _ ->
-          let wr = fresh_wire () in
-          let (w_s, i_s) = compile sigma gamma s in
-          wr, App(flip w_s, (sigma, t), wr) :: i_s
-        | Type.FunI _ ->
-          let gamma_s, gamma_t = split_context gamma s t in
-          let (w_s, i_s) = compile sigma gamma_s s in
-          let (w_t, i_t) = compile_in_box Term.unusable_var sigma gamma_t t in
-          let wr = fresh_wire () in
-          (wr, Tensor(flip w_t, wr, flip w_s) :: i_s @ i_t)
-        | Type.Var | Type.Base _ | Type.Tensor _ | Type.Link _ ->
-          assert false
-      end
-    | Term.Pair(s, t) ->
-      let gamma_s, gamma_t = split_context gamma s t in
-      let (w_s, i_s) = compile sigma gamma_s s in
-      let (w_t, i_t) = compile sigma gamma_t t in
+    | Typedterm.AppV(s, v) ->
+      let wr = fresh_wire () in
+      let w_s, i_s = compile sigma gamma s in
+      wr, App(flip w_s, (sigma, v), wr) :: i_s
+    | Typedterm.AppI(s, t) ->
+      let gamma_s = restrict_context gamma s in
+      let gamma_t = restrict_context gamma t in
+      let w_s, i_s = compile sigma gamma_s s in
+      let alpha = Basetype.newtyvar() in
+      let w_t, i_t = compile_in_box (Ast.unusable_var, alpha) sigma gamma_t t in
+      let wr = fresh_wire () in
+      (wr, Tensor(flip w_t, wr, flip w_s) :: i_s @ i_t)
+    | Typedterm.Pair(s, t) ->
+      let gamma_s = restrict_context gamma s in
+      let gamma_t = restrict_context gamma t in
+      let w_s, i_s = compile sigma gamma_s s in
+      let w_t, i_t = compile sigma gamma_t t in
       let wr = fresh_wire () in
       wr, Tensor(flip w_s, flip w_t, wr) :: i_s @ i_t
-    | Term.LetPair(s, ((x, _), (y, _), t)) ->
-      let gamma_s, rest = take_subcontext gamma s in
-      let gamma_t, _ = take_subcontext rest t in
-      let (gamma_s_inbox, i_enter_box) = enter_box gamma_s in
-      let (w_s, i_s) = compile sigma gamma_s_inbox s in
+    | Typedterm.LetPair(s, ((x, _), (y, _), t)) ->
+      let gamma_s = restrict_context gamma s in
+      let gamma_t = remove_context (restrict_context gamma t) [x; y] in
+      let gamma_s_inbox, i_enter_box = enter_box gamma_s in
+      let w_s, i_s = compile sigma gamma_s_inbox s in
       let w_s_left = fresh_wire () in
       let w_s_right = fresh_wire () in
       let i_unpair = [Tensor(w_s_left, w_s_right, flip w_s)] in
@@ -180,9 +189,11 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
                         Door(flip w_s_right, w_y)] in
       let (w_t, i_t) = compile sigma ((y, w_y) :: (x, w_x) :: gamma_t) t in
       w_t, i_t @ i_s @ i_enter_box @ i_unpair @ i_leavebox
-    | Term.Copy(s, (xs, t)) ->
-      let gamma_s, gamma_t = split_context gamma s t in
-      let w_s, i_s = compile_in_box Term.unusable_var sigma gamma_s s in
+    | Typedterm.Copy(s, (xs, t)) ->
+      let gamma_s = restrict_context gamma s in
+      let gamma_t = remove_context (restrict_context gamma t) xs in
+      let alpha = Basetype.newtyvar() in
+      let w_s, i_s = compile_in_box (Ast.unusable_var, alpha) sigma gamma_s s in
       let delta  = List.map ~f:(fun x -> (x, fresh_wire())) xs in
       let ws = List.map ~f:(fun (_, w) -> w) delta in
       let w_types = List.map ~f:(fun _ -> Basetype.newtyvar()) ws in
@@ -191,9 +202,11 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       (* TODO: check that types are really inferred! *)
       (w_t, Case(Basetype.Data.sumid n, w_types,
                  flip w_s, ws) :: i_s @ i_t)
-    | Term.Case(id, params, f, ts) ->
-      (* [(x, s); (y, t)]) when id = Type.Data.sumid 2 -> *)
+    | Typedterm.Case(id, params, f, ts) ->
       let n = List.length ts in
+      let case_types = Basetype.Data.constructor_types id params in
+      let ts_typed = List.map2_exn ts case_types
+                       ~f:(fun (x, t) a -> ((x, a), t)) in
       let copy_and_enter_wire (w: wire)
         : wire list * instruction list =
         let w'= fresh_wire () in
@@ -217,9 +230,9 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       in
       let (gammas, i_dup) = copy_and_enter_ctx gamma in
       let (ts_in_box, i_ts) =
-        (List.fold_right (List.zip_exn gammas ts)
-           ~f:(fun (gamma, (x, t)) (ws, is) ->
-           let w', is' = compile (x :: sigma) gamma t in
+        (List.fold_right (List.zip_exn gammas ts_typed)
+           ~f:(fun (gamma, ((x, a), t)) (ws, is) ->
+           let w', is' = compile ((x, a) :: sigma) gamma t in
            w' :: ws, is' @ is)
            ~init:([], [])) in
       let ws = List.init n ~f:(fun _ -> fresh_wire ()) in
@@ -234,7 +247,7 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
       let w = fresh_wire () in
       let i_der = [Der(flip w_join, w, (sigma, f))] in
       (w, i_der @ i_join @ i_leavebox @ i_ts @ i_dup)
-    | Term.Fun((x, a, ty), s) ->
+    | Typedterm.Fun((x, a, ty), s) ->
       let tym, typ = Type.question_answer_pair ty in
       let sigma1 = Basetype.newty Basetype.Var in
       let sigma2 = Basetype.newty Basetype.Var in
@@ -246,62 +259,63 @@ let raw_circuit_of_term  (sigma: Term.var list) (gamma: wire context) (t: Term.t
           type_forward = tensor sigma1 (tensor a typ);
           type_back = tensor sigma2 (tensor a tym)} in
       let w = fresh_wire () in
-      let (w_s, i_s) = (compile sigma ((x, wx) :: gamma) s) in
+      let w_s, i_s = (compile sigma ((x, wx) :: gamma) s) in
       w, Tensor(wx, flip w_s, w) :: i_s
-    | Term.TypeAnnot (t, ty) ->
-      let (w, ins) = compile sigma gamma t in
-      let tyTensor (s, t) = Basetype.newty (Basetype.PairB(s, t)) in
-      let sigma1 = Basetype.newty Basetype.Var in
-      let tym, typ = Type.question_answer_pair ty in
-      U.unify w.type_forward (tyTensor(sigma1, typ));
-      U.unify w.type_back (tyTensor(sigma1, tym));
-      w, ins
-    | Term.Fn((x, a), t) ->
-      let (w_t, i_t) = compile_in_box x sigma gamma t in
+    | Typedterm.Fn((x, a), t) ->
+      let w_t, i_t = compile_in_box (x, a) sigma gamma t in
       let sigmat = Basetype.newty Basetype.Var in
       let beta = Basetype.newty Basetype.Var in
       U.unify w_t.type_back (tensor sigmat (tensor a beta));
       let w = fresh_wire () in
       w, Bind(flip w_t, w) :: i_t
-    | Term.Bind((s, a), (c, t)) ->
-      let gamma_s, gamma_t = split_context gamma s t in
+    | Typedterm.Bind((s, a), (c, t)) ->
+      let gamma_s = restrict_context gamma s in
+      let gamma_t = restrict_context gamma t in
       let wr = fresh_wire () in
-      let (w_s, i_s) = compile sigma gamma_s s in
-      let (w_t, i_t) = compile_in_box c sigma gamma_t t in
+      let w_s, i_s = compile sigma gamma_s s in
+      let w_t, i_t = compile_in_box (c, a) sigma gamma_t t in
       let sigma = Basetype.newty Basetype.Var in
       U.unify w_s.type_forward (tensor sigma a); (* TODO *)
       wr, Seq(flip w_s, flip w_t, wr) ::
           i_s @ i_t
-    | Term.ConstV _ | Term.UnitV | Term.PairV _
-    | Term.FstV _ | Term.SndV _ | Term.SelectV _
-    | Term.InV _ ->
-      let w = fresh_wire () in
-      w, [Base(w, (sigma, Term.mkReturn t))]
-    | Term.Const(Term.Cencode(a, b)) ->
+    | Typedterm.Const(Ast.Cencode(a, b)) ->
       let w = fresh_wire () in
       let sigma = Basetype.newty Basetype.Var in
       U.unify w.type_back (tensor sigma a);
       U.unify w.type_forward (tensor sigma b);
       w, [Encode(w)]
-    | Term.Const(Term.Cdecode(a, b)) ->
+    | Typedterm.Const(Ast.Cdecode(a, b)) ->
       let w = fresh_wire () in
       let sigma = Basetype.newty Basetype.Var in
       U.unify w.type_back (tensor sigma a);
       U.unify w.type_forward (tensor sigma b);
       w, [Decode(w)]
-    | Term.Const(c) ->
+    | Typedterm.Const(_) ->
       let w = fresh_wire () in
       let w1 = fresh_wire () in
       let w2 = fresh_wire () in
-      let x = Term.variant_var_avoid "x" sigma in
+      let xv = Ast.variant_var_avoid "x" (List.map ~f:fst sigma) in
+      let x, a, b =
+        match Type.finddesc t.Typedterm.t_type with
+        | Type.FunV(a, b) ->
+          { Typedterm.value_desc = Typedterm.VarV xv;
+            Typedterm.value_type = a;
+            Typedterm.value_loc = Ast.Location.none },
+          a, b
+        | _ ->
+          assert false in
+      let v =
+        { Typedterm.t_desc = Typedterm.AppV(t, x);
+          Typedterm.t_type = b;
+          Typedterm.t_context = t.Typedterm.t_context;
+          Typedterm.t_loc = Ast.Location.none } in
       w, [Bind(flip w1, w); Door(flip w2, w1);
-          Base(w2, (x :: sigma, Term.mkApp (Term.mkConst c) (Term.mkVar x)))]
-    | Term.External _ ->
-      failwith "circuit: term not canonized"
-  and compile_in_box (c: Term.var) (sigma: Term.var list)
-        (gamma: wire context) (t: Term.t) =
+          Base(w2, ((xv, a) :: sigma, v))]
+  and compile_in_box ((c: Ast.var), (a: Basetype.t))
+        (sigma: value_context)
+        (gamma: wire context) (t: Typedterm.t) =
     let (gamma_in_box, i_enter_box) = enter_box gamma in
-    let (w_t, i_t) = compile (c :: sigma) gamma_in_box t in
+    let (w_t, i_t) = compile ((c, a) :: sigma) gamma_in_box t in
     let w = fresh_wire () in
     (w, Door(flip w_t, w) :: i_t @ i_enter_box)
   in
@@ -404,7 +418,7 @@ exception Not_Leq
  * The function raises Not_Leq if it discovers that alpha <= beta
  * does not hold.
  * *)
-let embed (a: Basetype.t) (b: Basetype.t) (t: Term.t): Term.t =
+let embed (a: Basetype.t) (b: Basetype.t) (t: Ast.t): Ast.t =
   if Basetype.equals a b then
     t
   else
@@ -419,9 +433,8 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Term.t): Term.t =
             | [] -> raise Not_Leq
             | b1 :: bs ->
               if Basetype.equals a b1 then
-                Term.mkTerm (
-                  Term.Bind((t, a),
-                            ("x", Term.mkBox (Term.mkInV id n (Term.mkVar "x"))))
+                Ast.mkTerm (
+                  Ast.Bind(t, ("x", Ast.mkBox (Ast.mkInV id n (Ast.mkVar "x"))))
                 )
               else
                 inject bs (n + 1) in
@@ -435,9 +448,8 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Term.t): Term.t =
         | [] -> raise Not_Leq
         | b1 :: bs ->
           if Basetype.equals a b1 then
-            Term.mkTerm (
-              Term.Bind((t, a),
-                         ("x", Term.mkReturn (Term.mkInV id n (Term.mkVar "x"))))
+            Ast.mkTerm (
+              Ast.Bind(t, ("x", Ast.mkReturn (Ast.mkInV id n (Ast.mkVar "x"))))
             )
           else
             inject bs (n + 1) in
@@ -450,7 +462,7 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Term.t): Term.t =
  * The function raises Not_Leq if it discovers that alpha <= beta
  * does not hold.
  * *)
-let project (a: Basetype.t) (b: Basetype.t) (t : Term.t) : Term.t =
+let project (a: Basetype.t) (b: Basetype.t) (t : Ast.t) : Ast.t =
   let select id params x =
     let cs = Basetype.Data.constructor_types id params in
     let rec sel cs n =
@@ -459,7 +471,7 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Term.t) : Term.t =
         raise Not_Leq
       | c1 :: rest ->
         if Basetype.equals a c1 then
-          Term.mkReturn (Term.mkTerm (Term.SelectV(id, params, Term.mkVar x, n)))
+          Ast.mkReturn (Ast.mkTerm (Ast.SelectV(id, params, Ast.mkVar x, n)))
         else
           sel rest (n + 1) in
     sel cs 0 in
@@ -472,17 +484,15 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Term.t) : Term.t =
         match Basetype.finddesc c with
         | Basetype.DataB(id, params) ->
           let t1 = select id params "x" in
-          let t2 = Term.mkTerm (Term.Bind((Term.mkUnbox (Term.mkVar "y"), c),
+          let t2 = Ast.mkTerm (Ast.Bind(Ast.mkUnbox (Ast.mkVar "y"),
                                            ("x", t1))) in
-          let t3 = Term.mkTerm (Term.Bind((t, b),
-                                           ("y", t2))) in
+          let t3 = Ast.mkTerm (Ast.Bind(t, ("y", t2))) in
           t3
         | _ -> raise Not_Leq
       end
     | Basetype.DataB(id, params) ->
       let t1 = select id params "x" in
-      let t2 = Term.mkTerm (Term.Bind((t, b),
-                                       ("x", t1))) in
+      let t2 = Ast.mkTerm (Ast.Bind(t, ("x", t1))) in
       t2
     | _ -> raise Not_Leq
 
@@ -501,22 +511,20 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Term.t) : Term.t =
  * that this isn't necessary.
 *)
 let infer_types (c : t) : unit =
+  let rec type_of_context (gamma: Basetype.t context): Basetype.t =
+    match gamma with
+    | [] -> Basetype.newtyvar()
+    | (_, a) :: rest ->
+      Basetype.newty (Basetype.PairB(type_of_context rest, a)) in
   let rec constraints (instructions: instruction list)
     : type_constraint list  =
     match instructions with
     | [] -> []
     | Base(w1, (s, f))::rest ->
-      let sigma = Basetype.newty Basetype.Var in
+      let sigma = type_of_context s in
       let one = Basetype.newty Basetype.UnitB in
-      let x = "x" in
-      (* ensure that x is fresh *)
-      let f' = Term.variant f in
-      let s' = List.map ~f:Term.variant_var s in
       let beta =
-        let b = principal_type
-                  [(x, sigma)] []
-                  (Term.mkBindList x (s', f')) in
-        match Type.finddesc b with
+        match Type.finddesc f.Typedterm.t_type with
         | Type.Base beta -> beta
         | _ -> assert false in
       beq_constraint w1.type_back (tensor sigma one) ::
@@ -559,7 +567,7 @@ let infer_types (c : t) : unit =
         w3.type_back (tensor sigma2 (sum alpha2 beta2)) ::
       (constraints rest)
     | Der(w1, w2, (s, f))::rest ->
-      let sigma1 = Basetype.newty Basetype.Var in
+      let sigma1 = type_of_context s in
       let alpha1 = Basetype.newty Basetype.Var in
       let beta1 = Basetype.newty Basetype.Var in
       beq_constraint
@@ -568,12 +576,7 @@ let infer_types (c : t) : unit =
         w1.type_back (tensor sigma1 (tensor alpha1 beta1)) ::
       let sigma2 = Basetype.newty Basetype.Var in
       let alpha2 = Basetype.newty Basetype.Var in
-      let x = "x" in
-      (* ensure "x" is fresh *)
-      let f' = Term.variant f in
-      let s' = List.map ~f:Term.variant_var s in
-      let tyf = principal_type_value [(x, sigma2)]
-                  (Term.mkBindList x (s', f')) in
+      let tyf = f.Typedterm.value_type in
       beq_constraint
         w1.type_forward (tensor sigma2 (tensor tyf alpha2)) ::
       beq_constraint
@@ -586,14 +589,9 @@ let infer_types (c : t) : unit =
         w2.type_forward (tensor sigma1 beta1) ::
       beq_constraint
         w1.type_back (tensor sigma1 beta1) ::
-      let sigma2 = Basetype.newty Basetype.Var in
+      let sigma2 = type_of_context s in
       let alpha2 = Basetype.newty Basetype.Var in
-      let x = "x" in
-      (* ensure "x" is fresh *)
-      let f' = Term.variant f in
-      let s' = List.map ~f:Term.variant_var s in
-      let tyf = principal_type_value [(x, sigma2)]
-                  (Term.mkBindList x (s', f')) in
+      let tyf = f.Typedterm.value_type in
       beq_constraint
         w1.type_forward (tensor sigma2 (tensor tyf alpha2)) ::
       beq_constraint
@@ -725,7 +723,7 @@ let infer_types (c : t) : unit =
   | U.Not_Unifiable _ ->
     failwith "Internal error: cannot unify constraints in compilation"
 
-let circuit_of_term (t : Term.t) : t =
+let circuit_of_term (t : Typedterm.t) : t =
   try
     let c = raw_circuit_of_term [] [] t in
     ignore(infer_types c);

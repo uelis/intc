@@ -1,13 +1,13 @@
 type t =
-  | TermDecl of Term.var * Term.t
+  | TermDecl of Ast.var * Ast.t
 
 exception Illformed_decl of string * int * int
 
-let expand_in_term (d: t) (s: Term.t) : Term.t =
+let expand_in_term (d: t) (s: Ast.t) : Ast.t =
   (* fsubst t v s substitutes t for v in s, such that each time t is
    * pasted all the type variables in t are replaced by fresh ones *)
   let rec fsubst t v s =
-    match Term.head_subst (Term.freshen_type_vars t) v s with
+    match Ast.head_subst (Ast.freshen_type_vars t) v s with
       | Some s' -> fsubst t v s'
       | None -> s
   in

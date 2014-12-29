@@ -6,7 +6,7 @@ open Unify
  ********************)
 
 type value =
-  | Var of Term.var
+  | Var of Ast.var
   | Unit
   | Pair of value * value
   | In of (Basetype.Data.id * int * value) * Basetype.t
@@ -17,7 +17,7 @@ type value =
   | IntConst of int
 type term =
   | Val of value
-  | Const of Term.op_const * value
+  | Const of Ast.op_const * value
 
 let rec fprint_value (oc: Out_channel.t) (v: value) : unit =
   match v with
@@ -54,7 +54,7 @@ let rec fprint_value (oc: Out_channel.t) (v: value) : unit =
   | IntConst(n) ->
     Printf.fprintf oc "%i" n
 
-let rec subst_value (rho: Term.var -> value) (v: value) =
+let rec subst_value (rho: Ast.var -> value) (v: value) =
   match v with
   | Var(x) -> rho x
   | Unit -> v
@@ -94,7 +94,7 @@ let rec subst_value (rho: Term.var -> value) (v: value) =
   | Undef(a) -> Undef(a)
   | IntConst(i) -> IntConst(i)
 
-let subst_term (rho: Term.var -> value) (t: term) =
+let subst_term (rho: Ast.var -> value) (t: term) =
   match t with
   | Val(v) -> Val(subst_value rho v)
   | Const(c, v) -> Const(c, subst_value rho v)
@@ -104,7 +104,7 @@ let subst_term (rho: Term.var -> value) (t: term) =
  ********************)
 
 type let_binding =
-  | Let of (Term.var * Basetype.t) * term
+  | Let of (Ast.var * Basetype.t) * term
 type let_bindings = let_binding list
 
 type label = {
@@ -114,11 +114,11 @@ type label = {
 
 type block =
     Unreachable of label
-  | Direct of label * Term.var * let_bindings * value * label
-  | Branch of label * Term.var * let_bindings *
+  | Direct of label * Ast.var * let_bindings * value * label
+  | Branch of label * Ast.var * let_bindings *
               (Basetype.Data.id * Basetype.t list * value *
-               (Term.var * value * label) list)
-  | Return of label * Term.var * let_bindings * value * Basetype.t
+               (Ast.var * value * label) list)
+  | Return of label * Ast.var * let_bindings * value * Basetype.t
 
 (** Invariant: Any block [b] in the list of blocks must
     be reachable from the entry label by blocks appearing
@@ -242,7 +242,7 @@ let rec typeof_value
     begin
       match List.Assoc.find gamma x with
       | Some b -> b
-      | None -> failwith "internal ssa.ml: undefined variable"
+      | None -> failwith ("internal ssa.ml: undefined variable " ^ x)
     end
   | Unit ->
     newty UnitB
@@ -261,6 +261,7 @@ let rec typeof_value
          | Some b' -> equals_exn b b'
          | None -> failwith "internal ssa.ml: wrong constructor type")
       | _ ->
+        fprint_value stderr v;
         failwith "internal ssa.ml: data type expected"
     end;
     a
@@ -300,76 +301,76 @@ let typecheck_term
   | Val(v) ->
     let b = typeof_value gamma v in
     equals_exn a b
-  | Const(Term.Cprint(_), v) ->
+  | Const(Ast.Cprint(_), v) ->
     let b = typeof_value gamma v in
     equals_exn b (newty UnitB);
     equals_exn a (newty UnitB)
-  | Const(Term.Cintadd, v)
-  | Const(Term.Cintsub, v)
-  | Const(Term.Cintmul, v)
-  | Const(Term.Cintdiv, v)
-  | Const(Term.Cintshl, v)
-  | Const(Term.Cintshr, v)
-  | Const(Term.Cintsar, v)
-  | Const(Term.Cintand, v)
-  | Const(Term.Cintor, v)
-  | Const(Term.Cintxor, v) ->
+  | Const(Ast.Cintadd, v)
+  | Const(Ast.Cintsub, v)
+  | Const(Ast.Cintmul, v)
+  | Const(Ast.Cintdiv, v)
+  | Const(Ast.Cintshl, v)
+  | Const(Ast.Cintshr, v)
+  | Const(Ast.Cintsar, v)
+  | Const(Ast.Cintand, v)
+  | Const(Ast.Cintor, v)
+  | Const(Ast.Cintxor, v) ->
     let b = typeof_value gamma v in
     let intty = newty IntB in
     equals_exn b (newty (PairB(intty, intty)));
     equals_exn a intty
-  | Const(Term.Cinteq, v)
-  | Const(Term.Cintlt, v) 
-  | Const(Term.Cintslt, v) ->
+  | Const(Ast.Cinteq, v)
+  | Const(Ast.Cintlt, v)
+  | Const(Ast.Cintslt, v) ->
     let b = typeof_value gamma v in
     let intty = newty IntB in
     let boolty = Basetype.newty (Basetype.DataB(Basetype.Data.boolid, [])) in
     equals_exn b (newty (PairB(intty, intty)));
     equals_exn a boolty
-  | Const(Term.Cintprint, v) ->
+  | Const(Ast.Cintprint, v) ->
     let b = typeof_value gamma v in
     let intty = newty IntB in
     equals_exn b intty;
     equals_exn a (newty UnitB)
-  | Const(Term.Calloc(b), v) ->
+  | Const(Ast.Calloc(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c (newty UnitB);
     equals_exn a (newty (BoxB b))
-  | Const(Term.Cfree(b), v) ->
+  | Const(Ast.Cfree(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c (newty (BoxB b));
     equals_exn a (newty UnitB)
-  | Const(Term.Cload(b), v) ->
+  | Const(Ast.Cload(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c (newty (BoxB b));
     equals_exn a b
-  | Const(Term.Cstore(b), v) ->
+  | Const(Ast.Cstore(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c (newty (PairB(newty (BoxB b), b)));
     equals_exn a (newty UnitB)
-  | Const(Term.Carrayalloc(b), v) ->
+  | Const(Ast.Carrayalloc(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c (newty IntB);
     equals_exn a (newty (ArrayB b))
-  | Const(Term.Carrayfree(b), v) ->
+  | Const(Ast.Carrayfree(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c (newty (ArrayB b));
     equals_exn a (newty UnitB)
-  | Const(Term.Carrayget(b), v) ->
+  | Const(Ast.Carrayget(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c (newty (PairB(newty (ArrayB b), newty IntB)));
     equals_exn a (newty (BoxB(b)))
-  | Const(Term.Cpush(b), v) ->
+  | Const(Ast.Cpush(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c b;
     equals_exn a (newty UnitB)
-  | Const(Term.Cpop(b), v) ->
+  | Const(Ast.Cpop(b), v) ->
     let c = typeof_value gamma v in
     equals_exn c (newty UnitB);
     equals_exn a b
-  | Const(Term.Ccall(_, b1, b2), v)
-  | Const(Term.Cencode(b1, b2), v)
-  | Const(Term.Cdecode(b1, b2), v) ->
+  | Const(Ast.Ccall(_, b1, b2), v)
+  | Const(Ast.Cencode(b1, b2), v)
+  | Const(Ast.Cdecode(b1, b2), v) ->
     let c = typeof_value gamma v in
     equals_exn c b1;
     equals_exn a b2
@@ -456,7 +457,10 @@ let make ~func_name:(func_name: string)
 (* INVARIANT: The supply of fresh names in the
  * generation of ssa programs has the form x0, x1, ...
  * This means that only source terms not containing
- * variables of this form should be translated. *)
+ * variables of this form should be translated.
+ * All variables in typedterms, are made distinct
+ * from the xi by applying variant_var.
+*)
 let fresh_var = Vargen.mkVarGenerator "x" ~avoid:[]
 
 let unPairB a =
@@ -483,65 +487,67 @@ let inr a v =
   let id = Basetype.Data.sumid 2 in
   In((id, 1, v), a)
 
-let term_value_to_ssa (t: Term.t)
+let term_value_to_ssa (t: Typedterm.value)
   : let_bindings * value =
   (* Add type annotations in various places *)
-  let rec to_ssa (t: Term.t)
+  let rec to_ssa (t: Typedterm.value)
     : let_bindings * value =
-    match t.Term.desc with
-    | Term.Var(x) ->
-      [], Var(x)
-    | Term.ConstV(Term.Cundef a) ->
+    match t.Typedterm.value_desc with
+    | Typedterm.VarV(x) ->
+      [], Var(Ast.variant_var x)
+    | Typedterm.ConstV(Ast.Cundef a) ->
       [], Undef(a)
-    | Term.ConstV(Term.Cintconst(n)) ->
+    | Typedterm.ConstV(Ast.Cintconst(n)) ->
       [], IntConst(n)
-    | Term.UnitV ->
+    | Typedterm.UnitV ->
       [], Unit
-    | Term.InV((id, j, t), a) ->
-      let lt, vt = to_ssa t in
+    | Typedterm.InV(id, j, t1) ->
+      let lt, vt = to_ssa t1 in
+      let a = t.Typedterm.value_type in
       lt, In((id, j, vt), a)
-    | Term.PairV((t1, _), (t2, _)) ->
+    | Typedterm.PairV(t1, t2) ->
       let lt1, vt1 = to_ssa t1 in
       let lt2, vt2 = to_ssa t2 in
       lt2 @ lt1, Pair(vt1, vt2)
-    | Term.FstV(t1, a, b) ->
+    | Typedterm.FstV(t1) ->
       let lt1, v1 = to_ssa t1 in
+      let a, b =
+        match Basetype.finddesc t1.Typedterm.value_type with
+        | Basetype.PairB(a, b) -> a, b
+        | _ -> assert false in
       lt1, Fst(v1, a, b)
-    | Term.SndV(t1, a, b) ->
+    | Typedterm.SndV(t1) ->
       let lt1, v1 = to_ssa t1 in
+      let a, b =
+        match Basetype.finddesc t1.Typedterm.value_type with
+        | Basetype.PairB(a, b) -> a, b
+        | _ -> assert false in
       lt1, Snd(v1, a, b)
-    | Term.Bind((t1, ax), (x, t2)) ->
-      let lt1, v1 = to_ssa t1 in
-      let x' = fresh_var () in
-      let t2' = Term.subst (Term.mkVar x') x t2 in
-      let lt2, v2 = to_ssa t2' in
-      lt2 @ [Let((x', ax), Val v1)] @ lt1, v2
-    | Term.SelectV(id, params, t1, i) ->
+    | Typedterm.SelectV(id, params, t1, i) ->
       let lt1, v1 = to_ssa t1 in
       lt1, Select(v1, (id, params), i)
-    | _ ->
-      Printing.print_term t;
-      failwith "illegal argument val ssa"
   in
   to_ssa t
 
-let term_to_ssa (t: Term.t)
+let term_to_ssa (t: Typedterm.t)
   : let_bindings * value =
   (* Add type annotations in various places *)
-  let rec to_ssa (t: Term.t)
+  let rec to_ssa (t: Typedterm.t)
     : let_bindings * value =
-    match t.Term.desc with
-    | Term.Return(t1, a) ->
+    match t.Typedterm.t_desc with
+    | Typedterm.Return(t1) ->
       let lt1, v1 = term_value_to_ssa t1 in
       let x = fresh_var () in
+      let a = t1.Typedterm.value_type in
       [Let((x, a), Val v1)] @ lt1, Var x
-    | Term.Bind((t1, ax), (x, t2)) ->
+    | Typedterm.Bind((t1, ax), (x, t2)) ->
       let lt1, v1 = to_ssa t1 in
-      let x' = fresh_var () in
-      let t2' = Term.subst (Term.mkVar x') x t2 in
-      let lt2, v2 = to_ssa t2' in
-      lt2 @ [Let((x', ax), Val v1)] @ lt1, v2
-    | Term.App({Term.desc = Term.Const(c); _}, a, arg) ->
+      let lt2, v2 = to_ssa t2 in
+      lt2 @ [Let((Ast.variant_var x, ax), Val v1)] @ lt1, v2
+    | Typedterm.AppV({ Typedterm.t_desc = Typedterm.Const(c);
+                       Typedterm.t_type = a;
+                       _},
+                     arg) ->
       let retty =
         match Type.finddesc a with
         | Type.FunV(_, r) ->
@@ -555,10 +561,23 @@ let term_to_ssa (t: Term.t)
       let ltarg, varg = term_value_to_ssa arg in
       Let((x, retty), Const(c, varg)) :: ltarg , Var(x)
     | _ ->
-      Printing.print_term t;
+      (* Printing.print_term t; *)
       failwith "illegal argument ssa"
   in
   to_ssa t
+
+let rec bind_context z a (gamma: Basetype.t Typing.context) : let_binding list =
+  match gamma with
+  | [] -> []
+  | (x, b) :: rest ->
+    let arest =
+      match Basetype.finddesc a with
+      | Basetype.PairB(arest, ax) ->
+        assert (Basetype.equals b ax);
+        arest
+      | _ -> assert false in
+    Let((Ast.variant_var x, b), Val(Snd(z, arest, b))) ::
+    bind_context (Fst(z, arest, b)) arest rest
 
 module U = Unify(struct type t = unit end)
 
@@ -585,20 +604,10 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
   let make_block src dst =
     let z = fresh_var() in
     let sigma_type, m_type = unPairB src.message_type in
-    let sigma_term = Term.mkReturn (Term.mkFstV (Term.mkVar z)) in
-    let m_term = Term.mkReturn (Term.mkSndV (Term.mkVar z)) in
+    let m_term = Ast.mkReturn (Ast.mkSndV (Ast.mkVar z)) in
     let sigma_val = Fst(Var z, sigma_type, m_type) in
     let m_val = Snd(Var z, sigma_type, m_type) in
 
-    let to_ssa t target_type =
-      let a = Typing.principal_type [(z, src.message_type)] [] t in
-      U.unify_eqs [U.Type_eq(a, (Type.newty (Type.Base target_type)), None)];
-      begin
-        match Type.finddesc a with
-        | Type.Base a0 -> U.unify a0 target_type
-        | _ -> assert false
-      end;
-      term_to_ssa t in
     if not (Hashtbl.mem nodes_by_src dst) then
       begin
         if dst = c.output.dst then
@@ -611,33 +620,39 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
       match Int.Table.find_exn nodes_by_src dst with
       | Circuit.Base(w1 (* [f] *), (gamma, f)) ->
         if dst = w1.src then
-          let x = fresh_var () in
           (* ensure that variables in (y, f) do not collide with
              local name supply. *)
-          let gamma = List.map gamma ~f:Term.variant_var in
-          let t = Term.variant f in
-          let t1 = Term.mkBind sigma_term (x, Term.mkBindList x (gamma, t)) in
-          let _, t1_type = unPairB w1.type_forward in
-          let lt, m' = to_ssa t1 t1_type in
+          let ltgamma = bind_context sigma_val sigma_type gamma in
+          let lt, m' = term_to_ssa f in
           let vt = Pair(sigma_val, m') in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          Direct(src, z, lt @ ltgamma, vt, label_of_dst w1)
         else
           assert false
       | Circuit.Encode(w1) ->
         if dst = w1.src then
           let _, a = unPairB w1.type_back in
           let _, b = unPairB w1.type_forward in
-          let lt, m' = to_ssa (Circuit.embed a b m_term) b in
+          let embed = Typing.check_term [(z, src.message_type)] []
+                        (Ast.mkTypeAnnot
+                           (Circuit.embed a b m_term)
+                           (Type.newty (Type.Base b))) in
+          let l = Let((Ast.variant_var z,  src.message_type), Val(Var(z))) in
+          let lt, m' = term_to_ssa embed in
           let vt = Pair(sigma_val, m') in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          Direct(src, z, lt @ [l], vt, label_of_dst w1)
         else assert false
       | Circuit.Decode(w1) ->
         if dst = w1.src then
           let _, a = unPairB w1.type_back in
           let _, b = unPairB w1.type_forward in
-          let lt, m' = to_ssa (Circuit.project b a m_term) b in
+          let project = Typing.check_term [(z, src.message_type)] []
+                          (Ast.mkTypeAnnot
+                             (Circuit.project b a m_term)
+                             (Type.newty (Type.Base b))) in
+          let l = Let((Ast.variant_var z,  src.message_type), Val(Var(z))) in
+          let lt, m' = term_to_ssa project in
           let vt = Pair(sigma_val, m') in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          Direct(src, z, lt @ [l], vt, label_of_dst w1)
         else assert false
       | Circuit.Tensor(w1, w2, w3) ->
         if dst = w1.src then
@@ -668,31 +683,19 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           let vt = Pair(sigma_val, m2) in
           Direct(src, z, [], vt, label_of_dst w2)
         else if dst = w2.src then
-          let gamma = List.map gamma ~f:Term.variant_var in
-          let f = Term.variant f in
-          let x = fresh_var () in
-          let t1 = Term.mkBind sigma_term
-                     (x, Term.mkBindList x (gamma, Term.mkReturn f)) in
-          let _, cm_type = unPairB w1.type_forward in
-          let c_type, _= unPairB cm_type in
-          let lt, c = to_ssa t1 c_type in
+          let lgamma = bind_context sigma_val sigma_type gamma in
+          let lt, c = term_value_to_ssa f in
           let vt = Pair(sigma_val, Pair(c, m_val)) in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          Direct(src, z, lt @ lgamma, vt, label_of_dst w1)
         else assert false
       | Circuit.App(w1 (* (A => X) *), (gamma, f), w2 (* X *)) ->
         if dst = w1.src then
           Direct(src, z, [], Var(z), label_of_dst w2)
         else if dst = w2.src then
-          let gamma = List.map gamma ~f:Term.variant_var in
-          let f = Term.variant f in
-          let x = fresh_var () in
-          let t1 = Term.mkBind sigma_term
-                     (x, Term.mkBindList x (gamma, Term.mkReturn f)) in
-          let _, cm_type = unPairB w1.type_forward in
-          let c_type, _ = unPairB cm_type in
-          let lt, c = to_ssa t1 c_type in
+          let ltgamma = bind_context sigma_val sigma_type gamma in
+          let lt, c = term_value_to_ssa f in
           let vt = Pair(sigma_val, Pair(c, m_val)) in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          Direct(src, z, lt @ ltgamma, vt, label_of_dst w1)
         else assert false
       | Circuit.Door(w1 (* X *), w2 (* \Tens A X *)) ->
         if dst = w1.src then
@@ -751,21 +754,31 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           let a, m'_type = unPairB a_token in
           let _, b_token = unPairB w2.type_forward in
           let b, _ = unPairB b_token in
-          let c = Term.mkReturn (Term.mkFstV (Term.mkSndV (Term.mkVar z))) in
-          let lt, d = to_ssa (Circuit.project b a c) b in
+          let c = Ast.mkReturn (Ast.mkFstV (Ast.mkSndV (Ast.mkVar z))) in
+          let project = Typing.check_term [(z, src.message_type)] []
+                          (Ast.mkTypeAnnot
+                             (Circuit.project b a c)
+                             (Type.newty (Type.Base b))) in
+          let l = Let((Ast.variant_var z,  src.message_type), Val(Var(z))) in
+          let lt, d = term_to_ssa project in
           let m' = Snd(m_val, a, m'_type) in
           let vt = Pair(sigma_val, Pair(d, m')) in
-          Direct(src, z, lt, vt, label_of_dst w2)
+          Direct(src, z, lt @ [l], vt, label_of_dst w2)
         else if dst = w2.src then
           let _, a_token = unPairB w1.type_forward in
           let a, m'_type = unPairB a_token in
           let _, b_token = unPairB w2.type_back in
           let b, _ = unPairB b_token in
-          let c = Term.mkReturn (Term.mkFstV (Term.mkSndV (Term.mkVar z))) in
+          let c = Ast.mkReturn (Ast.mkFstV (Ast.mkSndV (Ast.mkVar z))) in
           let m' = Snd(m_val, b, m'_type) in
-          let lt, d = to_ssa (Circuit.embed b a c) a in
+          let embed = Typing.check_term [(z, src.message_type)] []
+                        (Ast.mkTypeAnnot
+                           (Circuit.embed b a c)
+                           (Type.newty (Type.Base a))) in
+          let l = Let((Ast.variant_var z,  src.message_type), Val(Var(z))) in
+          let lt, d = term_to_ssa embed in
           let vt = Pair(sigma_val, Pair(d, m')) in
-          Direct(src, z, lt, vt, label_of_dst w1)
+          Direct(src, z, lt @ [l], vt, label_of_dst w1)
         else assert false
       | Circuit.Seq(w1 (* TA^* *), w2 (* \Tensor A TB^* *), w3 (* TB *)) ->
         if dst = w3.src then

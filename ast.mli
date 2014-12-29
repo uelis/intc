@@ -69,8 +69,8 @@ type op_const =
     |}
     The type of terms here can represent more terms, e.g. it allows interaction terms
     also in values. The type checker will later check that they correspond to the
-    above grammar. It seems to be better to do it this way, as this simplifies the
-    parser and its error reporting. *)
+    above grammar and produce typed terms that are separated in values and interactive
+    terms, see typedterm.mli. *)
 type t = {
   desc: t_desc;
   loc: Location.t
@@ -79,24 +79,23 @@ type t = {
   (* value terms *)
   | ConstV of value_const
   | UnitV
-  | PairV of (t * Basetype.t) * (t * Basetype.t)
-  | FstV of t * Basetype.t * Basetype.t
-  | SndV of t * Basetype.t * Basetype.t
-  | InV of (Basetype.Data.id * int * t) * Basetype.t
+  | PairV of t * t
+  | FstV of t
+  | SndV of t
+  | InV of (Basetype.Data.id * int * t)
   | SelectV of Basetype.Data.id * (Basetype.t list) * t * int
   (* interaction terms *)
   | Const of op_const
-  | Return of t * Basetype.t
-  | Bind of (t * Basetype.t) * (var * t)
+  | Return of t
+  | Bind of t * (var * t)
   | Fn of (var * Basetype.t) * t
   | Fun of (var * Basetype.t * Type.t) * t
-  | App of t * Type.t * t
-  | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
+  | App of t * t
+  | Case of Basetype.Data.id * t * ((var * t) list)
   | Copy of t * (var list * t)
   | Pair of t * t
-  | LetPair of t* ((var * Type.t) * (var * Type.t) * t)
+  | LetPair of t * (var * var * t)
   | Direct of Type.t * t
-  | External of (string * Type.t (* type schema *)) * Type.t
   | TypeAnnot of t * Type.t
 
 (* The following functions fill in fresh type variables for
@@ -118,13 +117,11 @@ val mkFn : (var * Basetype.t) * t -> t
 val mkReturn : t -> t
 val mkBind : t -> (var * t) -> t
 val mkFun : (var * Basetype.t * Type.t) * t -> t
-val mkCopy : t -> var list * t -> t
+val mkCopy : t -> (var list) * t -> t
 val mkDirect : Type.t -> t -> t
 val mkTypeAnnot : t -> Type.t -> t
 val mkBox : t -> t
 val mkUnbox : t -> t
-
-val mkBindList : var -> (var list) * t -> t
 
 (** Check if a term conforms to the grammar of value terms. *)
 val is_value: t -> bool

@@ -15,8 +15,8 @@ val string_of_basetype : Basetype.t -> string
     will be shown as [X -> Y]. *)
 val string_of_type : ?concise:bool -> Type.t -> string
 
-val string_of_op_const : Term.op_const -> string
+val string_of_op_const : Ast.op_const -> string
 
-val print_term : Term.t -> unit
+val print_ast : Ast.t -> unit
 
-val string_of_term : Term.t -> string
+val string_of_ast : Ast.t -> string

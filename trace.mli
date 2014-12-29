@@ -1,6 +1,6 @@
 (** Simplification of SSA programs by tracing. *)
 
-(** Traces an SSA program. 
+(** Traces an SSA program.
     See the PPDP14 paper for an outline of the implemented
     approach. *)
 val trace: Ssa.t -> Ssa.t

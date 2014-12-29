@@ -58,24 +58,23 @@ and t_desc =
   (* value terms *)
   | ConstV of value_const
   | UnitV
-  | PairV of (t * Basetype.t) * (t * Basetype.t)
-  | FstV of t * Basetype.t * Basetype.t
-  | SndV of t * Basetype.t * Basetype.t
-  | InV of (Basetype.Data.id * int * t) * Basetype.t
+  | PairV of t * t
+  | FstV of t
+  | SndV of t
+  | InV of (Basetype.Data.id * int * t)
   | SelectV of Basetype.Data.id * (Basetype.t list) * t * int
   (* interaction terms *)
   | Const of op_const
-  | Return of t * Basetype.t
-  | Bind of (t * Basetype.t) * (var * t)
+  | Return of t
+  | Bind of t * (var * t)
   | Fn of (var * Basetype.t) * t
   | Fun of (var * Basetype.t * Type.t) * t
-  | App of t * Type.t * t
-  | Case of Basetype.Data.id * (Basetype.t list) * t * ((var * t) list)
+  | App of t * t
+  | Case of Basetype.Data.id * t * ((var * t) list)
   | Copy of t * (var list * t)
   | Pair of t * t
-  | LetPair of t* ((var * Type.t) * (var * Type.t) * t)
+  | LetPair of t * (var * var * t)
   | Direct of Type.t * t
-  | External of (string * Type.t (* type schema *)) * Type.t
   | TypeAnnot of t * Type.t
 
 let mkTerm d = { desc = d; loc = None }
@@ -84,46 +83,21 @@ let mkVar x = mkTerm (Var(x))
 let mkConstV n = mkTerm (ConstV(n))
 let mkConst n = mkTerm (Const(n))
 let mkUnitV = mkTerm UnitV
-let mkPairV s t =
-  let alpha = Basetype.newtyvar() in
-  let beta = Basetype.newtyvar() in
-  mkTerm (PairV((s, alpha), (t, beta)))
-let mkFstV s =
-  let alpha = Basetype.newtyvar() in
-  let beta = Basetype.newtyvar() in
-  mkTerm (FstV(s, alpha, beta))
-let mkSndV s =
-  let alpha = Basetype.newtyvar() in
-  let beta = Basetype.newtyvar() in
-  mkTerm (SndV(s, alpha, beta))
-let mkInV n k t =
-  mkTerm (InV((n, k, t), Basetype.newtyvar()))
-let mkInlV t =
-  mkTerm (InV((Basetype.Data.sumid 2, 0, t), Basetype.newtyvar()))
-let mkInrV t =
-  mkTerm (InV((Basetype.Data.sumid 2, 1, t), Basetype.newtyvar()))
-let mkCase id s l =
-  let n = Basetype.Data.params id in
-  let params = List.init n ~f:(fun _ -> Basetype.newtyvar ()) in
-  mkTerm (Case(id, params, s, l))
-let mkApp s t =
-  mkTerm (App(s, Type.newty Type.Var, t))
-let mkFn ((x, ty), t) =
-  mkTerm (Fn((x, ty), t))
-let mkReturn v =
-  let alpha = Basetype.newtyvar() in
-  mkTerm (Return(v, alpha))
-let mkBind s (x ,t) =
-  let alpha = Basetype.newtyvar() in
-  mkTerm (Bind((s, alpha), (x, t)))
-let mkFun ((x, a, ty), t) =
-  mkTerm (Fun((x, a, ty), t))
-let mkCopy s (xs, t) =
-  mkTerm (Copy(s, (xs, t)))
-let mkDirect ty t =
-  mkTerm (Direct(ty, t))
-let mkTypeAnnot t a =
-  mkTerm (TypeAnnot(t, a))
+let mkPairV s t = mkTerm (PairV(s, t))
+let mkFstV s = mkTerm (FstV(s))
+let mkSndV s = mkTerm (SndV(s))
+let mkInV n k t = mkTerm (InV((n, k, t)))
+let mkInlV t = mkTerm (InV(Basetype.Data.sumid 2, 0, t))
+let mkInrV t = mkTerm (InV(Basetype.Data.sumid 2, 1, t))
+let mkCase id s l = mkTerm (Case(id, s, l))
+let mkApp s t = mkTerm (App(s, t))
+let mkFn ((x, ty), t) = mkTerm (Fn((x, ty), t))
+let mkReturn v = mkTerm (Return(v))
+let mkBind s (x ,t) = mkTerm (Bind(s, (x, t)))
+let mkFun ((x, a, ty), t) = mkTerm (Fun((x, a, ty), t))
+let mkCopy s (xs, t) = mkTerm (Copy(s, (xs, t)))
+let mkDirect ty t = mkTerm (Direct(ty, t))
+let mkTypeAnnot t a = mkTerm (TypeAnnot(t, a))
 let mkBox t =
   let alpha = Basetype.newtyvar() in
   let addr = "addr" in
@@ -140,13 +114,13 @@ let mkUnbox t =
 let rec is_value (term: t) : bool =
   match term.desc with
   | Var _ | ConstV _ | UnitV -> true
-  | InV((_,_,s), _) | FstV(s, _, _) | SndV(s, _, _)
+  | InV(_,_,s) | FstV(s) | SndV(s)
   | SelectV(_, _, s, _) -> is_value s
-  | PairV((s, _), (t, _)) -> is_value s && is_value t
+  | PairV(s, t) -> is_value s && is_value t
   | Case _ | Const _ | App _
   | Return _ | Bind _
   | Pair _ | LetPair _
-  | Direct _ | External _ | Copy _ | Fn _ | Fun _
+  | Direct _ | Copy _ | Fn _ | Fun _
   | TypeAnnot _ ->
     false
 
@@ -155,23 +129,23 @@ let rec free_vars (term: t) : var list =
   let abs_list xs l = List.filter l ~f:(fun z -> not (List.mem xs z)) in
   match term.desc with
   | Var(v) -> [v]
-  | ConstV _ | Const(_) | UnitV | External _ -> []
-  | InV((_,_,s), _) | FstV(s, _, _) | SndV(s, _, _)
-  | SelectV(_, _, s, _)  | Return(s, _)
+  | ConstV _ | Const(_) | UnitV  -> []
+  | InV(_,_,s) | FstV(s) | SndV(s)
+  | SelectV(_, _, s, _)  | Return(s)
   | Direct(_, s) -> free_vars s
-  | PairV((s, _), (t, _)) | App(s, _, t) ->
+  | PairV(s, t) | App(s, t) ->
     (free_vars s) @ (free_vars t)
   | Copy(s, (xs, t)) ->
     (free_vars s) @ (abs_list xs (free_vars t))
   | Fn((x, _), t) | Fun((x, _, _), t) ->
     abs x (free_vars t)
-  | Bind((s, _), (x, t)) ->
+  | Bind(s, (x, t)) ->
     (free_vars s) @ (abs x (free_vars t))
   | Pair(s, t) ->
     (free_vars s) @ (free_vars t)
-  | LetPair(s, ((x, _), (y, _), t)) ->
+  | LetPair(s, (x, y, t)) ->
     (free_vars s) @ (abs x (abs y (free_vars t)))
-  | Case(_, _, s, l) ->
+  | Case(_, s, l) ->
     free_vars s @
     List.fold_right l ~f:(fun (x, t) fv -> (abs x (free_vars t)) @ fv) ~init:[]
   | TypeAnnot(t, _) ->
@@ -180,22 +154,22 @@ let rec free_vars (term: t) : var list =
 let rec all_vars (term: t) : var list =
   match term.desc with
   | Var(v) -> [v]
-  | ConstV _ | Const(_) | UnitV | External _ -> []
-  | InV((_,_,s), _) | FstV(s, _, _) | SndV(s, _, _)
-  | Return(s, _) | SelectV(_, _, s, _)
+  | ConstV _ | Const(_) | UnitV -> []
+  | InV(_,_,s) | FstV(s) | SndV(s)
+  | Return(s) | SelectV(_, _, s, _)
   | Direct(_, s) -> all_vars s
-  | PairV((s, _), (t, _)) | App(s, _, t)
+  | PairV(s, t) | App(s, t)
   | Copy(s, (_, t)) ->
     all_vars s @ all_vars t
   | Fn((x, _), t) | Fun((x, _, _), t) ->
     x :: all_vars t
-  | Bind((s, _), (x, t)) ->
+  | Bind(s, (x, t)) ->
     x :: all_vars s @ all_vars t
   | Pair(s, t) ->
     (all_vars s) @ (all_vars t)
   | LetPair(s, (_, _, t)) ->
     (all_vars s) @ (all_vars t)
-  | Case(_, _, s, l) ->
+  | Case(_, s, l) ->
     all_vars s @
     List.fold_right l ~f:(fun (x, t) fv -> x :: all_vars t @ fv) ~init:[]
   | TypeAnnot(t, _) ->
@@ -205,38 +179,38 @@ let rename_vars (f: var -> var) (term: t) : t =
   let rec rn term =
     match term.desc with
     | Var(x) -> { term with desc = Var(f x) }
-    | ConstV _ | Const _  | UnitV | External _ ->
+    | ConstV _ | Const _  | UnitV ->
       term
-    | InV((n, k, s), a) ->
-      { term with desc = InV((n, k, rn s), a) }
-    | FstV(s, a, b) ->
-      { term with desc = FstV(rn s, a, b) }
-    | SndV(s, a, b) ->
-      { term with desc = SndV(rn s, a, b) }
+    | InV(n, k, s) ->
+      { term with desc = InV(n, k, rn s) }
+    | FstV(s) ->
+      { term with desc = FstV(rn s) }
+    | SndV(s) ->
+      { term with desc = SndV(rn s) }
     | Direct(ty, s) ->
       { term with desc = Direct(ty, rn s) }
-    | Return(s, a) ->
-      { term with desc = Return(rn s, a) }
-    | PairV((s, a), (t, b)) ->
-      { term with desc = PairV((rn s, a), (rn t, b)) }
-    | App(s, a, t) ->
-      { term with desc = App(rn s, a, rn t) }
+    | Return(s) ->
+      { term with desc = Return(rn s) }
+    | PairV(s, t) ->
+      { term with desc = PairV(rn s, rn t) }
+    | App(s, t) ->
+      { term with desc = App(rn s, rn t) }
     | Copy(s, (xs, t)) ->
       { term with desc = Copy(rn s, (List.map ~f:f xs, rn t)) }
     | Fn((x, ty), t) ->
       { term with desc = Fn((f x, ty), rn t) }
     | Fun((x, a, ty), t) ->
       { term with desc = Fun((f x, a, ty), rn t) }
-    | Bind((s, a), (x, t)) ->
-      { term with desc = Bind((rn s, a), (f x, rn t)) }
+    | Bind(s, (x, t)) ->
+      { term with desc = Bind(rn s, (f x, rn t)) }
     | Pair(s, t) ->
       { term with desc = Pair(rn s, rn t) }
-    | LetPair(s, ((x, a), (y, b), t)) ->
-      { term with desc = LetPair(rn s, ((f x, a), (f y, b), rn t)) }
+    | LetPair(s, (x, y, t)) ->
+      { term with desc = LetPair(rn s, (f x, f y, rn t)) }
     | SelectV(id, params, s, i) ->
       { term with desc = SelectV(id, params, rn s, i) }
-    | Case(id, params, s, l) ->
-      { term with desc = Case(id, params, rn s,
+    | Case(id, s, l) ->
+      { term with desc = Case(id, rn s,
                               List.map l ~f:(fun (x, t) -> (f x, rn t))) }
     | TypeAnnot(t, ty) -> { term with desc = TypeAnnot(rn t, ty) }
   in rn term
@@ -281,22 +255,22 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
         (substituted := true; s)
       else
         { term with desc = Var(apply sigma y) }
-    | UnitV | ConstV _ | Const _ | External _ ->
+    | UnitV | ConstV _ | Const _ ->
       term
-    | InV((n, k, s), a) ->
-      {term with desc = InV((n, k, sub sigma s), a)}
-    | FstV(s, a, b) ->
-      { term with desc = FstV(sub sigma s, a, b) }
-    | SndV(s, a, b) ->
-      { term with desc = SndV(sub sigma s, a, b) }
+    | InV(n, k, s) ->
+      {term with desc = InV(n, k, sub sigma s) }
+    | FstV(s) ->
+      { term with desc = FstV(sub sigma s) }
+    | SndV(s) ->
+      { term with desc = SndV(sub sigma s) }
     | Direct(ty, s) ->
       {term with desc = Direct(ty, sub sigma s)}
-    | Return(s, a) ->
-      { term with desc = Return(sub sigma s, a) }
-    | PairV((s, a), (t, b)) ->
-      { term with desc = PairV((sub sigma s, a), (sub sigma t, b)) }
-    | App (s, a, t) ->
-      { term with desc = App(sub sigma s, a, sub sigma t) }
+    | Return(s) ->
+      { term with desc = Return(sub sigma s) }
+    | PairV(s, t) ->
+      { term with desc = PairV(sub sigma s, sub sigma t) }
+    | App (s, t) ->
+      { term with desc = App(sub sigma s, sub sigma t) }
     | Copy(s, (xs, t)) ->
       { term with desc = Copy(sub sigma s, abs_list sigma (xs, t)) }
     | Fn((x, ty), t) ->
@@ -305,17 +279,17 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
     | Fun((x, a, ty), t) ->
       let (x', t') = abs sigma (x, t) in
       { term with desc = Fun((x', a, ty), t') }
-    | Bind((s, a), (x, t)) ->
-      { term with desc = Bind((sub sigma s, a), abs sigma (x, t)) }
+    | Bind(s, (x, t)) ->
+      { term with desc = Bind(sub sigma s, abs sigma (x, t)) }
     | Pair(s, t) ->
       { term with desc = Pair(sub sigma s, sub sigma t) }
-    | LetPair(s, ((x, a), (y, b), t)) ->
+    | LetPair(s, (x, y, t)) ->
       let x', y', t' = abs2 sigma (x, y, t) in
-      { term with desc = LetPair(sub sigma s, ((x', a), (y', b), t')) }
+      { term with desc = LetPair(sub sigma s, (x', y', t')) }
     | SelectV(id, params, s, i) ->
       { term with desc = SelectV(id, params, sub sigma s, i) }
-    | Case(id, params, s, l) ->
-      { term with desc = Case(id, params, sub sigma s,
+    | Case(id, s, l) ->
+      { term with desc = Case(id, sub sigma s,
                               List.map l ~f:(fun (x, t) -> abs sigma (x, t))) }
     | TypeAnnot(t, ty) ->
       { term with desc = TypeAnnot(sub sigma t, ty) }
@@ -348,28 +322,6 @@ let subst (s: t) (x: var) (t: t) : t =
   match substitute ~head:false s x t with
   | None -> t
   | Some t' -> t'
-
-(* Conveniencene function for n-ary Bind  *)
-let mkBindList (x: var) ((sigma: var list), (f: t)) : t =
-  let rec remove_shadow sigma =
-    match sigma with
-    | [] -> []
-    | x :: rest ->
-      x :: remove_shadow
-            (List.map rest
-                ~f:(fun y -> if x = y then unusable_var else y))
-  in
-  let xs = all_vars f in
-  let fresh_var = Vargen.mkVarGenerator "z" ~avoid:(x :: xs @ sigma) in
-  let rec let_tuple z (sigma, f) =
-    match sigma with
-    | [] -> f
-    | y :: rest ->
-      let z1 = fresh_var () in
-       subst (mkSndV (mkVar z)) y
-         (subst (mkFstV (mkVar z)) z1
-            (let_tuple z1 (rest, f))) in
-  let_tuple x (remove_shadow sigma, f)
 
 let freshen_type_vars t =
   let new_type_vars = Int.Table.create () in
@@ -437,36 +389,35 @@ let freshen_type_vars t =
     | Const(Cintprint)
     | Const(Cprint _) ->
       term
-    | InV((n, k, s), a) ->
-      { term with desc = InV((n, k, mta s), fbase a) }
-    | FstV(s, a, b) ->
-      { term with desc = FstV(mta s, fbase a, fbase b) }
-    | SndV(s, a, b) ->
-      { term with desc = SndV(mta s, fbase a, fbase b) }
-    | Return(s, a) ->
-      { term with desc = Return(mta s, fbase a) }
-    | PairV((s, a), (t, b)) ->
-      { term with desc = PairV((mta s, fbase a), (mta t, fbase b)) }
-    | App(s, a, t) ->
-      { term with desc = App(mta s, f a, mta t) }
+    | InV(n, k, s) ->
+      { term with desc = InV(n, k, mta s) }
+    | FstV(s) ->
+      { term with desc = FstV(mta s) }
+    | SndV(s) ->
+      { term with desc = SndV(mta s) }
+    | Return(s) ->
+      { term with desc = Return(mta s) }
+    | PairV(s, t) ->
+      { term with desc = PairV(mta s, mta t) }
+    | App(s, t) ->
+      { term with desc = App(mta s, mta t) }
     | Copy(s, (xs, t)) ->
       { term with desc = Copy(mta s, (xs, mta t)) }
     | Fn((x, a), t) ->
       { term with desc = Fn((x, fbase a), mta t) }
     | Fun((x, a, ty), t) ->
       { term with desc = Fun((x, fbase a, f ty), mta t) }
-    | Bind((s, a), (x, t)) ->
-      { term with desc = Bind((mta s, fbase a), (x, mta t)) }
+    | Bind(s, (x, t)) ->
+      { term with desc = Bind(mta s, (x, mta t)) }
     | Pair(s, t) ->
       { term with desc = Pair(mta s, mta t) }
-    | LetPair(s, ((x, a), (y, b), t)) ->
-      { term with desc = LetPair(mta s, ((x, f a), (y, f b), mta t)) }
+    | LetPair(s, (x, y, t)) ->
+      { term with desc = LetPair(mta s, (x, y, mta t)) }
     | SelectV(id, params, s, i) ->
       { term with desc = SelectV(id, List.map params ~f:fbase, mta s, i) }
-    | Case(id, params, s, l) ->
-      { term with desc = Case(id, List.map params ~f:fbase, mta s,
+    | Case(id, s, l) ->
+      { term with desc = Case(id, mta s,
                               List.map l ~f:(fun (x, t) -> (x, mta t))) }
     | TypeAnnot(t, ty) -> { term with desc = TypeAnnot(mta t, f ty) }
     | Direct(ty, s) -> { term with desc = Direct(f ty, mta s) }
-    | External(e, ty) -> { term with desc = External(e, f ty) }
   in mta t

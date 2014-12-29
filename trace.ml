@@ -30,7 +30,7 @@ let trace_block blocks i0 =
   let rec remove_last_push ls =
     match ls with
     | [] -> None
-    | Let(_, Const(Term.Cpush(_), v)) :: rest-> Some (v, rest)
+    | Let(_, Const(Ast.Cpush(_), v)) :: rest-> Some (v, rest)
     | l :: rest ->
       begin
         match remove_last_push rest with
@@ -45,7 +45,7 @@ let trace_block blocks i0 =
         match t', !lets with
         | Val v', _ ->
           String.Table.replace rho ~key:x ~data:v'
-        | Const(Term.Cpop(_), _), _ ->
+        | Const(Ast.Cpop(_), _), _ ->
           begin
             match remove_last_push !lets with
             | Some (v', lets') ->

@@ -94,13 +94,12 @@ rule main = parse
   | "of"       { OF }
   | "in"       { IN }
   | "case"     { CASE }
-  | "external" { EXTERNAL }
   | "->"       { TO }
   | "|"        { VERTBAR }
   | nat        { NUM (int_of_string (Lexing.lexeme lexbuf)) }
   | ident      { IDENT (Lexing.lexeme lexbuf) }
   | constr     { CONSTR (Lexing.lexeme lexbuf) }
-  | eof        { EOF } 
+  | eof        { EOF }
   | "/*"       { comments 0 lexbuf}
   | "\""       { let buf = Buffer.create 1 in
                     STRING (str buf lexbuf)}
@@ -117,4 +116,3 @@ and str buf = parse
   | "\\n"      { Buffer.add_char buf '\n'; str buf lexbuf }
   | "\\\""     { Buffer.add_char buf '"'; str buf lexbuf }
   | _ as ch    { Buffer.add_char buf ch; str buf lexbuf }
-

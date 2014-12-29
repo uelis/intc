@@ -365,7 +365,7 @@ let build_term
       (t: Ssa.term) : encoded_value =
   match t with
   | Ssa.Val(v) -> build_value the_module ctx v
-  | Ssa.Const(Term.Cpush(a), v) ->
+  | Ssa.Const(Ast.Cpush(a), v) ->
     let salloctype = Llvm.function_type
                        (Llvm.pointer_type (Llvm.i8_type context))
                        (Array.of_list [native_int]) in
@@ -380,7 +380,7 @@ let build_term
     let v_packed = pack_encoded_value (build_truncate_extend venc a) a in
     ignore (Llvm.build_store v_packed mem_ptr builder);
     {payload = []; attrib = Bitvector.null}
-  | Ssa.Const(Term.Cpop(a), _) ->
+  | Ssa.Const(Ast.Cpop(a), _) ->
     let spoptype = Llvm.function_type
                      (Llvm.pointer_type (Llvm.i8_type context))
                      (Array.of_list [native_int]) in
@@ -392,7 +392,7 @@ let build_term
                     "memstruct" builder in
     let lstruct = Llvm.build_load mem_ptr "lstruct" builder in
     unpack_encoded_value lstruct a
-  | Ssa.Const(Term.Cprint(s), _) ->
+  | Ssa.Const(Ast.Cprint(s), _) ->
     let str = Llvm.build_global_string s "s" builder in
     let strptr = Llvm.build_in_bounds_gep str
                    (Array.create ~len:2 (Llvm.const_null native_int)) "strptr" builder in
@@ -409,7 +409,7 @@ let build_term
     let args = Array.of_list [formatstrptr; strptrint] in
     ignore (Llvm.build_call printf args "i" builder);
     {payload = []; attrib = Bitvector.null}
-  | Ssa.Const(Term.Ccall(e, a, b), v) ->
+  | Ssa.Const(Ast.Ccall(e, a, b), v) ->
     let a_struct = packing_type a in
     let b_struct = packing_type b in
     let etype = Llvm.function_type b_struct (Array.of_list [a_struct]) in
@@ -419,86 +419,86 @@ let build_term
     let args = Array.of_list [v_packed] in
     let res_packed = Llvm.build_call efunc args e builder in
     unpack_encoded_value res_packed b
-  | Ssa.Const(Term.Cintadd as const, arg)
-  | Ssa.Const(Term.Cintsub as const, arg)
-  | Ssa.Const(Term.Cintmul as const, arg)
-  | Ssa.Const(Term.Cintdiv as const, arg)
-  | Ssa.Const(Term.Cinteq as const, arg)
-  | Ssa.Const(Term.Cintlt as const, arg)
-  | Ssa.Const(Term.Cintslt as const, arg)
-  | Ssa.Const(Term.Cintshl as const, arg)
-  | Ssa.Const(Term.Cintshr as const, arg)
-  | Ssa.Const(Term.Cintsar as const, arg)
-  | Ssa.Const(Term.Cintand as const, arg)
-  | Ssa.Const(Term.Cintor as const, arg)
-  | Ssa.Const(Term.Cintxor as const, arg)
-  | Ssa.Const(Term.Cintprint as const, arg)
-  | Ssa.Const(Term.Calloc _ as const, arg)
-  | Ssa.Const(Term.Cfree _ as const, arg)
-  | Ssa.Const(Term.Cload _ as const, arg)
-  | Ssa.Const(Term.Cstore _ as const, arg) 
-  | Ssa.Const(Term.Carrayalloc _ as const, arg)
-  | Ssa.Const(Term.Carrayfree _ as const, arg)
-  | Ssa.Const(Term.Carrayget _ as const, arg) ->
+  | Ssa.Const(Ast.Cintadd as const, arg)
+  | Ssa.Const(Ast.Cintsub as const, arg)
+  | Ssa.Const(Ast.Cintmul as const, arg)
+  | Ssa.Const(Ast.Cintdiv as const, arg)
+  | Ssa.Const(Ast.Cinteq as const, arg)
+  | Ssa.Const(Ast.Cintlt as const, arg)
+  | Ssa.Const(Ast.Cintslt as const, arg)
+  | Ssa.Const(Ast.Cintshl as const, arg)
+  | Ssa.Const(Ast.Cintshr as const, arg)
+  | Ssa.Const(Ast.Cintsar as const, arg)
+  | Ssa.Const(Ast.Cintand as const, arg)
+  | Ssa.Const(Ast.Cintor as const, arg)
+  | Ssa.Const(Ast.Cintxor as const, arg)
+  | Ssa.Const(Ast.Cintprint as const, arg)
+  | Ssa.Const(Ast.Calloc _ as const, arg)
+  | Ssa.Const(Ast.Cfree _ as const, arg)
+  | Ssa.Const(Ast.Cload _ as const, arg)
+  | Ssa.Const(Ast.Cstore _ as const, arg) 
+  | Ssa.Const(Ast.Carrayalloc _ as const, arg)
+  | Ssa.Const(Ast.Carrayfree _ as const, arg)
+  | Ssa.Const(Ast.Carrayget _ as const, arg) ->
     begin
       let argenc = build_value the_module ctx arg in
       match const, argenc.payload with
-      | Term.Cintadd, [x; y] ->
+      | Ast.Cintadd, [x; y] ->
         {payload = [Llvm.build_add x y "add" builder];
          attrib = Bitvector.null}
-      | Term.Cintadd, _ -> failwith "internal: wrong argument to intadd"
-      | Term.Cintsub, [x; y] ->
+      | Ast.Cintadd, _ -> failwith "internal: wrong argument to intadd"
+      | Ast.Cintsub, [x; y] ->
         {payload = [Llvm.build_sub x y "sub" builder];
          attrib = Bitvector.null}
-      | Term.Cintsub, _ -> failwith "internal: wrong argument to intsub"
-      | Term.Cintmul, [x; y] ->
+      | Ast.Cintsub, _ -> failwith "internal: wrong argument to intsub"
+      | Ast.Cintmul, [x; y] ->
         {payload = [Llvm.build_mul x y "mul" builder];
          attrib = Bitvector.null}
-      | Term.Cintmul, _ -> failwith "internal: wrong argument to intmul"
-      | Term.Cintdiv, [x; y] ->
+      | Ast.Cintmul, _ -> failwith "internal: wrong argument to intmul"
+      | Ast.Cintdiv, [x; y] ->
         {payload = [Llvm.build_sdiv x y "sdiv" builder];
          attrib = Bitvector.null}
-      | Term.Cintdiv, _ -> failwith "internal: wrong argument to intdiv"
-      | Term.Cinteq, [x; y] ->
+      | Ast.Cintdiv, _ -> failwith "internal: wrong argument to intdiv"
+      | Ast.Cinteq, [x; y] ->
         {payload = [];
          attrib = Bitvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Ne x y "eq" builder)}
-      | Term.Cinteq, _ -> failwith "internal: wrong argument to inteq"
-      | Term.Cintlt, [x; y] ->
+      | Ast.Cinteq, _ -> failwith "internal: wrong argument to inteq"
+      | Ast.Cintlt, [x; y] ->
         {payload = [];
          attrib = Bitvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Uge x y "lt" builder )}
-      | Term.Cintlt, _ -> failwith "internal: wrong argument to intslt"
-      | Term.Cintslt, [x; y] ->
+      | Ast.Cintlt, _ -> failwith "internal: wrong argument to intslt"
+      | Ast.Cintslt, [x; y] ->
         {payload = [];
          attrib = Bitvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Sge x y "slt" builder )}
-      | Term.Cintslt, _ -> failwith "internal: wrong argument to intslt"
-      | Term.Cintshl, [x; y] ->
+      | Ast.Cintslt, _ -> failwith "internal: wrong argument to intslt"
+      | Ast.Cintshl, [x; y] ->
         {payload = [Llvm.build_shl x y "shl" builder];
          attrib = Bitvector.null}
-      | Term.Cintshl, _ -> failwith "internal: wrong argument to intshl"
-      | Term.Cintshr, [x; y] ->
+      | Ast.Cintshl, _ -> failwith "internal: wrong argument to intshl"
+      | Ast.Cintshr, [x; y] ->
         {payload = [Llvm.build_lshr x y "shr" builder ];
          attrib = Bitvector.null}
-      | Term.Cintshr, _ -> failwith "internal: wrong argument to intshr"
-      | Term.Cintsar, [x; y] ->
+      | Ast.Cintshr, _ -> failwith "internal: wrong argument to intshr"
+      | Ast.Cintsar, [x; y] ->
         {payload = [Llvm.build_ashr x y "sar" builder ];
          attrib = Bitvector.null}
-      | Term.Cintsar, _ -> failwith "internal: wrong argument to intsar"
-      | Term.Cintand, [x; y] ->
+      | Ast.Cintsar, _ -> failwith "internal: wrong argument to intsar"
+      | Ast.Cintand, [x; y] ->
         {payload = [Llvm.build_and x y "and" builder ];
          attrib = Bitvector.null}
-      | Term.Cintand, _ -> failwith "internal: wrong argument to intand"
-      | Term.Cintor, [x; y] ->
+      | Ast.Cintand, _ -> failwith "internal: wrong argument to intand"
+      | Ast.Cintor, [x; y] ->
         {payload = [Llvm.build_or x y "or" builder ];
          attrib = Bitvector.null}
-      | Term.Cintor, _ -> failwith "internal: wrong argument to intor"
-      | Term.Cintxor, [x; y] ->
+      | Ast.Cintor, _ -> failwith "internal: wrong argument to intor"
+      | Ast.Cintxor, [x; y] ->
         {payload = [Llvm.build_xor x y "xor" builder ];
          attrib = Bitvector.null}
-      | Term.Cintxor, _ -> failwith "internal: wrong argument to intxor"
-      | Term.Cintprint, [x] ->
+      | Ast.Cintxor, _ -> failwith "internal: wrong argument to intxor"
+      | Ast.Cintprint, [x] ->
         let i8a = Llvm.pointer_type (Llvm.i8_type context) in
         let formatstr = Llvm.build_global_string "%i" "format" builder in
         let formatstrptr = Llvm.build_in_bounds_gep formatstr
@@ -510,8 +510,8 @@ let build_term
         let args = Array.of_list [formatstrptr; x] in
         ignore (Llvm.build_call printf args "i" builder);
         {payload = []; attrib = Bitvector.null }
-      | Term.Cintprint, _ -> failwith "internal: wrong argument to intprint"
-      | Term.Calloc(a), _ ->
+      | Ast.Cintprint, _ -> failwith "internal: wrong argument to intprint"
+      | Ast.Calloc(a), _ ->
         let malloc =
           match Llvm.lookup_function "malloc" the_module with
           | Some malloc -> malloc
@@ -522,22 +522,22 @@ let build_term
                           "memi8" builder in
         let addr = Llvm.build_ptrtoint mem_i8ptr native_int "memint" builder in
         {payload = [addr]; attrib = Bitvector.null}
-      | Term.Cfree _, [addr] ->
+      | Ast.Cfree _, [addr] ->
         let free =
           match Llvm.lookup_function "free" the_module with
           | Some free -> free
           | None -> assert false in
         ignore (Llvm.build_call free (Array.of_list [addr]) "free" builder);
         {payload = []; attrib = Bitvector.null}
-      | Term.Cfree _, _ -> failwith "internal: wrong argument to free"
-      | Term.Cload a, [addr] ->
+      | Ast.Cfree _, _ -> failwith "internal: wrong argument to free"
+      | Ast.Cload a, [addr] ->
         let a_struct = packing_type a in
         let mem_ptr = Llvm.build_inttoptr addr
                         (Llvm.pointer_type a_struct) "memptr" builder in
         let lstruct = Llvm.build_load mem_ptr "lstruct" builder in
         unpack_encoded_value lstruct a
-      | Term.Cload _, _ -> failwith "internal: wrong argument to load"
-      | Term.Cstore a, (addr :: vpayload)  ->
+      | Ast.Cload _, _ -> failwith "internal: wrong argument to load"
+      | Ast.Cstore a, (addr :: vpayload)  ->
         let a_struct = packing_type a in
         let mem_ptr = Llvm.build_inttoptr addr
                         (Llvm.pointer_type a_struct) "memptr" builder in
@@ -547,8 +547,8 @@ let build_term
         let v_packed = pack_encoded_value (build_truncate_extend venc a) a in
         ignore (Llvm.build_store v_packed mem_ptr builder);
         {payload = []; attrib = Bitvector.null}
-      | Term.Cstore _, _ -> failwith "internal: wrong argument to store"
-      | Term.Carrayalloc a, [length] ->
+      | Ast.Cstore _, _ -> failwith "internal: wrong argument to store"
+      | Ast.Carrayalloc a, [length] ->
         let a_struct = packing_type a in
         let malloc =
           match Llvm.lookup_function "malloc" the_module with
@@ -561,32 +561,32 @@ let build_term
                           "memi8" builder in
         let addr = Llvm.build_ptrtoint mem_i8ptr native_int "memint" builder in
         {payload = [addr]; attrib = Bitvector.null}
-      | Term.Carrayalloc _, _ -> failwith "internal: wrong argument to arrayalloc"
-      | Term.Carrayfree _, [addr] ->
+      | Ast.Carrayalloc _, _ -> failwith "internal: wrong argument to arrayalloc"
+      | Ast.Carrayfree _, [addr] ->
         let free =
           match Llvm.lookup_function "free" the_module with
           | Some free -> free
           | None -> assert false in
         ignore (Llvm.build_call free (Array.of_list [addr]) "free" builder);
         {payload = []; attrib = Bitvector.null}
-      | Term.Carrayfree _, _ -> failwith "internal: wrong argument to arrayfree"
-      | Term.Carrayget a, [addr; idx] ->
+      | Ast.Carrayfree _, _ -> failwith "internal: wrong argument to arrayfree"
+      | Ast.Carrayget a, [addr; idx] ->
         let a_struct = packing_type a in
         let offset =
           let p1 = Llvm.build_mul idx (Llvm.size_of a_struct) "p1" builder in
           Llvm.build_add addr p1 "offset" builder in
         {payload = [offset]; attrib = Bitvector.null}
-      | Term.Carrayget _, _ -> failwith "internal: wrong argument to arrayget"
-      | Term.Cprint _, _
-      | Term.Cpush _, _
-      | Term.Cpop _, _
-      | Term.Ccall _, _
-      | Term.Cencode _, _
-      | Term.Cdecode _, _
+      | Ast.Carrayget _, _ -> failwith "internal: wrong argument to arrayget"
+      | Ast.Cprint _, _
+      | Ast.Cpush _, _
+      | Ast.Cpop _, _
+      | Ast.Ccall _, _
+      | Ast.Cencode _, _
+      | Ast.Cdecode _, _
         -> assert false
     end
-  | Ssa.Const(Term.Cencode _, _)
-  | Ssa.Const(Term.Cdecode _, _) ->
+  | Ssa.Const(Ast.Cencode _, _)
+  | Ssa.Const(Ast.Cdecode _, _) ->
     assert false
 
 let rec build_letbindings
@@ -604,7 +604,7 @@ let rec build_letbindings
 
 let build_body
       (the_module : Llvm.llmodule)
-      (ctx: (Term.var * encoded_value) list)
+      (ctx: (Ast.var * encoded_value) list)
       (l: Ssa.let_bindings)
       (v: Ssa.value)
   : encoded_value =

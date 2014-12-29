@@ -292,14 +292,14 @@ let string_of_data id =
           Printf.sprintf "%s of %s" n (string_of_basetype t)) cs));
   Buffer.contents buf
 
-let string_of_val_const (c: Term.value_const) : string =
-  let open Term in
+let string_of_val_const (c: Ast.value_const) : string =
+  let open Ast in
   match c with
   | Cundef _ -> "undef"
   | Cintconst i -> Printf.sprintf "%i" i
 
-let string_of_op_const (c: Term.op_const) : string =
-  let open Term in
+let string_of_op_const (c: Ast.op_const) : string =
+  let open Ast in
   match c with
   | Cprint s -> "print(\"" ^ (String.escaped s) ^ "\")"
   | Cintadd -> "intadd"
@@ -332,12 +332,12 @@ let string_of_op_const (c: Term.op_const) : string =
   | Cdecode(a, b) -> "decode(" ^ (string_of_basetype a) ^
                         ", " ^ (string_of_basetype b) ^ ") "
 
-let fprint_term (f: Format.formatter) (term: Term.t): unit =
-  let open Term in
+let fprint_ast (f: Format.formatter) (term: Ast.t): unit =
+  let open Ast in
   let open Format in
-  let rec s_term (t: Term.t): unit =
+  let rec s_term (t: Ast.t): unit =
     match t.desc with
-    | Return(t, _) ->
+    | Return(t) ->
       fprintf f "return @[";
       s_term t;
       fprintf f "@]"
@@ -355,19 +355,19 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "@] as %s in@ @[" (String.concat ~sep:", " xs);
       s_term t2;
       fprintf f "@]"
-    | LetPair(t1, ((x, _), (y, _), t2)) ->
+    | LetPair(t1, (x, y, t2)) ->
       fprintf f "@[<hv 1>let %s # %s =@ " x y;
       s_term t1;
       fprintf f "@] in@ @[";
       s_term t2;
       fprintf f "@]"
-    | Bind((t1, _), (x, t2)) ->
+    | Bind(t1, (x, t2)) ->
       fprintf f "@[<hv 1>val %s =@ " x;
       s_term t1;
       fprintf f "@] in@ @[";
       s_term t2;
       fprintf f "@]"
-    | Case(id, _, t1, l) ->
+    | Case(id, t1, l) ->
       fprintf f "@[<hv>case ";
       s_term t1;
       fprintf f " of ";
@@ -382,26 +382,26 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
         fprintf f "@]";
       );
       fprintf f "@]"
-    | InV((id, k, t1), _) ->
+    | InV(id, k, t1) ->
       let cname = List.nth_exn (Basetype.Data.constructor_names id) k in
       fprintf f "%s(@[" cname;
       s_term_atom t1;
       fprintf f ")@]"
     | App _ | Var _ | ConstV _ | Const _ | UnitV | FstV _ | SndV _ | SelectV _
-    | PairV _ | TypeAnnot _ | Direct _ | External _ | Pair _
+    | PairV _ | TypeAnnot _ | Direct _ | Pair _
       -> s_term_app t
-  and s_term_app (t: Term.t) =
+  and s_term_app (t: Ast.t) =
     match t.desc with
-    | App(t1, _, t2) ->
+    | App(t1, t2) ->
       s_term_app t1;
       fprintf f "@ ";
       s_term_atom t2
     | Var _ | ConstV _ | Const _ | UnitV
     | PairV _ | TypeAnnot _
     | InV _ | FstV _ | SndV _ | Return _ | Bind _ | Case _ | SelectV _
-    | Fn _ | Fun _ | Copy _ | Pair _ | LetPair _ | Direct _ | External _
+    | Fn _ | Fun _ | Copy _ | Pair _ | LetPair _ | Direct _
       -> s_term_atom t
-  and s_term_atom (t: Term.t) =
+  and s_term_atom (t: Ast.t) =
     match t.desc with
     | Var(x) ->
       fprintf f "%s" x
@@ -409,15 +409,15 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "()"
     | ConstV(s) ->
       fprintf f "%s" (string_of_val_const s)
-    | FstV(t1, _, _) ->
+    | FstV(t1) ->
       fprintf f "@[fst(";
       s_term t1;
       fprintf f ")@]"
-    | SndV(t1, _, _) ->
+    | SndV(t1) ->
       fprintf f "@[snd(";
       s_term t1;
       fprintf f ")@]"
-    | PairV((t1, _), (t2, _)) ->
+    | PairV(t1, t2) ->
       fprintf f "(@[";
       s_term t1;
       fprintf f "@],@ @[";
@@ -439,8 +439,6 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
       fprintf f "@[<hv 2>direct(";
       s_term t;
       fprintf f " : %s@])" (string_of_type a)
-    | External((e, a), _) ->
-      fprintf f "@[<hv 2>external(%s: %s)@]" e (string_of_type a)
     | TypeAnnot(t, _) ->
       s_term_atom t
     | App _ | InV _ | Return _ | Bind _ | Case _
@@ -453,7 +451,7 @@ let fprint_term (f: Format.formatter) (term: Term.t): unit =
   s_term term;
   fprintf f "@]@.\n\n"
 
-let print_term = fprint_term Format.std_formatter
-let string_of_term t =
-  fprint_term Format.str_formatter t;
+let print_ast = fprint_ast Format.std_formatter
+let string_of_ast t =
+  fprint_ast Format.str_formatter t;
   Format.flush_str_formatter ()

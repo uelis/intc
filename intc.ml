@@ -23,12 +23,12 @@ let parse (s: string) : Decl.t list =
     failwith (error_msg (line_column_loc l c) ("Syntax error. " ^ msg))
 
 (* For error reporting: compute a string of where the error occurred *)
-let term_loc (s : Term.t option) =
+let term_loc (s : Ast.t option) =
   match s with
   | None -> ""
   | Some s ->
-    let open Term in
-    let open Term.Location in
+    let open Ast in
+    let open Ast.Location in
     match s.loc with
     | Some(loc) when loc.start_pos.line = loc.end_pos.line ->
       Printf.sprintf "line %i, columns %i-%i:"
@@ -37,17 +37,18 @@ let term_loc (s : Term.t option) =
       Printf.sprintf "line %i, column %i to line %i, column %i:"
         loc.start_pos.line loc.start_pos.column
         loc.end_pos.line loc.end_pos.column
-    | None -> "Term " ^ (Printing.string_of_term s)
+    | None -> "Term " ^ (Printing.string_of_ast s)
 
 let compile (d: Decl.t) : unit =
   match d with
-  | Decl.TermDecl(f, t) ->
+  | Decl.TermDecl(f, ast) ->
     let circuit =
       try
-        let b = Typing.principal_type [] [] t in
+        let t = Typing.check_term [] [] ast in
         let circuit = Circuit.circuit_of_term t in
         Printf.printf "%s : %s\n" f
-          (Printing.string_of_type ~concise:(not !opt_print_type_details) b);
+          (Printing.string_of_type ~concise:(not !opt_print_type_details)
+             t.Typedterm.t_type);
         circuit
       with Typing.Typing_error(s, err) ->
         let msg = "Typing error when checking " ^
