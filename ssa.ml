@@ -487,84 +487,71 @@ let inr a v =
   let id = Basetype.Data.sumid 2 in
   In((id, 1, v), a)
 
-let term_value_to_ssa (t: Typedterm.value)
-  : let_bindings * value =
-  (* Add type annotations in various places *)
-  let rec to_ssa (t: Typedterm.value)
-    : let_bindings * value =
-    match t.Typedterm.value_desc with
-    | Typedterm.VarV(x) ->
-      [], Var(Ast.variant_var x)
-    | Typedterm.ConstV(Ast.Cundef a) ->
-      [], Undef(a)
-    | Typedterm.ConstV(Ast.Cintconst(n)) ->
-      [], IntConst(n)
-    | Typedterm.UnitV ->
-      [], Unit
-    | Typedterm.InV(id, j, t1) ->
-      let lt, vt = to_ssa t1 in
-      let a = t.Typedterm.value_type in
-      lt, In((id, j, vt), a)
-    | Typedterm.PairV(t1, t2) ->
-      let lt1, vt1 = to_ssa t1 in
-      let lt2, vt2 = to_ssa t2 in
-      lt2 @ lt1, Pair(vt1, vt2)
-    | Typedterm.FstV(t1) ->
-      let lt1, v1 = to_ssa t1 in
-      let a, b =
-        match Basetype.finddesc t1.Typedterm.value_type with
-        | Basetype.PairB(a, b) -> a, b
-        | _ -> assert false in
-      lt1, Fst(v1, a, b)
-    | Typedterm.SndV(t1) ->
-      let lt1, v1 = to_ssa t1 in
-      let a, b =
-        match Basetype.finddesc t1.Typedterm.value_type with
-        | Basetype.PairB(a, b) -> a, b
-        | _ -> assert false in
-      lt1, Snd(v1, a, b)
-    | Typedterm.SelectV(id, params, t1, i) ->
-      let lt1, v1 = to_ssa t1 in
-      lt1, Select(v1, (id, params), i)
-  in
-  to_ssa t
+let rec term_value_to_ssa (t: Typedterm.value) : let_bindings * value =
+  match t.Typedterm.value_desc with
+  | Typedterm.VarV(x) ->
+    [], Var(Ast.variant_var x)
+  | Typedterm.ConstV(Ast.Cundef a) ->
+    [], Undef(a)
+  | Typedterm.ConstV(Ast.Cintconst(n)) ->
+    [], IntConst(n)
+  | Typedterm.UnitV ->
+    [], Unit
+  | Typedterm.InV(id, j, t1) ->
+    let lt, vt = term_value_to_ssa t1 in
+    let a = t.Typedterm.value_type in
+    lt, In((id, j, vt), a)
+  | Typedterm.PairV(t1, t2) ->
+    let lt1, vt1 = term_value_to_ssa t1 in
+    let lt2, vt2 = term_value_to_ssa t2 in
+    lt2 @ lt1, Pair(vt1, vt2)
+  | Typedterm.FstV(t1) ->
+    let lt1, v1 = term_value_to_ssa t1 in
+    let a, b =
+      match Basetype.finddesc t1.Typedterm.value_type with
+      | Basetype.PairB(a, b) -> a, b
+      | _ -> assert false in
+    lt1, Fst(v1, a, b)
+  | Typedterm.SndV(t1) ->
+    let lt1, v1 = term_value_to_ssa t1 in
+    let a, b =
+      match Basetype.finddesc t1.Typedterm.value_type with
+      | Basetype.PairB(a, b) -> a, b
+      | _ -> assert false in
+    lt1, Snd(v1, a, b)
+  | Typedterm.SelectV(id, params, t1, i) ->
+    let lt1, v1 = term_value_to_ssa t1 in
+    lt1, Select(v1, (id, params), i)
 
-let term_to_ssa (t: Typedterm.t)
-  : let_bindings * value =
-  (* Add type annotations in various places *)
-  let rec to_ssa (t: Typedterm.t)
-    : let_bindings * value =
-    match t.Typedterm.t_desc with
-    | Typedterm.Return(t1) ->
-      let lt1, v1 = term_value_to_ssa t1 in
-      let x = fresh_var () in
-      let a = t1.Typedterm.value_type in
-      [Let((x, a), Val v1)] @ lt1, Var x
-    | Typedterm.Bind((t1, ax), (x, t2)) ->
-      let lt1, v1 = to_ssa t1 in
-      let lt2, v2 = to_ssa t2 in
-      lt2 @ [Let((Ast.variant_var x, ax), Val v1)] @ lt1, v2
-    | Typedterm.AppV({ Typedterm.t_desc = Typedterm.Const(c);
-                       Typedterm.t_type = a;
-                       _},
-                     arg) ->
-      let retty =
-        match Type.finddesc a with
-        | Type.FunV(_, r) ->
-          begin
-            match Type.finddesc r with
-            | Type.Base(ar) -> ar
-            | _ -> assert false
-          end
-        | _ -> assert false in
-      let x = fresh_var () in
-      let ltarg, varg = term_value_to_ssa arg in
-      Let((x, retty), Const(c, varg)) :: ltarg , Var(x)
-    | _ ->
-      (* Printing.print_term t; *)
-      failwith "illegal argument ssa"
-  in
-  to_ssa t
+let rec term_to_ssa (t: Typedterm.t) : let_bindings * value =
+  match t.Typedterm.t_desc with
+  | Typedterm.Return(t1) ->
+    let lt1, v1 = term_value_to_ssa t1 in
+    let x = fresh_var () in
+    let a = t1.Typedterm.value_type in
+    [Let((x, a), Val v1)] @ lt1, Var x
+  | Typedterm.Bind((t1, ax), (x, t2)) ->
+    let lt1, v1 = term_to_ssa t1 in
+    let lt2, v2 = term_to_ssa t2 in
+    lt2 @ [Let((Ast.variant_var x, ax), Val v1)] @ lt1, v2
+  | Typedterm.AppV({ Typedterm.t_desc = Typedterm.Const(c);
+                     Typedterm.t_type = a;
+                     _},
+                   arg) ->
+    let retty =
+      match Type.finddesc a with
+      | Type.FunV(_, r) ->
+        begin
+          match Type.finddesc r with
+          | Type.Base(ar) -> ar
+          | _ -> assert false
+        end
+      | _ -> assert false in
+    let x = fresh_var () in
+    let ltarg, varg = term_value_to_ssa arg in
+    Let((x, retty), Const(c, varg)) :: ltarg , Var(x)
+  | _ ->
+    failwith "illegal argument ssa"
 
 let rec bind_context z a (gamma: Basetype.t Typing.context) : let_binding list =
   match gamma with
@@ -581,8 +568,6 @@ let rec bind_context z a (gamma: Basetype.t Typing.context) : let_binding list =
 
 module U = Unify(struct type t = unit end)
 
-(* TODO: This implementation is quite inefficient with many uses of type
- * inference. The types are all known and could be constructed directly. *)
 let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
   (* Notice that the freshness invariant must be considered here:
    * The instructions do not contain a free variable starting with "x". *)

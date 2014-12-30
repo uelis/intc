@@ -74,7 +74,7 @@ type pattern =
   | PatVar of string
   | PatPair of pattern * pattern
 
-
+(* TODO: patterns should still appear in ast *)
 let elim_pattern p t =
   (* check pattern *)
   let rec vars p =
@@ -105,8 +105,8 @@ let elim_pattern p t =
     | PatPair(p1, p2) ->
       let z1, t1 = elim p1 t in
       let z2, t2 = elim p2 t1 in
-      z1, Ast.subst (mkSndV (mkVar z1)) z2
-            (Ast.subst (mkFstV (mkVar z1)) z1 t2) in
+      z1, Ast.subst (mkAst (SndV (mkAst (Var z1)))) z2
+            (Ast.subst (mkAst (FstV (mkAst (Var z1)))) z1 t2) in
   elim p t
 
 let type_vars = String.Table.create ()
