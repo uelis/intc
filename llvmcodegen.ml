@@ -3,20 +3,34 @@ open Core.Std
 let context = Llvm.global_context ()
 let builder = Llvm.builder context
 
+(** The type used to represent [int] values and pointers. 
+    The code currently uses the assumption that machine pointers
+    can be represented as [int] values. This should be changed.*)    
 let native_int = Llvm.i64_type context
 
+(** Position builder at start of block *)
 let position_at_start block builder =
   let block_begin = Llvm.instr_begin block in
   Llvm.position_builder block_begin builder
 
+(** Number of bits needed to store [i] different values. *)
 let rec log i =
   if i > 1 then 1 + (log (i - i/2)) else 0
 
 module M = Int.Map
 
-type profile = int M.t (* Invariant: nur Werte > 0 drin *)
+(** A profile is a finite map from bit widths to numbers.
+    We use vectors of values of varying bit widths below.
+    The profile of a vector explains how many values of
+    each bit width it contains.
 
-let merge_profiles p1 p2 ~f =
+    Invariant: Profiles are maps whose keys are all > 0 and
+    that only map to values > 0.
+*)
+type profile = int M.t
+
+let merge_profiles (p1: profile) (p2: profile) ~f:(f:int -> int -> int)
+  : profile =
   M.merge p1 p2
     ~f:(fun ~key:_ -> function
       | `Both(m, n) -> Some (f m n)
@@ -33,33 +47,49 @@ let print_profile p=
 
 let singleton_profile i = M.singleton i 1
 
-(* TODO: Definitionsbereiche klar dokumentieren! *)
-
 (* Encapsulate bit vectors to make it easy to change the llvm-encoding. *)
-module Bitvector :
+module Mixedvector :
 sig
   type t
+
+  (** Profile of vector *)
   val to_profile : t -> profile
 
+  (** Empty vector *)
   val null : t
+
+  (** Singleton vector containing a single value of
+      given bit width. The call [singleton n v] produces
+      a vector with profile [n -> 1]. *)
   val singleton : int -> Llvm.llvalue -> t
 
-  (* concatenates all lists *)
-  val pair : t -> t -> t
+  (** Join two vectors. For each bit width, the vectors are concatenated in
+      order. *)
+  val concatenate : t -> t -> t
 
-  (* takes the prefixes specified by profile and returns also the rest *)
+  (** Takes the prefix vector specified by profile and returns also the rest. *)
   val takedrop : t -> profile -> t * t
 
-  (* take prefix or append undefs so that value fits the profile *)
+  (** Take prefix or fill up with undefs so that value fits the profile. *)
   val coerce : t -> profile -> t
 
+  (** Extract the value from a singleton vector. *)
   val llvalue_of_singleton : t -> Llvm.llvalue
 
+  (** Build a vector of singleton phi nodes for the llvalues
+      stored in the given vector. *)
   val build_phi:  t * Llvm.llbasicblock -> Llvm.llbuilder -> t
+
+  (** Add an incoming vector to vector of phi nodes. *)
   val add_incoming: t * Llvm.llbasicblock -> t -> unit
 
+  (** Returns an LLVM type that can store a vector of the given profile. *)
   val packing_type: profile -> Llvm.lltype
+
+  (** Encodes a vector into its packing type. *)
   val pack : t -> Llvm.llvalue
+
+  (** Decodes a vector from its packing type. *)
   val unpack : profile -> Llvm.llvalue -> t
 end =
 struct
@@ -69,7 +99,7 @@ struct
   let null = { bits = M.empty }
   let singleton i v = { bits = M.singleton i [v] }
 
-  let pair v w =
+  let concatenate v w =
     { bits =
         M.merge v.bits w.bits
           ~f:(fun ~key:_ -> function
@@ -164,38 +194,18 @@ end
 
 type encoded_value = {
   payload : Llvm.llvalue list;
-  attrib: Bitvector.t
+  attrib: Mixedvector.t
 }
- (*
- * Payload:
- *   <> -> []
- *   <t1,t2> -> (payload t1) @ (payload t2)
- *   inl(t1) -> (payload t1)
- *   inr(t2) -> (payload t2)
- *
- * Attribution:
- *   <> -> []
- *   <t1,t2> -> (attrib t1) | (attrib t2)
- *   inl(t1) -> (attrib t1) | 0
- *   inl(t1) -> (attrib t1) | 1
- *
- * Payload-Size:
- *   1 -> 0
- *   N -> 1
- *   A*B -> (payload_size A) + (payload_size B)
- *   A+B -> max(payload_size A, payload_size B)
- *
- * Attrib-Size:
- *   1 -> 0
- *   N -> 0
- *   A*B -> (attrib_size A) + (attrib_size B)
- *   A+B -> max(attrib_size A, attrib_size B)
-*)
 
-(*
- * Namensschema:
- * Payload: x.0, x.1, ..., x.(payload_size -1)
- * Attrib: x.a
+(** To each [a: Basetype.t] we assign a number [payload_size a]
+    and a profile [attrib_size a]. 
+    The values of type [a] will be represented by
+    a list of [(payload_size a)] native int values and 
+    a vector with profile [(attrib_size a)].
+
+    TODO: The payload could become part of the profile. Originally,
+    the profile was just a bitvector, which was the reason for the
+    separation.
 *)
 
 let payload_size (a: Basetype.t) : int =
@@ -214,7 +224,6 @@ let payload_size (a: Basetype.t) : int =
       List.fold_right cs ~f:(fun c m -> max (p_s c) m) ~init:0
   in p_s a
 
-(* aufräumen *)
 let attrib_size (a: Basetype.t) : profile =
   let rec a_s a =
     let open Basetype in
@@ -241,9 +250,12 @@ let attrib_size (a: Basetype.t) : profile =
 let assert_type tenc a =
   assert (List.length tenc.payload = payload_size a);
   assert (M.equal (=) (attrib_size a)
-            (Bitvector.to_profile tenc.attrib))
+            (Mixedvector.to_profile tenc.attrib))
 
-let build_truncate_extend (enc : encoded_value) (a : Basetype.t) =
+(** Truncate or fill with undefs the vectors in [enc], so
+    that it becomes a value of type [a]. *)
+let build_truncate_extend (enc : encoded_value) (a : Basetype.t)
+  : encoded_value =
   let a_payload_size = payload_size a in
   let a_attrib_bitlen = attrib_size a in
   let rec mk_payload p n =
@@ -252,7 +264,7 @@ let build_truncate_extend (enc : encoded_value) (a : Basetype.t) =
       | [] -> Llvm.undef (native_int) :: (mk_payload [] (n-1))
       | x::xs -> x :: (mk_payload xs (n-1)) in
   let x_payload = mk_payload enc.payload a_payload_size in
-  let x_attrib = Bitvector.coerce enc.attrib a_attrib_bitlen in
+  let x_attrib = Mixedvector.coerce enc.attrib a_attrib_bitlen in
   { payload = x_payload; attrib = x_attrib }
 
 let packing_type (a: Basetype.t) : Llvm.lltype =
@@ -260,7 +272,7 @@ let packing_type (a: Basetype.t) : Llvm.lltype =
   let struct_members =
     Array.append
       (Array.create ~len:len_p native_int)
-      (Array.create ~len:1 (Bitvector.packing_type (attrib_size a))) in
+      (Array.create ~len:1 (Mixedvector.packing_type (attrib_size a))) in
   let struct_type = Llvm.packed_struct_type context struct_members in
   struct_type
 
@@ -268,7 +280,7 @@ let pack_encoded_value (enc: encoded_value) (a: Basetype.t): Llvm.llvalue =
   assert_type enc a;
   let struct_type = packing_type a in
   let packed_enc =
-    List.foldi (enc.payload @ [Bitvector.pack enc.attrib])
+    List.foldi (enc.payload @ [Mixedvector.pack enc.attrib])
       ~f:(fun i s v -> Llvm.build_insertvalue s v i "packed" builder)
       ~init:(Llvm.undef struct_type) in
   packed_enc
@@ -280,8 +292,9 @@ let unpack_encoded_value (packed_enc: Llvm.llvalue) (a: Basetype.t)
   let pl = List.init len_p
              ~f:(fun i -> Llvm.build_extractvalue packed_enc i "p" builder) in
   let at = Llvm.build_extractvalue packed_enc len_p "a" builder in
-  {payload = pl; attrib = Bitvector.unpack len_a at}
+  {payload = pl; attrib = Mixedvector.unpack len_a at}
 
+(** Encoding of values *)
 let rec build_value
       (the_module : Llvm.llmodule)
       (ctx: (string * encoded_value) list)
@@ -291,13 +304,13 @@ let rec build_value
     List.Assoc.find_exn ctx x
   | Ssa.IntConst(i) ->
     let vali = Llvm.const_int (native_int) i in
-    {payload = [vali]; attrib = Bitvector.null;}
+    {payload = [vali]; attrib = Mixedvector.null;}
   | Ssa.Unit ->
-    {payload = []; attrib = Bitvector.null}
+    {payload = []; attrib = Mixedvector.null}
   | Ssa.Pair(t1, t2) ->
     let t1enc = build_value the_module ctx t1 in
     let t2enc = build_value the_module ctx t2 in
-    let ta = Bitvector.pair t1enc.attrib t2enc.attrib in
+    let ta = Mixedvector.concatenate t1enc.attrib t2enc.attrib in
     {payload = t1enc.payload @ t2enc.payload; attrib = ta}
   | Ssa.In((id, _, t), a) when
       Basetype.Data.constructor_count id = 1 ||
@@ -308,7 +321,7 @@ let rec build_value
     let n = Basetype.Data.constructor_count id in
     let tenc = build_value the_module ctx t in
     let branch = Llvm.const_int (Llvm.integer_type context (log n)) i in
-    let attrib_branch = Bitvector.pair (Bitvector.singleton (log n) branch)
+    let attrib_branch = Mixedvector.concatenate (Mixedvector.singleton (log n) branch)
                           tenc.attrib in
     let denc = { payload = tenc.payload; attrib = attrib_branch} in
     build_truncate_extend denc a
@@ -319,9 +332,9 @@ let rec build_value
     let len_aa = attrib_size a in
     assert (List.length tenc.payload = len_ap + len_bp);
     let t1p, _ = List.split_n tenc.payload len_ap in
-    let t1a, t2a = Bitvector.takedrop tenc.attrib len_aa in
-    assert (M.equal (=) (attrib_size a) (Bitvector.to_profile t1a));
-    assert (M.equal (=) (attrib_size b) (Bitvector.to_profile t2a));
+    let t1a, t2a = Mixedvector.takedrop tenc.attrib len_aa in
+    assert (M.equal (=) (attrib_size a) (Mixedvector.to_profile t1a));
+    assert (M.equal (=) (attrib_size b) (Mixedvector.to_profile t2a));
     {payload = t1p; attrib = t1a }
   | Ssa.Snd(t, a, b) ->
     let tenc = build_value the_module ctx t in
@@ -330,9 +343,9 @@ let rec build_value
     let len_aa = attrib_size a in
     assert (List.length tenc.payload = len_ap + len_bp);
     let _ , t2p = List.split_n tenc.payload len_ap in
-    let t1a, t2a = Bitvector.takedrop tenc.attrib len_aa in
-    assert (M.equal (=) (attrib_size a) (Bitvector.to_profile t1a));
-    assert (M.equal (=) (attrib_size b) (Bitvector.to_profile t2a));
+    let t1a, t2a = Mixedvector.takedrop tenc.attrib len_aa in
+    assert (M.equal (=) (attrib_size a) (Mixedvector.to_profile t1a));
+    assert (M.equal (=) (attrib_size b) (Mixedvector.to_profile t2a));
     {payload = t2p; attrib = t2a }
   | Ssa.Select(t, (id, params), i)
     when Basetype.Data.is_discriminated id = false ->
@@ -349,7 +362,7 @@ let rec build_value
       begin
         let yenc =
           let _, ya =
-            Bitvector.takedrop tenc.attrib (singleton_profile (log n)) in
+            Mixedvector.takedrop tenc.attrib (singleton_profile (log n)) in
           {payload = tenc.payload; attrib = ya} in
         let case_types = Basetype.Data.constructor_types id params in
         assert (i < List.length case_types);
@@ -357,7 +370,7 @@ let rec build_value
         build_truncate_extend yenc ai
       end
   | Ssa.Undef(a) ->
-    build_truncate_extend {payload = []; attrib = Bitvector.null} a
+    build_truncate_extend {payload = []; attrib = Mixedvector.null} a
 
 let build_term
       (the_module : Llvm.llmodule)
@@ -379,7 +392,7 @@ let build_term
     let venc = build_value the_module ctx v in
     let v_packed = pack_encoded_value (build_truncate_extend venc a) a in
     ignore (Llvm.build_store v_packed mem_ptr builder);
-    {payload = []; attrib = Bitvector.null}
+    {payload = []; attrib = Mixedvector.null}
   | Ssa.Const(Ast.Cpop(a), _) ->
     let spoptype = Llvm.function_type
                      (Llvm.pointer_type (Llvm.i8_type context))
@@ -397,7 +410,6 @@ let build_term
     let strptr = Llvm.build_in_bounds_gep str
                    (Array.create ~len:2 (Llvm.const_null native_int)) "strptr" builder in
     let strptrint = Llvm.build_ptrtoint strptr native_int "strptrint" builder in
-    (* declare puts *)
     let i8a = Llvm.pointer_type (Llvm.i8_type context) in
     let formatstr = Llvm.build_global_string "%s" "format" builder in
     let formatstrptr = Llvm.build_in_bounds_gep formatstr
@@ -408,7 +420,7 @@ let build_term
     let printf = Llvm.declare_function "printf" printftype the_module in
     let args = Array.of_list [formatstrptr; strptrint] in
     ignore (Llvm.build_call printf args "i" builder);
-    {payload = []; attrib = Bitvector.null}
+    {payload = []; attrib = Mixedvector.null}
   | Ssa.Const(Ast.Ccall(e, a, b), v) ->
     let a_struct = packing_type a in
     let b_struct = packing_type b in
@@ -445,58 +457,58 @@ let build_term
       match const, argenc.payload with
       | Ast.Cintadd, [x; y] ->
         {payload = [Llvm.build_add x y "add" builder];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintadd, _ -> failwith "internal: wrong argument to intadd"
       | Ast.Cintsub, [x; y] ->
         {payload = [Llvm.build_sub x y "sub" builder];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintsub, _ -> failwith "internal: wrong argument to intsub"
       | Ast.Cintmul, [x; y] ->
         {payload = [Llvm.build_mul x y "mul" builder];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintmul, _ -> failwith "internal: wrong argument to intmul"
       | Ast.Cintdiv, [x; y] ->
         {payload = [Llvm.build_sdiv x y "sdiv" builder];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintdiv, _ -> failwith "internal: wrong argument to intdiv"
       | Ast.Cinteq, [x; y] ->
         {payload = [];
-         attrib = Bitvector.singleton 1
+         attrib = Mixedvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Ne x y "eq" builder)}
       | Ast.Cinteq, _ -> failwith "internal: wrong argument to inteq"
       | Ast.Cintlt, [x; y] ->
         {payload = [];
-         attrib = Bitvector.singleton 1
+         attrib = Mixedvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Uge x y "lt" builder )}
       | Ast.Cintlt, _ -> failwith "internal: wrong argument to intslt"
       | Ast.Cintslt, [x; y] ->
         {payload = [];
-         attrib = Bitvector.singleton 1
+         attrib = Mixedvector.singleton 1
                     (Llvm.build_icmp Llvm.Icmp.Sge x y "slt" builder )}
       | Ast.Cintslt, _ -> failwith "internal: wrong argument to intslt"
       | Ast.Cintshl, [x; y] ->
         {payload = [Llvm.build_shl x y "shl" builder];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintshl, _ -> failwith "internal: wrong argument to intshl"
       | Ast.Cintshr, [x; y] ->
         {payload = [Llvm.build_lshr x y "shr" builder ];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintshr, _ -> failwith "internal: wrong argument to intshr"
       | Ast.Cintsar, [x; y] ->
         {payload = [Llvm.build_ashr x y "sar" builder ];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintsar, _ -> failwith "internal: wrong argument to intsar"
       | Ast.Cintand, [x; y] ->
         {payload = [Llvm.build_and x y "and" builder ];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintand, _ -> failwith "internal: wrong argument to intand"
       | Ast.Cintor, [x; y] ->
         {payload = [Llvm.build_or x y "or" builder ];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintor, _ -> failwith "internal: wrong argument to intor"
       | Ast.Cintxor, [x; y] ->
         {payload = [Llvm.build_xor x y "xor" builder ];
-         attrib = Bitvector.null}
+         attrib = Mixedvector.null}
       | Ast.Cintxor, _ -> failwith "internal: wrong argument to intxor"
       | Ast.Cintprint, [x] ->
         let i8a = Llvm.pointer_type (Llvm.i8_type context) in
@@ -509,7 +521,7 @@ let build_term
         let printf = Llvm.declare_function "printf" printftype the_module in
         let args = Array.of_list [formatstrptr; x] in
         ignore (Llvm.build_call printf args "i" builder);
-        {payload = []; attrib = Bitvector.null }
+        {payload = []; attrib = Mixedvector.null }
       | Ast.Cintprint, _ -> failwith "internal: wrong argument to intprint"
       | Ast.Calloc(a), _ ->
         let malloc =
@@ -521,14 +533,14 @@ let build_term
                           (Array.of_list [Llvm.size_of a_struct])
                           "memi8" builder in
         let addr = Llvm.build_ptrtoint mem_i8ptr native_int "memint" builder in
-        {payload = [addr]; attrib = Bitvector.null}
+        {payload = [addr]; attrib = Mixedvector.null}
       | Ast.Cfree _, [addr] ->
         let free =
           match Llvm.lookup_function "free" the_module with
           | Some free -> free
           | None -> assert false in
         ignore (Llvm.build_call free (Array.of_list [addr]) "free" builder);
-        {payload = []; attrib = Bitvector.null}
+        {payload = []; attrib = Mixedvector.null}
       | Ast.Cfree _, _ -> failwith "internal: wrong argument to free"
       | Ast.Cload a, [addr] ->
         let a_struct = packing_type a in
@@ -546,7 +558,7 @@ let build_term
         let venc = { payload = vpayload; attrib = argenc.attrib } in
         let v_packed = pack_encoded_value (build_truncate_extend venc a) a in
         ignore (Llvm.build_store v_packed mem_ptr builder);
-        {payload = []; attrib = Bitvector.null}
+        {payload = []; attrib = Mixedvector.null}
       | Ast.Cstore _, _ -> failwith "internal: wrong argument to store"
       | Ast.Carrayalloc a, [length] ->
         let a_struct = packing_type a in
@@ -560,7 +572,7 @@ let build_term
                           (Array.of_list [byte_size])
                           "memi8" builder in
         let addr = Llvm.build_ptrtoint mem_i8ptr native_int "memint" builder in
-        {payload = [addr]; attrib = Bitvector.null}
+        {payload = [addr]; attrib = Mixedvector.null}
       | Ast.Carrayalloc _, _ -> failwith "internal: wrong argument to arrayalloc"
       | Ast.Carrayfree _, [addr] ->
         let free =
@@ -568,14 +580,14 @@ let build_term
           | Some free -> free
           | None -> assert false in
         ignore (Llvm.build_call free (Array.of_list [addr]) "free" builder);
-        {payload = []; attrib = Bitvector.null}
+        {payload = []; attrib = Mixedvector.null}
       | Ast.Carrayfree _, _ -> failwith "internal: wrong argument to arrayfree"
       | Ast.Carrayget a, [addr; idx] ->
         let a_struct = packing_type a in
         let offset =
           let p1 = Llvm.build_mul idx (Llvm.size_of a_struct) "p1" builder in
           Llvm.build_add addr p1 "offset" builder in
-        {payload = [offset]; attrib = Bitvector.null}
+        {payload = [offset]; attrib = Mixedvector.null}
       | Ast.Carrayget _, _ -> failwith "internal: wrong argument to arrayget"
       | Ast.Cprint _, _
       | Ast.Cpush _, _
@@ -635,7 +647,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
       let phi = Int.Table.find_exn phi_nodes dst in
       List.iter2_exn phi.payload encoded_value.payload
         ~f:(fun phix  x -> Llvm.add_incoming (x, src_block) phix);
-      Bitvector.add_incoming (encoded_value.attrib, src_block) phi.attrib
+      Mixedvector.add_incoming (encoded_value.attrib, src_block) phi.attrib
     (* add (encoded_value, source) to phi node *)
     with Not_found ->
       (* TODO: Bei Grad 1 braucht man keine Phi-Knoten *)
@@ -644,7 +656,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
         let payload =
           List.map encoded_value.payload
             ~f: (fun x -> Llvm.build_phi [(x, src_block)] "g" builder) in
-        let attrib = Bitvector.build_phi
+        let attrib = Mixedvector.build_phi
                        (encoded_value.attrib, src_block) builder in
         let phi = { payload = payload; attrib = attrib } in
         Int.Table.replace phi_nodes ~key:dst ~data:phi
@@ -695,8 +707,8 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
           | _ ->
             let cond, yenc =
               let ienc, ya =
-                Bitvector.takedrop ebody.attrib (singleton_profile (log n)) in
-              let cond = Bitvector.llvalue_of_singleton ienc in
+                Mixedvector.takedrop ebody.attrib (singleton_profile (log n)) in
+              let cond = Mixedvector.llvalue_of_singleton ienc in
               cond, {payload = ebody.payload; attrib = ya } in
             let case_types = Basetype.Data.constructor_types id params in
             let jump_targets =
@@ -729,16 +741,13 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
         Llvm.position_at_end (get_block src.name) builder;
         let xenc = Int.Table.find_exn phi_nodes src.name in
         let ev = build_body the_module [(x, xenc)] lets body in
-        (*               let pty = packing_type return_type in*)
         let pev = pack_encoded_value ev return_type in
         ignore (Llvm.build_ret pev builder)
-        (* TODO: actual return *)
     )
 
-(* Must be applied to circuit of type [A] *)
 let llvm_compile (ssa_func : Ssa.t) : Llvm.llmodule =
   let the_module = Llvm.create_module context "int" in
-  
+
   (* General function declarations *)
   let malloctype = Llvm.function_type
                      (Llvm.pointer_type (Llvm.i8_type context))
