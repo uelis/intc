@@ -1,6 +1,5 @@
 open Core.Std
 open Lexing
-open Opts
 
 let parse_error_loc lexbuf =
   let start_pos = lexbuf.lex_start_p in
@@ -47,7 +46,7 @@ let compile (d: Decl.t) : unit =
         let t = Typing.check_term [] [] ast in
         let circuit = Circuit.circuit_of_term t in
         Printf.printf "%s : %s\n" f
-          (Printing.string_of_type ~concise:(not !opt_print_type_details)
+          (Printing.string_of_type ~concise:(not !Opts.print_type_details)
              t.Typedterm.t_type);
         circuit
       with Typing.Typing_error(s, err) ->
@@ -55,12 +54,12 @@ let compile (d: Decl.t) : unit =
                   "declaration of '" ^ f ^ "'.\n" ^ err ^ "\n" in
         raise (Failure (error_msg (term_loc s) msg)) in
     flush stdout;
-    if !opt_keep_circuits then
+    if !Opts.keep_circuits then
       begin
         let target = Printf.sprintf "%s.dot" f in
         Out_channel.write_all target ~data:(Circuit.dot_of_circuit circuit)
       end;
-    if !opt_keep_ssa then
+    if !Opts.keep_ssa then
       begin
         let ssa_func = Ssa.circuit_to_ssa f circuit in
         let ssa_traced = Trace.trace ssa_func in
@@ -81,7 +80,7 @@ let compile (d: Decl.t) : unit =
           "*** Writing ssa-form program for %s to file '%s'\n" f target;
         write_ssa target ssa_shortcut
       end;
-    if !opt_llvm_compile && (f = "main") then
+    if !Opts.llvm_compile && (f = "main") then
       begin
         let ssa_func = Ssa.circuit_to_ssa f circuit in
         let ssa_traced = Trace.trace ssa_func in
@@ -93,16 +92,16 @@ let compile (d: Decl.t) : unit =
 
 let arg_spec =
   [("--type-details",
-    Arg.Unit (fun _ -> opt_print_type_details := true),
+    Arg.Unit (fun _ -> Opts.print_type_details := true),
     "Print full type details, including subexponentials.");
    ("--circuits",
-    Arg.Unit (fun _ -> opt_keep_circuits := true),
+    Arg.Unit (fun _ -> Opts.keep_circuits := true),
     "Keep circuit for each declaration (f.dot).");
    ("--ssa",
-    Arg.Unit (fun _ -> opt_keep_ssa := true),
+    Arg.Unit (fun _ -> Opts.keep_ssa := true),
     "Keep ssa program for each declaration (f.ssa).");
    ("--llvm",
-    Arg.Unit (fun _ -> opt_llvm_compile := true),
+    Arg.Unit (fun _ -> Opts.llvm_compile := true),
     "Keep llvm bitcode for each declaration (f.bc).");
   ]
 
@@ -116,9 +115,9 @@ let main =
       Printf.printf "No input file.\n"
     else
       begin
-        if !opt_keep_ssa then
+        if !Opts.keep_ssa then
           Printf.printf "*** Writing ssa files.\n";
-        if !opt_llvm_compile then
+        if !Opts.llvm_compile then
           Printf.printf "*** Writing llvm bitcode files.\n";
         let input = In_channel.read_all !file_name in
         let decls = parse input in

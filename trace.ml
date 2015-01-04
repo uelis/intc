@@ -83,7 +83,7 @@ let trace_block blocks i0 =
   let rec trace_block i v =
     let block = Int.Table.find_exn blocks i in
     match Int.Table.find visited i with
-    | Some i when i > !Opts.opt_trace_loop_threshold ->
+    | Some i when i > !Opts.trace_loop_threshold ->
       let lets = flush_lets () in
       let dst = label_of_block block in
       Direct(l0, x0, lets, v, dst)
