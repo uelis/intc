@@ -560,8 +560,6 @@ let rec bind_context z a (gamma: Basetype.t Typing.context) : let_binding list =
 module U = Unify(struct type t = unit end)
 
 let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
-  (* Notice that the freshness invariant must be considered here:
-   * The instructions do not contain a free variable starting with "x". *)
   let open Circuit in
 
   let blocks = ref [] in
