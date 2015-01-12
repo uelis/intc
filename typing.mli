@@ -1,7 +1,7 @@
 (** Type inference *)
 
 (** Type contexts *)
-type 'a context = (Ast.var * 'a) list
+type 'a context = (Ident.t * 'a) list
 
 exception Typing_error of Ast.t option * string
 

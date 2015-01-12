@@ -69,46 +69,21 @@ let mkDatatype id params constructors =
     constructors;
   id
 
-type pattern =
-  | PatUnit
-  | PatVar of string
-  | PatPair of pattern * pattern
-
-(* TODO: patterns should still appear in ast *)
-let elim_pattern p t =
-  (* check pattern *)
+let check_pattern p = 
   let rec vars p =
     match p with
     | PatUnit -> []
     | PatVar(z) -> [z]
     | PatPair(p, q) -> vars p @ vars q in
-  let sorted_vars = List.sort ~cmp:String.compare (vars p) in
+  let sorted_vars = List.sort ~cmp:Ident.compare (vars p) in
   let rec check sorted_vars =
     match sorted_vars with
     | [] | [_] -> ()
     | x::y::r ->
       if x = y then illformed "Multiple occurrence of variable in pattern."
       else check (y::r) in
-  check sorted_vars;
-  (* eliminate pattern *)
-  let rec elim p t =
-    match p with
-    | PatUnit ->
-      let vs = Ast.all_vars t in
-      let z = Vargen.mkVarGenerator "u" ~avoid:vs () in
-      let unitB = Basetype.newty Basetype.UnitB in
-      z,
-      mkAst (Bind(mkAst (TypeAnnot(mkAst (Return(mkAst (Var z))),
-                                   Type.newty (Type.Base unitB))),
-                  (unusable_var, t)))
-    | PatVar(z) -> z, t
-    | PatPair(p1, p2) ->
-      let z1, t1 = elim p1 t in
-      let z2, t2 = elim p2 t1 in
-      z1, Ast.subst (mkAst (SndV (mkAst (Var z1)))) z2
-            (Ast.subst (mkAst (FstV (mkAst (Var z1)))) z1 t2) in
-  elim p t
-
+  check sorted_vars
+  
 let type_vars = String.Table.create ()
 let type_var (a : string) : Type.t =
    try
@@ -185,19 +160,17 @@ decl:
         }
     | FN identifier pattern EQUALS term
         { clear_type_vars ();
-          let alpha = Basetype.newty Basetype.Var in
-          let x, t = elim_pattern $3 $5 in
-          let def = mkAst (Fn((x, alpha), t)) in
+          let def = mkAst (Fn($3, $5)) in
           Decl.TermDecl($2, def) }
 
 identifier:
     | IDENT
-        { $1 }
+        { Ident.global $1 }
 
 identifier_list:
-    | IDENT
+    | identifier
         { [$1] }
-    | IDENT COMMA identifier_list
+    | identifier COMMA identifier_list
         { $1 :: $3 }
 
 term:
@@ -211,19 +184,16 @@ term:
         { let alpha = Basetype.newty Basetype.Var in
           mkAst (Fun (($3, alpha, $5), $8)) }
     | FN pattern TO term
-        { let alpha = Basetype.newty Basetype.Var in
-          let x, t = elim_pattern $2 $4 in
-          mkAst (Fn((x, alpha), t)) }
+       { mkAst (Fn($2, $4)) }
     | COPY term AS identifier_list IN term
        { mkAst (Copy($2, ($4, $6))) }
     | LET LPAREN identifier SHARP identifier RPAREN EQUALS term IN term
         { mkAst (LetPair($8, ($3, $5, $10))) }
     | VAL pattern EQUALS term IN term
-        { let x, t = elim_pattern $2 $6 in
-          mkAst (Bind($4, (x, t))) }
+        { mkAst (Bind($4, ($2, $6))) }
     | IF term THEN term ELSE term
         { mkAst (Case(Basetype.Data.boolid, $2,
-                        [(unusable_var, $4); (unusable_var, $6)])) }
+                        [(PatUnit, $4); (PatUnit, $6)])) }
     | CASE term OF term_cases
         {let id, c = $4 in
          let sorted_c = List.sort c
@@ -238,8 +208,7 @@ term:
            illformed "case must match each constructor exactly once!"
        }
     | term_app SEMICOLON term
-        { let x, t = elim_pattern PatUnit $3 in
-          mkAst (Bind($1, (x, t))) }
+        { mkAst (Bind($1, (PatUnit, $3))) }
     | term_app
        { $1 }
     | term_constr
@@ -257,7 +226,7 @@ term_constr:
 
 term_case:
   | term_constr TO
-       { let id, i = $1 in (id, i, PatVar(unusable_var)) }
+       { let id, i = $1 in (id, i, PatVar(Ident.fresh "unused")) }
     | term_constr pattern TO
         {
           let id, i = $1 in
@@ -267,13 +236,11 @@ term_cases:
     | term_case term
     %prec THEN
        { let id, i, p = $1 in
-         let x, t = elim_pattern p $2 in
-         (id, [i,x,t]) }
+         (id, [(i, p, $2)]) }
     | term_case term VERTBAR term_cases
         {  let id, i, p = $1 in
-           let x, t = elim_pattern p $2 in
            let id', r = $4 in
-            if id = id' then (id, (i, x, t)::r)
+            if id = id' then (id, (i, p, $2)::r)
             else illformed "Constructors from different types used in case." }
 
 term_app:
@@ -290,9 +257,7 @@ term_atom:
     | LPAREN term RPAREN
        { $2 }
     | LBRACE term RBRACE
-        { let alpha = Basetype.newty Basetype.Var in
-          let x, t = elim_pattern PatUnit $2 in
-          mkAst (Fn((x, alpha), t)) }
+       { mkAst (Fn(PatUnit, $2)) }
     | LPAREN term COMMA term RPAREN
        { mkAst (PairV($2, $4)) }
     | LPAREN term SHARP term RPAREN
@@ -361,23 +326,28 @@ term_atom:
         { mkAst (App(mkAst (Const(Cpush($3))), $5)) }
     | POP LPAREN basetype RPAREN
         { mkAst (App(mkAst (Const(Cpop($3))), mkAst UnitV)) }
-    | CALL LPAREN identifier COLON basetype TO basetype COMMA term RPAREN
+    | CALL LPAREN IDENT COLON basetype TO basetype COMMA term RPAREN
         { mkAst (App(mkAst (Const(Ccall($3, $5, $7))), $9)) }
     | HACK LPAREN term COLON inttype RPAREN
        { mkAst (Direct($5, $3)) }
     | PRINT STRING
         { mkAst (App(mkAst (Const(Cprint $2)), mkAst (UnitV))) }
 
-pattern:
+raw_pattern:
     | identifier
        { PatVar($1) }
     | LPAREN RPAREN
         { PatUnit }
-    | LPAREN pattern COMMA pattern RPAREN
+    | LPAREN raw_pattern COMMA raw_pattern RPAREN
         { PatPair($2, $4) }
-    | LPAREN pattern RPAREN
+    | LPAREN raw_pattern RPAREN
         { $2 }
 
+pattern:
+    | raw_pattern
+        { let p = $1 in
+          check_pattern p;
+          p }
 
 dataW:
     | TYPE datadeclW EQUALS constructorsW
@@ -387,17 +357,17 @@ dataW:
        }
 
 datadeclW:
-    | identifier
+    | IDENT
       { $1, [] }
-    | identifier LANGLE dataparamsW RANGLE
+    | IDENT LANGLE dataparamsW RANGLE
       { let ty = $1 in
         let params = $3 in
           ty, params }
 
 dataparamsW:
-    | QUOTE identifier
+    | QUOTE IDENT
       { [basetype_var $2] }
-    | QUOTE identifier COMMA dataparamsW
+    | QUOTE IDENT COMMA dataparamsW
       { let var = basetype_var $2 in
         let vars = $4 in
           if List.exists ~f:(fun alpha -> Basetype.equals var alpha) vars then
@@ -428,7 +398,7 @@ basetype_factor:
       { Basetype.newty (Basetype.PairB($1, $3)) }
 
 basetype_atom:
-    | QUOTE identifier
+    | QUOTE IDENT
       { basetype_var $2 }
     | UNIT
       { Basetype.newty (Basetype.UnitB) }
@@ -438,9 +408,9 @@ basetype_atom:
       { Basetype.newty (Basetype.BoxB($3)) }
     | ARRAY LANGLE basetype RANGLE
       { Basetype.newty (Basetype.ArrayB($3)) }
-    | identifier
+    | IDENT
       { Basetype.newty (Basetype.DataB($1, [])) }
-    | identifier LANGLE basetype_list RANGLE
+    | IDENT LANGLE basetype_list RANGLE
       { Basetype.newty (Basetype.DataB($1, $3)) }
     | LPAREN basetype RPAREN
       { $2 }
@@ -468,7 +438,7 @@ inttype_factor:
       { Type.newty (Type.Tensor($1, $3)) }
 
 inttype_atom:
-    | DOUBLEQUOTE identifier
+    | DOUBLEQUOTE IDENT
         { type_var $2 }
     | LBRACKET basetype RBRACKET
         { Type.newty (Type.Base $2) }

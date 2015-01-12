@@ -41,51 +41,53 @@ let term_loc (s : Ast.t option) =
 let compile (d: Decl.t) : unit =
   match d with
   | Decl.TermDecl(f, ast) ->
+    let f_name = Ident.to_string f in
     let circuit =
       try
         let t = Typing.check_term [] [] ast in
         let circuit = Circuit.circuit_of_term t in
-        Printf.printf "%s : %s\n" f
+        Printf.printf "%s : %s\n"
+          (Ident.to_string f)
           (Printing.string_of_type ~concise:(not !Opts.print_type_details)
              t.Typedterm.t_type);
         circuit
       with Typing.Typing_error(s, err) ->
         let msg = "Typing error when checking " ^
-                  "declaration of '" ^ f ^ "'.\n" ^ err ^ "\n" in
+                  "declaration of '" ^ f_name ^ "'.\n" ^ err ^ "\n" in
         raise (Failure (error_msg (term_loc s) msg)) in
     flush stdout;
     if !Opts.keep_circuits then
       begin
-        let target = Printf.sprintf "%s.dot" f in
+        let target = Printf.sprintf "%s.dot" f_name in
         Out_channel.write_all target ~data:(Circuit.dot_of_circuit circuit)
       end;
     if !Opts.keep_ssa then
       begin
-        let ssa_func = Ssa.circuit_to_ssa f circuit in
+        let ssa_func = Ssa.circuit_to_ssa f_name circuit in
         let ssa_traced = Trace.trace ssa_func in
         let ssa_shortcut = Trace.shortcut_jumps ssa_traced in
         let write_ssa filename ssafunc =
           Out_channel.with_file filename
             ~f:(fun c -> Ssa.fprint_func c ssafunc) in
-        let target = Printf.sprintf "%s.ssa" f in
+        let target = Printf.sprintf "%s.ssa" f_name in
         Printf.printf
-          "*** Writing ssa-form program for %s to file '%s'\n" f target;
+          "*** Writing ssa-form program for %s to file '%s'\n" f_name target;
         write_ssa target ssa_func;
-        let target = Printf.sprintf "%s.ssa.traced" f in
+        let target = Printf.sprintf "%s.ssa.traced" f_name in
         Printf.printf
-          "*** Writing ssa-form program for %s to file '%s'\n" f target;
+          "*** Writing ssa-form program for %s to file '%s'\n" f_name target;
         write_ssa target ssa_traced;
-        let target = Printf.sprintf "%s.ssa.shortcut" f in
+        let target = Printf.sprintf "%s.ssa.shortcut" f_name in
         Printf.printf
-          "*** Writing ssa-form program for %s to file '%s'\n" f target;
+          "*** Writing ssa-form program for %s to file '%s'\n" f_name target;
         write_ssa target ssa_shortcut
       end;
-    if !Opts.llvm_compile && (f = "main") then
+    if !Opts.llvm_compile && (f_name = "main") then
       begin
-        let ssa_func = Ssa.circuit_to_ssa f circuit in
+        let ssa_func = Ssa.circuit_to_ssa f_name circuit in
         let ssa_traced = Trace.trace ssa_func in
         let ssa_shortcut = Trace.shortcut_jumps ssa_traced in
-        let target = Printf.sprintf "%s.bc" f in
+        let target = Printf.sprintf "%s.bc" f_name in
         let llvm_module = Llvmcodegen.llvm_compile ssa_shortcut in
         ignore (Llvm_bitwriter.write_bitcode_file llvm_module target)
        end

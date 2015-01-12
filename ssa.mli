@@ -4,7 +4,7 @@ open Core.Std
 
 (** SSA values and terms *)
 type value =
-  | Var of Ast.var
+  | Var of Ident.t
   | Unit
   | Pair of value * value
   | In of (Basetype.Data.id * int * value) * Basetype.t
@@ -18,14 +18,14 @@ type term =
   | Const of Ast.op_const * value
 
 (** Substition of values in values *)
-val subst_value: (Ast.var -> value) -> value -> value
+val subst_value: (Ident.t -> value) -> value -> value
 
 (** Substition of values in terms *)
-val subst_term: (Ast.var -> value) -> term -> term
+val subst_term: (Ident.t -> value) -> term -> term
 
 (** Straight-line programs are given by let bindings *)
 type let_binding =
-  | Let of (Ast.var * Basetype.t) * term
+  | Let of (Ident.t * Basetype.t) * term
 
 (** A block is a list of let bindings in reverse order. *)
 type let_bindings = let_binding list
@@ -39,11 +39,11 @@ type label = {
 (** Program blocks *)
 type block =
   | Unreachable of label
-  | Direct of label * Ast.var * let_bindings * value * label
-  | Branch of label * Ast.var * let_bindings *
+  | Direct of label * Ident.t * let_bindings * value * label
+  | Branch of label * Ident.t * let_bindings *
               (Basetype.Data.id * Basetype.t list * value *
-               (Ast.var * value * label) list)
-  | Return of label * Ast.var * let_bindings * value * Basetype.t
+               (Ident.t * value * label) list)
+  | Return of label * Ident.t * let_bindings * value * Basetype.t
 
 (** Return the label defined by a block *)
 val label_of_block: block -> label

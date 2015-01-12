@@ -335,34 +335,48 @@ let string_of_op_const (c: Ast.op_const) : string =
 let fprint_ast (f: Format.formatter) (term: Ast.t): unit =
   let open Ast in
   let open Format in
+  let rec s_pattern (p: Ast.pattern): unit =
+    match p with
+    | PatUnit -> fprintf f "()"
+    | PatVar x -> fprintf f "%s" (Ident.to_string x)
+    | PatPair(p1, p2) ->
+      fprintf f "(";
+      s_pattern p1;
+      fprintf f ", ";
+      s_pattern p2;
+      fprintf f ")" in
   let rec s_term (t: Ast.t): unit =
     match t.desc with
     | Return(t) ->
       fprintf f "return @[";
       s_term t;
       fprintf f "@]"
-    | Fn((x, _), t1) ->
-      fprintf f "@[<hv 1>fn %s ->@;" x;
+    | Fn(p, t1) ->
+      fprintf f "@[<hv 1>fn ";
+      s_pattern p;
+      fprintf f " ->@;";
       s_term t1;
       fprintf f "@]"
     | Fun((x, _, _), t1) ->
-      fprintf f "@[<hv 1>\\%s ->@;" x;
+      fprintf f "@[<hv 1>\\%s ->@;" (Ident.to_string x);
       s_term t1;
       fprintf f "@]"
     | Copy(t1, (xs, t2)) ->
       fprintf f "copy @[";
       s_term t1;
-      fprintf f "@] as %s in@ @[" (String.concat ~sep:", " xs);
+      fprintf f "@] as %s in@ @[" (String.concat ~sep:", " (List.map ~f:Ident.to_string xs));
       s_term t2;
       fprintf f "@]"
     | LetPair(t1, (x, y, t2)) ->
-      fprintf f "@[<hv 1>let %s # %s =@ " x y;
+      fprintf f "@[<hv 1>let %s # %s =@ " (Ident.to_string x) (Ident.to_string y);
       s_term t1;
       fprintf f "@] in@ @[";
       s_term t2;
       fprintf f "@]"
-    | Bind(t1, (x, t2)) ->
-      fprintf f "@[<hv 1>val %s =@ " x;
+    | Bind(t1, (p, t2)) ->
+      fprintf f "@[<hv 1>val ";
+      s_pattern p;
+      fprintf f " =@ ";
       s_term t1;
       fprintf f "@] in@ @[";
       s_term t2;
@@ -373,10 +387,12 @@ let fprint_ast (f: Format.formatter) (term: Ast.t): unit =
       fprintf f " of ";
       let k = ref 0 in
       List.iter l
-        ~f:(fun (x, t) ->
+        ~f:(fun (p, t) ->
         let conname = List.nth_exn (Basetype.Data.constructor_names id) !k in
         if !k > 0 then fprintf f "@ | " else fprintf f "@   ";
-        fprintf f "@[<hv 2>%s(%s) ->@ " conname x;
+        fprintf f "@[<hv 2>%s(" conname;
+        s_pattern p;
+        fprintf f ") ->@ ";
         k := !k + 1;
         s_term t;
         fprintf f "@]";
@@ -404,7 +420,7 @@ let fprint_ast (f: Format.formatter) (term: Ast.t): unit =
   and s_term_atom (t: Ast.t) =
     match t.desc with
     | Var(x) ->
-      fprintf f "%s" x
+      fprintf f "%s" (Ident.to_string x)
     | UnitV ->
       fprintf f "()"
     | ConstV(s) ->

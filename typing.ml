@@ -3,7 +3,7 @@ open Core.Std
 open Unify
 
 (* Contexts *)
-type 'a context = (Ast.var * 'a) list
+type 'a context = (Ident.t * 'a) list
 
 (** Split a context into the part declaring the exactly the
     free variables of a term and the rest.
@@ -75,26 +75,84 @@ let raise_error (failed_eqn: U.failure_reason) =
       let sexpected = Printing.string_of_basetype expected in
       raise_eqn_failed sactual sexpected tag
 
+(** Value environments *)
+module ValEnv:
+sig
+  type t
+
+  val bind_pattern: t -> Ast.pattern -> Basetype.t -> Ident.t * t
+  val find: t -> Ident.t -> Ast.Location.t -> Typedterm.value option
+  val of_context: Basetype.t context -> t
+end =
+struct  
+  type t = (Ast.pattern * Typedterm.value) list
+
+  let bind_pattern (env: t) (p: Ast.pattern) (a: Basetype.t): Ident.t * t =
+    let z = Ident.fresh "pattern" in
+    let v = { Typedterm.value_desc = Typedterm.VarV z;
+              Typedterm.value_type = a;
+              Typedterm.value_loc = Ast.Location.none } in
+    let envz = (p, v) :: env in
+    z, envz
+
+  let find (env: t) (x: Ident.t) (loc: Ast.Location.t)
+    : Typedterm.value option =
+    let rec find_pattern (p: Ast.pattern) (v: Typedterm.value) =
+      match p with
+      | Ast.PatUnit -> None
+      | Ast.PatVar(y) ->
+        if x = y then Some v else None
+      | Ast.PatPair(p1, p2) ->
+        let alpha = Basetype.newtyvar() in
+        let beta = Basetype.newtyvar() in
+        U.unify
+          v.Typedterm.value_type
+          (Basetype.newty (Basetype.PairB(alpha, beta)));
+        let v1 = { Typedterm.value_desc = Typedterm.FstV v;
+                   Typedterm.value_type = alpha;
+                   Typedterm.value_loc = loc } in
+        match find_pattern p1 v1 with
+        | Some w -> Some w
+        | None ->
+          let v2 = { Typedterm.value_desc = Typedterm.SndV v;
+                     Typedterm.value_type = beta;
+                     Typedterm.value_loc = loc } in
+          find_pattern p2 v2 in
+    let rec find (env: t) =
+      match env with
+      | [] -> None
+      | (p, v) :: rest ->
+        match find_pattern p v with
+        | None -> find rest
+        | Some x -> Some x in
+    find env
+      
+  let of_context (c: Basetype.t context) : t =
+    List.map c
+      ~f:(fun (x, a) ->
+        let v = { Typedterm.value_desc = Typedterm.VarV x;
+                  Typedterm.value_type = a;
+                  Typedterm.value_loc = Ast.Location.none } in
+        (Ast.PatVar(x), v))
+end
 
 let rec fresh_tyVars n =
   if n = 0 then []
   else (Basetype.newty Basetype.Var) :: (fresh_tyVars (n-1))
 
-let rec ptV (c: Basetype.t context) (t: Ast.t)
+let rec ptV (c: ValEnv.t) (t: Ast.t)
   : Typedterm.value =
   let open Typedterm in
   match t.Ast.desc with
-  | Ast.Var(v: var) ->
-     let a =
-       match List.Assoc.find c v with
-       | Some a -> a
-       | None ->
-         raise (Typing_error
-                  (Some t, "Variable '" ^ v ^
-                           "' not bound or not of value type.")) in
-     { value_desc = VarV v;
-       value_type = a;
-       value_loc = t.Ast.loc }
+  | Ast.Var(v: Ident.t) ->
+    begin
+      match ValEnv.find c v (t.Ast.loc) with
+      | Some a -> a
+      | None ->
+        raise (Typing_error
+                 (Some t, "Variable '" ^ (Ident.to_string v) ^
+                          "' not bound or not of value type."))
+    end
   | Ast.ConstV(Ast.Cintconst(_) as c) ->
      { value_desc = ConstV(c);
        value_type = Basetype.newty Basetype.IntB;
@@ -165,19 +223,19 @@ let rec ptV (c: Basetype.t context) (t: Ast.t)
   | Ast.Copy _ | Ast.Direct _ | Ast.TypeAnnot _ | Ast.Const _
   | Ast.Pair _ | Ast.LetPair _
     -> raise (Typing_error (Some t, "Value term expected."))
-and pt (c: Basetype.t context) (phi: Type.t context) (t: Ast.t)
+and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
   : Typedterm.t =
   let open Typedterm in
   match t.Ast.desc with
-  | Ast.Var(v: var) ->
+  | Ast.Var(v: Ident.t) ->
     let a =
       match List.Assoc.find phi v with
       | Some a -> a
       | None ->
-        let msg = "Variable '" ^ v ^ "' not bound. " ^
+        let msg = "Variable '" ^ (Ident.to_string v) ^ "' not bound. " ^
                   "Is it a value variable or has it been used elsewhere?" in
         raise (Typing_error (Some t, msg)) in
-    { t_desc = Var(v);
+    { t_desc = Typedterm.Var(v);
       t_type = a;
       t_context = phi;
       t_loc = t.Ast.loc}
@@ -314,24 +372,27 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Ast.t)
       t_type = Type.newty (Type.Base a1.value_type);
       t_context = phi;
       t_loc = t.Ast.loc }
-  | Ast.Bind(t1, (xc, t2)) ->
+  | Ast.Bind(t1, (p, t2)) ->
     let phi1, phi2 = split_context phi t1 t2 in
     let a1 = pt c phi1 t1 in
     let alpha = Basetype.newtyvar() in
-    let a2 = pt ((xc, alpha)::c) phi2 t2 in
+    let z, cz = ValEnv.bind_pattern c p alpha in
+    let a2 = pt cz phi2 t2 in
     let beta = Basetype.newty Basetype.Var in
     eq_expected_constraint t1 ~actual:a1.t_type
       ~expected:(Type.newty (Type.Base alpha));
     eq_expected_constraint t2 ~actual:a2.t_type
       ~expected:(Type.newty (Type.Base beta));
-    { t_desc = Bind((a1, alpha), (xc, a2));
+    { t_desc = Bind((a1, alpha), (z, a2));
       t_type = a2.t_type;
       t_context = phi;
       t_loc = t.Ast.loc }
-  | Ast.Fn((x, a), t1) ->
-    let b1 = pt ((x, a) :: c) phi t1 in
-    { t_desc = Fn((x, a), b1);
-      t_type = Type.newty (Type.FunV(a, b1.t_type));
+  | Ast.Fn(p, t1) ->
+    let alpha = Basetype.newty Basetype.Var in
+    let z, c1 = ValEnv.bind_pattern c p alpha in
+    let b1 = pt c1 phi t1 in
+    { t_desc = Fn((z, alpha), b1);
+      t_type = Type.newty (Type.FunV(alpha, b1.t_type));
       t_context = phi;
       t_loc = t.Ast.loc }
   | Ast.App(s, t) ->
@@ -420,10 +481,11 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Ast.t)
     let beta = Type.newty Type.Var in
     let l_args = List.zip_exn l argtypes in
     let l1 = List.map l_args
-               ~f:(fun ((x, u), argty) ->
-                 let a2 = pt ((x, argty) :: c) phi u in
+               ~f:(fun ((p, u), argty) ->
+                 let z, cz = ValEnv.bind_pattern c p argty in
+                 let a2 = pt cz phi u in
                  eq_expected_constraint u ~actual:a2.t_type ~expected:beta;
-                 x, a2) in
+                 z, a2) in
     beq_expected_constraint s ~actual:s1.value_type ~expected:data;
     { t_desc = Case(id, params, s1, l1);
       t_type = beta;
@@ -502,13 +564,13 @@ and pt (c: Basetype.t context) (phi: Type.t context) (t: Ast.t)
 
 let check_value (c: Basetype.t context) (t: Ast.t) : Typedterm.value =
   try
-    ptV c t
+    ptV (ValEnv.of_context c) t
   with
     | U.Not_Unifiable failed_cnstrnt -> raise_error failed_cnstrnt
 
 let check_term (c: Basetype.t context) (phi: Type.t context) (t: Ast.t)
   : Typedterm.t =
   try
-    pt c phi t
+    pt (ValEnv.of_context c) phi t
   with
     | U.Not_Unifiable failed_cnstrnt -> raise_error failed_cnstrnt

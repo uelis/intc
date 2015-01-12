@@ -165,7 +165,8 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let gamma_t = restrict_context gamma t in
       let w_s, i_s = compile sigma gamma_s s in
       let alpha = Basetype.newtyvar() in
-      let w_t, i_t = compile_in_box (Ast.unusable_var, alpha) sigma gamma_t t in
+      let w_t, i_t =
+        compile_in_box (Ident.fresh "unused", alpha) sigma gamma_t t in
       let wr = fresh_wire () in
       (wr, Tensor(flip w_t, wr, flip w_s) :: i_s @ i_t)
     | Typedterm.Pair(s, t) ->
@@ -193,7 +194,8 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let gamma_s = restrict_context gamma s in
       let gamma_t = remove_context (restrict_context gamma t) xs in
       let alpha = Basetype.newtyvar() in
-      let w_s, i_s = compile_in_box (Ast.unusable_var, alpha) sigma gamma_s s in
+      let w_s, i_s =
+        compile_in_box (Ident.fresh "unused", alpha) sigma gamma_s s in
       let delta  = List.map ~f:(fun x -> (x, fresh_wire())) xs in
       let ws = List.map ~f:(fun (_, w) -> w) delta in
       let w_types = List.map ~f:(fun _ -> Basetype.newtyvar()) ws in
@@ -294,7 +296,7 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let w = fresh_wire () in
       let w1 = fresh_wire () in
       let w2 = fresh_wire () in
-      let xv = Ast.variant_var_avoid "x" (List.map ~f:fst sigma) in
+      let xv = Ident.fresh "x" in
       let x, a, b =
         match Type.finddesc t.Typedterm.t_type with
         | Type.FunV(a, b) ->
@@ -311,7 +313,7 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
           Typedterm.t_loc = Ast.Location.none } in
       w, [Bind(flip w1, w); Door(flip w2, w1);
           Base(w2, ((xv, a) :: sigma, v))]
-  and compile_in_box ((c: Ast.var), (a: Basetype.t))
+  and compile_in_box ((c: Ident.t), (a: Basetype.t))
         (sigma: value_context)
         (gamma: wire context) (t: Typedterm.t) =
     let (gamma_in_box, i_enter_box) = enter_box gamma in
@@ -433,8 +435,9 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Ast.t): Ast.t =
             | [] -> raise Not_Leq
             | b1 :: bs ->
               if Basetype.equals a b1 then
+                let x = Ident.fresh "x" in
                 Ast.mkTerm (
-                  Ast.Bind(t, ("x", Ast.mkBox (Ast.mkInV id n (Ast.mkVar "x"))))
+                  Ast.Bind(t, (Ast.PatVar(x), Ast.mkBox (Ast.mkInV id n (Ast.mkVar x))))
                 )
               else
                 inject bs (n + 1) in
@@ -448,8 +451,9 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Ast.t): Ast.t =
         | [] -> raise Not_Leq
         | b1 :: bs ->
           if Basetype.equals a b1 then
+            let x = Ident.fresh "x" in
             Ast.mkTerm (
-              Ast.Bind(t, ("x", Ast.mkReturn (Ast.mkInV id n (Ast.mkVar "x"))))
+              Ast.Bind(t, (Ast.PatVar(x), Ast.mkReturn (Ast.mkInV id n (Ast.mkVar x))))
             )
           else
             inject bs (n + 1) in
@@ -483,16 +487,19 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Ast.t) : Ast.t =
       begin
         match Basetype.finddesc c with
         | Basetype.DataB(id, params) ->
-          let t1 = select id params "x" in
-          let t2 = Ast.mkTerm (Ast.Bind(Ast.mkUnbox (Ast.mkVar "y"),
-                                           ("x", t1))) in
-          let t3 = Ast.mkTerm (Ast.Bind(t, ("y", t2))) in
+          let x = Ident.fresh "x" in
+          let y = Ident.fresh "y" in
+          let t1 = select id params x in
+          let t2 = Ast.mkTerm (Ast.Bind(Ast.mkUnbox (Ast.mkVar y),
+                                           (PatVar x, t1))) in
+          let t3 = Ast.mkTerm (Ast.Bind(t, (PatVar y, t2))) in
           t3
         | _ -> raise Not_Leq
       end
     | Basetype.DataB(id, params) ->
-      let t1 = select id params "x" in
-      let t2 = Ast.mkTerm (Ast.Bind(t, ("x", t1))) in
+      let x = Ident.fresh "x" in
+      let t1 = select id params x in
+      let t2 = Ast.mkTerm (Ast.Bind(t, (PatVar x, t1))) in
       t2
     | _ -> raise Not_Leq
 

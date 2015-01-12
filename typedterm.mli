@@ -1,6 +1,5 @@
 (** Typed representation of intput terms *)
 
-type var = Ast.var
 type value_const = Ast.value_const
 type op_const = Ast.op_const
 
@@ -10,7 +9,7 @@ type value = {
   value_type: Basetype.t;
   value_loc: Ast.Location.t
 } and v_desc =
-  | VarV of var
+  | VarV of Ident.t
   | ConstV of value_const
   | UnitV
   | PairV of value * value
@@ -23,19 +22,19 @@ type value = {
 type t = {
   t_desc: t_desc;
   t_type: Type.t;
-  t_context: (var * Type.t) list;
+  t_context: (Ident.t * Type.t) list;
   t_loc: Ast.Location.t
 } and t_desc =
-  | Var of var
+  | Var of Ident.t
   | Const of op_const
   | Return of value
-  | Bind of (t * Basetype.t) * (var * t)
-  | Fn of (var * Basetype.t) * t
-  | Fun of (var * Basetype.t * Type.t) * t
+  | Bind of (t * Basetype.t) * (Ident.t * t)
+  | Fn of (Ident.t * Basetype.t) * t
+  | Fun of (Ident.t * Basetype.t * Type.t) * t
   | AppV of t * value
   | AppI of t * t
-  | Case of Basetype.Data.id * (Basetype.t list) * value * ((var * t) list)
-  | Copy of t * (var list * t)
+  | Case of Basetype.Data.id * (Basetype.t list) * value * ((Ident.t * t) list)
+  | Copy of t * (Ident.t list * t)
   | Pair of t * t
-  | LetPair of t* ((var * Type.t) * (var * Type.t) * t)
+  | LetPair of t* ((Ident.t * Type.t) * (Ident.t * Type.t) * t)
   | Direct of Type.t * t

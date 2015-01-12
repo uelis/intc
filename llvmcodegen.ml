@@ -297,7 +297,7 @@ let unpack_encoded_value (packed_enc: Llvm.llvalue) (a: Basetype.t)
 (** Encoding of values *)
 let rec build_value
       (the_module : Llvm.llmodule)
-      (ctx: (string * encoded_value) list)
+      (ctx: (Ident.t * encoded_value) list)
       (t: Ssa.value) : encoded_value =
   match t with
   | Ssa.Var(x) ->
@@ -374,7 +374,7 @@ let rec build_value
 
 let build_term
       (the_module : Llvm.llmodule)
-      (ctx: (string * encoded_value) list)
+      (ctx: (Ident.t * encoded_value) list)
       (t: Ssa.term) : encoded_value =
   match t with
   | Ssa.Val(v) -> build_value the_module ctx v
@@ -603,9 +603,9 @@ let build_term
 
 let rec build_letbindings
       (the_module : Llvm.llmodule)
-          (ctx: (string * encoded_value) list)
+          (ctx: (Ident.t * encoded_value) list)
           (l: Ssa.let_bindings)
-  : (string * encoded_value) list =
+  : (Ident.t * encoded_value) list =
   match l with
   | [] -> ctx
   | Ssa.Let((x, a), t) :: lets ->
@@ -616,7 +616,7 @@ let rec build_letbindings
 
 let build_body
       (the_module : Llvm.llmodule)
-      (ctx: (Ast.var * encoded_value) list)
+      (ctx: (Ident.t * encoded_value) list)
       (l: Ssa.let_bindings)
       (v: Ssa.value)
   : encoded_value =

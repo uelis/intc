@@ -6,7 +6,7 @@ open Unify
  ********************)
 
 type value =
-  | Var of Ast.var
+  | Var of Ident.t
   | Unit
   | Pair of value * value
   | In of (Basetype.Data.id * int * value) * Basetype.t
@@ -22,7 +22,7 @@ type term =
 let rec fprint_value (oc: Out_channel.t) (v: value) : unit =
   match v with
   | Var(x) ->
-    Printf.fprintf oc "%s" x
+    Printf.fprintf oc "%s" (Ident.to_string x)
   | Unit ->
     Printf.fprintf oc "()"
   | Pair(v1, v2) ->
@@ -54,7 +54,7 @@ let rec fprint_value (oc: Out_channel.t) (v: value) : unit =
   | IntConst(n) ->
     Printf.fprintf oc "%i" n
 
-let rec subst_value (rho: Ast.var -> value) (v: value) =
+let rec subst_value (rho: Ident.t -> value) (v: value) =
   match v with
   | Var(x) -> rho x
   | Unit -> v
@@ -94,7 +94,7 @@ let rec subst_value (rho: Ast.var -> value) (v: value) =
   | Undef(a) -> Undef(a)
   | IntConst(i) -> IntConst(i)
 
-let subst_term (rho: Ast.var -> value) (t: term) =
+let subst_term (rho: Ident.t -> value) (t: term) =
   match t with
   | Val(v) -> Val(subst_value rho v)
   | Const(c, v) -> Const(c, subst_value rho v)
@@ -104,7 +104,7 @@ let subst_term (rho: Ast.var -> value) (t: term) =
  ********************)
 
 type let_binding =
-  | Let of (Ast.var * Basetype.t) * term
+  | Let of (Ident.t * Basetype.t) * term
 type let_bindings = let_binding list
 
 type label = {
@@ -114,11 +114,11 @@ type label = {
 
 type block =
     Unreachable of label
-  | Direct of label * Ast.var * let_bindings * value * label
-  | Branch of label * Ast.var * let_bindings *
+  | Direct of label * Ident.t * let_bindings * value * label
+  | Branch of label * Ident.t * let_bindings *
               (Basetype.Data.id * Basetype.t list * value *
-               (Ast.var * value * label) list)
-  | Return of label * Ast.var * let_bindings * value * Basetype.t
+               (Ident.t * value * label) list)
+  | Return of label * Ident.t * let_bindings * value * Basetype.t
 
 (** Invariant: Any block [b] in the list of blocks must
     be reachable from the entry label by blocks appearing
@@ -161,7 +161,7 @@ let fprint_letbndgs (oc: Out_channel.t) (bndgs: let_bindings) : unit =
   List.iter (List.rev bndgs)
     ~f:(function
       | Let((x, _), t) ->
-        Printf.fprintf oc "   let %s = " x (* Printing.string_of_basetype a *);
+        Printf.fprintf oc "   let %s = " (Ident.to_string x);
         fprint_term oc t;
         Out_channel.output_string oc "\n"
     )
@@ -173,7 +173,7 @@ let fprint_block (oc: Out_channel.t) (b: block) : unit =
         l.name
         (Printing.string_of_basetype l.message_type)
     | Direct(l, x, bndgs, body, goal) ->
-      Printf.fprintf oc " l%i(%s : %s) =\n" l.name x
+      Printf.fprintf oc " l%i(%s : %s) =\n" l.name (Ident.to_string x)
         (Printing.string_of_basetype l.message_type);
       fprint_letbndgs oc bndgs;
       Printf.fprintf oc "   l%i(" goal.name;
@@ -181,7 +181,7 @@ let fprint_block (oc: Out_channel.t) (b: block) : unit =
       Printf.fprintf oc ")\n"
     | Branch(la, x, bndgs, (id, _, cond, cases)) ->
       let constructor_names = Basetype.Data.constructor_names id in
-      Printf.fprintf oc " l%i(%s : %s) =\n" la.name x
+      Printf.fprintf oc " l%i(%s : %s) =\n" la.name (Ident.to_string x)
         (Printing.string_of_basetype la.message_type);
       fprint_letbndgs oc bndgs;
       Printf.fprintf oc "   case ";
@@ -189,11 +189,11 @@ let fprint_block (oc: Out_channel.t) (b: block) : unit =
       Printf.fprintf oc " of\n";
       List.iter2_exn constructor_names cases
         ~f:(fun cname (l, lb, lg) ->
-          Printf.fprintf oc "   | %s(%s) -> l%i(" cname l lg.name;
+          Printf.fprintf oc "   | %s(%s) -> l%i(" cname (Ident.to_string l) lg.name;
           fprint_value oc lb;
           Printf.fprintf oc ")\n")
     | Return(l, x, bndgs, body, _) ->
-      Printf.fprintf oc " l%i(%s : %s) =\n" l.name x
+      Printf.fprintf oc " l%i(%s : %s) =\n" l.name (Ident.to_string x)
         (Printing.string_of_basetype l.message_type);
       fprint_letbndgs oc bndgs;
       Printf.fprintf oc "   return ";
@@ -242,7 +242,7 @@ let rec typeof_value
     begin
       match List.Assoc.find gamma x with
       | Some b -> b
-      | None -> failwith ("internal ssa.ml: undefined variable " ^ x)
+      | None -> failwith ("internal ssa.ml: undefined variable " ^ (Ident.to_string x))
     end
   | Unit ->
     newty UnitB
@@ -454,15 +454,6 @@ let make ~func_name:(func_name: string)
  * Translation from circuits
  ****************************)
 
-(* INVARIANT: The supply of fresh names in the
- * generation of ssa programs has the form x0, x1, ...
- * This means that only source terms not containing
- * variables of this form should be translated.
- * All variables in typedterms, are made distinct
- * from the xi by applying variant_var.
-*)
-let fresh_var = Vargen.mkVarGenerator "x" ~avoid:[]
-
 let unPairB a =
   match Basetype.finddesc a with
   | Basetype.PairB(a1, a2) -> a1, a2
@@ -490,7 +481,7 @@ let inr a v =
 let rec term_value_to_ssa (t: Typedterm.value) : let_bindings * value =
   match t.Typedterm.value_desc with
   | Typedterm.VarV(x) ->
-    [], Var(Ast.variant_var x)
+    [], Var(x)
   | Typedterm.ConstV(Ast.Cundef a) ->
     [], Undef(a)
   | Typedterm.ConstV(Ast.Cintconst(n)) ->
@@ -527,13 +518,13 @@ let rec term_to_ssa (t: Typedterm.t) : let_bindings * value =
   match t.Typedterm.t_desc with
   | Typedterm.Return(t1) ->
     let lt1, v1 = term_value_to_ssa t1 in
-    let x = fresh_var () in
+    let x = Ident.fresh "x" in
     let a = t1.Typedterm.value_type in
     [Let((x, a), Val v1)] @ lt1, Var x
   | Typedterm.Bind((t1, ax), (x, t2)) ->
     let lt1, v1 = term_to_ssa t1 in
     let lt2, v2 = term_to_ssa t2 in
-    lt2 @ [Let((Ast.variant_var x, ax), Val v1)] @ lt1, v2
+    lt2 @ [Let((x, ax), Val v1)] @ lt1, v2
   | Typedterm.AppV({ Typedterm.t_desc = Typedterm.Const(c);
                      Typedterm.t_type = a;
                      _},
@@ -547,7 +538,7 @@ let rec term_to_ssa (t: Typedterm.t) : let_bindings * value =
           | _ -> assert false
         end
       | _ -> assert false in
-    let x = fresh_var () in
+    let x = Ident.fresh "x" in
     let ltarg, varg = term_value_to_ssa arg in
     Let((x, retty), Const(c, varg)) :: ltarg , Var(x)
   | _ ->
@@ -563,7 +554,7 @@ let rec bind_context z a (gamma: Basetype.t Typing.context) : let_binding list =
         assert (Basetype.equals b ax);
         arest
       | _ -> assert false in
-    Let((Ast.variant_var x, b), Val(Snd(z, arest, b))) ::
+    Let((x, b), Val(Snd(z, arest, b))) ::
     bind_context (Fst(z, arest, b)) arest rest
 
 module U = Unify(struct type t = unit end)
@@ -587,7 +578,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
   let label_of_dst w = { name = w.dst; message_type = w.type_forward } in
 
   let make_block src dst =
-    let z = fresh_var() in
+    let z = Ident.fresh "z" in
     let sigma_type, m_type = unPairB src.message_type in
     let m_term = Ast.mkReturn (Ast.mkSndV (Ast.mkVar z)) in
     let sigma_val = Fst(Var z, sigma_type, m_type) in
@@ -621,7 +612,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
                         (Ast.mkTypeAnnot
                            (Circuit.embed a b m_term)
                            (Type.newty (Type.Base b))) in
-          let l = Let((Ast.variant_var z,  src.message_type), Val(Var(z))) in
+          let l = Let((z,  src.message_type), Val(Var(z))) in
           let lt, m' = term_to_ssa embed in
           let vt = Pair(sigma_val, m') in
           Direct(src, z, lt @ [l], vt, label_of_dst w1)
@@ -634,7 +625,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
                           (Ast.mkTypeAnnot
                              (Circuit.project b a m_term)
                              (Type.newty (Type.Base b))) in
-          let l = Let((Ast.variant_var z,  src.message_type), Val(Var(z))) in
+          let l = Let((z,  src.message_type), Val(Var(z))) in
           let lt, m' = term_to_ssa project in
           let vt = Pair(sigma_val, m') in
           Direct(src, z, lt @ [l], vt, label_of_dst w1)
@@ -655,7 +646,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
              <sigma, inr(v)> @ w3  |-->  <sigma, v> @ w2 *)
           (* no additional type constraints needed; use variables *)
           let m_type1, m_type2 = unSumB m_type in
-          let m' = fresh_var () in
+          let m' = Ident.fresh "m'" in
           Branch(src, z, [],
                  (Basetype.Data.sumid 2, [m_type1; m_type2], m_val,
                   [(m', Pair(sigma_val, Var(m')), label_of_dst w1);
@@ -744,7 +735,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
                           (Ast.mkTypeAnnot
                              (Circuit.project b a c)
                              (Type.newty (Type.Base b))) in
-          let l = Let((Ast.variant_var z,  src.message_type), Val(Var(z))) in
+          let l = Let((z,  src.message_type), Val(Var(z))) in
           let lt, d = term_to_ssa project in
           let m' = Snd(m_val, a, m'_type) in
           let vt = Pair(sigma_val, Pair(d, m')) in
@@ -760,7 +751,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
                         (Ast.mkTypeAnnot
                            (Circuit.embed b a c)
                            (Type.newty (Type.Base a))) in
-          let l = Let((Ast.variant_var z,  src.message_type), Val(Var(z))) in
+          let l = Let((z,  src.message_type), Val(Var(z))) in
           let lt, d = term_to_ssa embed in
           let vt = Pair(sigma_val, Pair(d, m')) in
           Direct(src, z, lt @ [l], vt, label_of_dst w1)
@@ -804,7 +795,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           let c_type, m'_type = unPairB m_type in
           let c = Fst(m_val, c_type, m'_type) in
           let m' = Snd(m_val, c_type, m'_type) in
-          let y = fresh_var () in
+          let y = Ident.fresh "y" in
           Branch(src, z, [],
                  (id, params, c,
                   List.map ws
@@ -851,7 +842,7 @@ let add_entry_exit_code (f: t) : t =
     name = max_label_name + 1;
     message_type = arg_type} in
   let entry_block =
-    let z = fresh_var() in
+    let z = Ident.fresh "z" in
     Direct(entry_label, z, [], Pair(Unit, Var z), f.entry_label) in
 
   let exit_label = {
@@ -863,7 +854,7 @@ let add_entry_exit_code (f: t) : t =
           ret_type))
   } in
   let exit_block =
-    let z = fresh_var() in
+    let z = Ident.fresh "z" in
     let v = Snd(Var z, Basetype.newty Basetype.UnitB, ret_type) in
     Return(exit_label, z, [], v, ret_type) in
 

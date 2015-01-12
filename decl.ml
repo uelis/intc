@@ -1,5 +1,5 @@
 type t =
-  | TermDecl of Ast.var * Ast.t
+  | TermDecl of Ident.t * Ast.t
 
 exception Illformed_decl of string * int * int
 

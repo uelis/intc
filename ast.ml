@@ -5,10 +5,6 @@
 
 open Core.Std
 
-type var = string
-
-let unusable_var = "_unusable"
-
 module Location = struct
   type pos = { column: int; line: int}
   type loc = {start_pos: pos; end_pos: pos}
@@ -48,13 +44,18 @@ type op_const =
   | Ccall of string * Basetype.t * Basetype.t
   | Cencode of Basetype.t * Basetype.t
   | Cdecode of Basetype.t * Basetype.t
+                              
+type pattern =
+  | PatUnit
+  | PatVar of Ident.t
+  | PatPair of pattern * pattern
 
 type t = {
   desc: t_desc;
   loc: Location.t
 }
 and t_desc =
-  | Var of var
+  | Var of Ident.t
   (* value terms *)
   | ConstV of value_const
   | UnitV
@@ -66,14 +67,14 @@ and t_desc =
   (* interaction terms *)
   | Const of op_const
   | Return of t
-  | Bind of t * (var * t)
-  | Fn of (var * Basetype.t) * t
-  | Fun of (var * Basetype.t * Type.t) * t
+  | Bind of t * (pattern * t)
+  | Fn of pattern * t
+  | Fun of (Ident.t * Basetype.t * Type.t) * t
   | App of t * t
-  | Case of Basetype.Data.id * t * ((var * t) list)
-  | Copy of t * (var list * t)
+  | Case of Basetype.Data.id * t * ((pattern * t) list)
+  | Copy of t * (Ident.t list * t)
   | Pair of t * t
-  | LetPair of t * (var * var * t)
+  | LetPair of t * (Ident.t * Ident.t * t)
   | Direct of Type.t * t
   | TypeAnnot of t * Type.t
 
@@ -91,7 +92,7 @@ let mkInlV t = mkTerm (InV(Basetype.Data.sumid 2, 0, t))
 let mkInrV t = mkTerm (InV(Basetype.Data.sumid 2, 1, t))
 let mkCase id s l = mkTerm (Case(id, s, l))
 let mkApp s t = mkTerm (App(s, t))
-let mkFn ((x, ty), t) = mkTerm (Fn((x, ty), t))
+let mkFn (p, t) = mkTerm (Fn(p, t))
 let mkReturn v = mkTerm (Return(v))
 let mkBind s (x ,t) = mkTerm (Bind(s, (x, t)))
 let mkFun ((x, a, ty), t) = mkTerm (Fun((x, a, ty), t))
@@ -100,16 +101,19 @@ let mkDirect ty t = mkTerm (Direct(ty, t))
 let mkTypeAnnot t a = mkTerm (TypeAnnot(t, a))
 let mkBox t =
   let alpha = Basetype.newtyvar() in
-  let addr = "addr" in
+  let addr = Ident.fresh "addr" in
+  let unused = Ident.fresh "x" in
   mkBind (mkApp (mkConst (Calloc alpha)) mkUnitV)
-    (addr, mkBind (mkApp (mkConst (Cstore alpha)) (mkPairV (mkVar addr) t))
-             (unusable_var, mkReturn (mkVar addr)))
+    (PatVar addr,
+     mkBind (mkApp (mkConst (Cstore alpha)) (mkPairV (mkVar addr) t))
+       (PatVar unused, mkReturn (mkVar addr)))
 let mkUnbox t =
   let alpha = Basetype.newtyvar() in
-  let v = "val" in
+  let v = Ident.fresh "val" in
+  let unused = Ident.fresh "x" in
   mkBind (mkApp (mkConst (Cload alpha)) t)
-    (v, mkBind (mkApp (mkConst (Cfree alpha)) t)
-          (unusable_var, mkReturn (mkVar v)))
+    (PatVar v, mkBind (mkApp (mkConst (Cfree alpha)) t)
+          (PatVar unused, mkReturn (mkVar v)))
 
 let rec is_value (term: t) : bool =
   match term.desc with
@@ -124,9 +128,37 @@ let rec is_value (term: t) : bool =
   | TypeAnnot _ ->
     false
 
-let rec free_vars (term: t) : var list =
-  let abs x l = List.filter l ~f:(fun z -> not (String.equal z x)) in
+let rec pattern_vars p =
+  match p with
+  | PatUnit -> []
+  | PatVar(z) -> [z]
+  | PatPair(p, q) -> pattern_vars p @ pattern_vars q
+
+(** Rename the variables in [p] so that [pattern_vars] returns [l]. 
+   Raises Ille
+ *)
+let rename_pattern_exn p l =
+  let rec rn p l =
+    match p with
+    | PatUnit  -> PatUnit, l
+    | PatVar(_) ->
+      begin
+        match l with
+        | [] -> raise (Invalid_argument "rename_pattern")
+        | z :: rest -> PatVar(z), rest
+      end
+    | PatPair(p, q) ->
+      let p', l1 = rn p l in
+      let q', l2 = rn q l1 in
+      PatPair(p', q'), l2 in
+  match rn p l with
+  | p', [] -> p'
+  | _ -> raise (Invalid_argument "rename_pattern")
+
+let rec free_vars (term: t) : Ident.t list =
+  let abs x l = List.filter l ~f:(fun z -> not (z = x)) in
   let abs_list xs l = List.filter l ~f:(fun z -> not (List.mem xs z)) in
+  let abs_pat p l = abs_list (pattern_vars p) l in
   match term.desc with
   | Var(v) -> [v]
   | ConstV _ | Const(_) | UnitV  -> []
@@ -137,21 +169,25 @@ let rec free_vars (term: t) : var list =
     (free_vars s) @ (free_vars t)
   | Copy(s, (xs, t)) ->
     (free_vars s) @ (abs_list xs (free_vars t))
-  | Fn((x, _), t) | Fun((x, _, _), t) ->
+  | Fn(p, t) ->
+    abs_pat p (free_vars t)
+  | Fun((x, _, _), t) ->
     abs x (free_vars t)
-  | Bind(s, (x, t)) ->
-    (free_vars s) @ (abs x (free_vars t))
+  | Bind(s, (p, t)) ->
+    (free_vars s) @ (abs_pat p (free_vars t))
   | Pair(s, t) ->
     (free_vars s) @ (free_vars t)
   | LetPair(s, (x, y, t)) ->
     (free_vars s) @ (abs x (abs y (free_vars t)))
   | Case(_, s, l) ->
     free_vars s @
-    List.fold_right l ~f:(fun (x, t) fv -> (abs x (free_vars t)) @ fv) ~init:[]
+    List.fold_right l
+      ~f:(fun (p, t) fv -> (abs_pat p (free_vars t)) @ fv)
+      ~init:[]
   | TypeAnnot(t, _) ->
     free_vars t
 
-let rec all_vars (term: t) : var list =
+let rec all_vars (term: t) : Ident.t list =
   match term.desc with
   | Var(v) -> [v]
   | ConstV _ | Const(_) | UnitV -> []
@@ -161,21 +197,30 @@ let rec all_vars (term: t) : var list =
   | PairV(s, t) | App(s, t)
   | Copy(s, (_, t)) ->
     all_vars s @ all_vars t
-  | Fn((x, _), t) | Fun((x, _, _), t) ->
+  | Fn(p, t) ->
+    pattern_vars p @ all_vars t
+  | Fun((x, _, _), t) ->
     x :: all_vars t
-  | Bind(s, (x, t)) ->
-    x :: all_vars s @ all_vars t
+  | Bind(s, (p, t)) ->
+    pattern_vars p @ all_vars s @ all_vars t
   | Pair(s, t) ->
     (all_vars s) @ (all_vars t)
   | LetPair(s, (_, _, t)) ->
     (all_vars s) @ (all_vars t)
   | Case(_, s, l) ->
     all_vars s @
-    List.fold_right l ~f:(fun (x, t) fv -> x :: all_vars t @ fv) ~init:[]
+    List.fold_right l
+      ~f:(fun (p, t) fv -> pattern_vars p @ all_vars t @ fv)
+      ~init:[]
   | TypeAnnot(t, _) ->
     all_vars t
 
-let rename_vars (f: var -> var) (term: t) : t =
+let rename_vars (f: Ident.t -> Ident.t) (term: t) : t =
+  let rec rn_pat p =
+    match p with
+    | PatVar x -> PatVar (f x)
+    | PatUnit -> PatUnit
+    | PatPair(p1, p2) -> PatPair(rn_pat p1, rn_pat p2) in
   let rec rn term =
     match term.desc with
     | Var(x) -> { term with desc = Var(f x) }
@@ -197,12 +242,12 @@ let rename_vars (f: var -> var) (term: t) : t =
       { term with desc = App(rn s, rn t) }
     | Copy(s, (xs, t)) ->
       { term with desc = Copy(rn s, (List.map ~f:f xs, rn t)) }
-    | Fn((x, ty), t) ->
-      { term with desc = Fn((f x, ty), rn t) }
+    | Fn(p, t) ->
+      { term with desc = Fn(rn_pat p, rn t) }
     | Fun((x, a, ty), t) ->
       { term with desc = Fun((f x, a, ty), rn t) }
-    | Bind(s, (x, t)) ->
-      { term with desc = Bind(rn s, (f x, rn t)) }
+    | Bind(s, (p, t)) ->
+      { term with desc = Bind(rn s, (rn_pat p, rn t)) }
     | Pair(s, t) ->
       { term with desc = Pair(rn s, rn t) }
     | LetPair(s, (x, y, t)) ->
@@ -211,35 +256,17 @@ let rename_vars (f: var -> var) (term: t) : t =
       { term with desc = SelectV(id, params, rn s, i) }
     | Case(id, s, l) ->
       { term with desc = Case(id, rn s,
-                              List.map l ~f:(fun (x, t) -> (f x, rn t))) }
+                              List.map l ~f:(fun (p, t) -> (rn_pat p, rn t))) }
     | TypeAnnot(t, ty) -> { term with desc = TypeAnnot(rn t, ty) }
   in rn term
 
-let variant_var x = x ^ "'"
-let variant = rename_vars variant_var
-
-let rec variant_var_avoid x avoid =
-  let vx = variant_var x in
-  if List.mem avoid vx then
-    variant_var_avoid vx (x :: avoid)
-  else
-    vx
-
-(* Renames all variables with new names drawn from
- * the given name-supply. *)
-let variant_with_name_supply (fresh_var: unit -> var) (t: t) : t =
-  let ren_map =
-    free_vars t
-    |> List.fold
-         ~f:(fun m v -> String.Map.add m ~key:v ~data:(fresh_var ()))
-         ~init:String.Map.empty in
-  rename_vars (String.Map.find_exn ren_map) t
+let variant = rename_vars Ident.variant
 
 (* Substitues [s] for [x].
    Returns [None] if [t] does not contain [x].
    If [head] is true then only the head occurrence is subtituted.
 *)
-let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
+let substitute ?head:(head=false) (s: t) (x: Ident.t) (t: t) : t option =
   (* Below sigma is always a permutation that maps bound
    * variables of t to suitably fresh variables. *)
   let fvs = free_vars s in
@@ -273,14 +300,14 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
       { term with desc = App(sub sigma s, sub sigma t) }
     | Copy(s, (xs, t)) ->
       { term with desc = Copy(sub sigma s, abs_list sigma (xs, t)) }
-    | Fn((x, ty), t) ->
-      let (x', t') = abs sigma (x, t) in
-      { term with desc = Fn((x', ty), t') }
+    | Fn(p, t) ->
+      let (p', t') = abs_pat sigma (p, t) in
+      { term with desc = Fn(p', t') }
     | Fun((x, a, ty), t) ->
       let (x', t') = abs sigma (x, t) in
       { term with desc = Fun((x', a, ty), t') }
-    | Bind(s, (x, t)) ->
-      { term with desc = Bind(sub sigma s, abs sigma (x, t)) }
+    | Bind(s, (p, t)) ->
+      { term with desc = Bind(sub sigma s, abs_pat sigma (p, t)) }
     | Pair(s, t) ->
       { term with desc = Pair(sub sigma s, sub sigma t) }
     | LetPair(s, (x, y, t)) ->
@@ -289,8 +316,9 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
     | SelectV(id, params, s, i) ->
       { term with desc = SelectV(id, params, sub sigma s, i) }
     | Case(id, s, l) ->
-      { term with desc = Case(id, sub sigma s,
-                              List.map l ~f:(fun (x, t) -> abs sigma (x, t))) }
+      { term with
+        desc = Case(id, sub sigma s,
+                    List.map l ~f:(fun (p, t) -> abs_pat sigma (p, t))) }
     | TypeAnnot(t, ty) ->
       { term with desc = TypeAnnot(sub sigma t, ty) }
   and abs sigma (y, u) =
@@ -301,6 +329,10 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
     match abs_list sigma ([y; z], u) with
     | [y'; z'], u -> y', z', u
     | _ -> assert false
+  and abs_pat sigma (p, u) =
+    let l = pattern_vars p in
+    let l', u' = abs_list sigma (l, u) in
+    (rename_pattern_exn p l', u')
   and abs_list sigma (l, t1) =
     if List.mem l x then (l, t1)
     else if List.for_all l ~f:(fun y -> not (List.mem fvs y)) then
@@ -308,17 +340,16 @@ let substitute ?head:(head=false) (s: t) (x: var) (t: t) : t option =
       (l, sub sigma t1)
     else
       (* avoid capture *)
-      let avoid = fvs @ l @ (List.map ~f:(apply sigma) (free_vars t1)) in
-      let l' = List.map ~f:(fun y -> variant_var_avoid y avoid) l in
+      let l' = List.map ~f:Ident.variant l in
       (l', sub ((List.zip_exn l l') @ sigma) t1)
   in
   let result = sub [] t in
   if (!substituted) then Some result else None
 
-let head_subst (s: t) (x: var) (t: t) : t option =
+let head_subst (s: t) (x: Ident.t) (t: t) : t option =
   substitute ~head:true s x t
 
-let subst (s: t) (x: var) (t: t) : t =
+let subst (s: t) (x: Ident.t) (t: t) : t =
   match substitute ~head:false s x t with
   | None -> t
   | Some t' -> t'
@@ -403,8 +434,8 @@ let freshen_type_vars t =
       { term with desc = App(mta s, mta t) }
     | Copy(s, (xs, t)) ->
       { term with desc = Copy(mta s, (xs, mta t)) }
-    | Fn((x, a), t) ->
-      { term with desc = Fn((x, fbase a), mta t) }
+    | Fn(p, t) ->
+      { term with desc = Fn(p, mta t) }
     | Fun((x, a, ty), t) ->
       { term with desc = Fun((x, fbase a, f ty), mta t) }
     | Bind(s, (x, t)) ->

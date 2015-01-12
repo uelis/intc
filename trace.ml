@@ -1,7 +1,7 @@
 open Core.Std
 open Ssa
 
-let fresh_var = Vargen.mkVarGenerator "z" ~avoid:[]
+let fresh_var () = Ident.fresh "z"
 
 let block_table (func: Ssa.t) =
   let blocks = Int.Table.create () in
@@ -21,7 +21,7 @@ let trace_block blocks i0 =
   let x0 = fresh_var () in
 
   (* substitution *)
-  let rho = String.Table.create () in
+  let rho = Ident.Table.create () in
   (* current body *)
   let lets = ref [] in
   (* already visited labels *)
@@ -40,20 +40,20 @@ let trace_block blocks i0 =
   let trace_let l =
     match l with
     | Let((x, a), t) ->
-      let t' = subst_term (String.Table.find_exn rho) t in
+      let t' = subst_term (Ident.Table.find_exn rho) t in
       begin
         match t', !lets with
         | Val v', _ ->
-          String.Table.replace rho ~key:x ~data:v'
+          Ident.Table.replace rho ~key:x ~data:v'
         | Const(Ast.Cpop(_), _), _ ->
           begin
             match remove_last_push !lets with
             | Some (v', lets') ->
               lets := lets';
-              String.Table.replace rho ~key:x ~data:v'
+              Ident.Table.replace rho ~key:x ~data:v'
             | None ->
               let x' = fresh_var () in
-              String.Table.replace rho ~key:x ~data:(Var x');
+              Ident.Table.replace rho ~key:x ~data:(Var x');
               lets := Let((x', a), t') :: !lets
           end
         (* quick hack to eliminate Alloc,Store,Load,Free sequences
@@ -70,7 +70,7 @@ let trace_block blocks i0 =
           *)
         | _ ->
           let x' = fresh_var () in
-          String.Table.replace rho ~key:x ~data:(Var x');
+          Ident.Table.replace rho ~key:x ~data:(Var x');
           lets := Let((x', a), t') :: !lets
       end in
   let trace_lets lets = List.iter (List.rev lets) ~f:trace_let in
@@ -95,20 +95,20 @@ let trace_block blocks i0 =
         match block with
         | Unreachable(_) -> Unreachable(l0)
         | Direct(_, x, lets, vr, dst) ->
-          String.Table.replace rho ~key:x ~data:v;
+          Ident.Table.replace rho ~key:x ~data:v;
           trace_lets lets;
-          let vr' = subst_value (String.Table.find_exn rho) vr in
+          let vr' = subst_value (Ident.Table.find_exn rho) vr in
           trace_block dst.name vr'
         | Branch(_, x, lets, (id, params, vc, cases)) ->
-          String.Table.replace rho ~key:x ~data:v;
+          Ident.Table.replace rho ~key:x ~data:v;
           trace_lets lets;
-          let vc' = subst_value (String.Table.find_exn rho) vc in
+          let vc' = subst_value (Ident.Table.find_exn rho) vc in
           begin
             match vc' with
             | In((_, i, vi), _) ->
               let (y, vd, dst) = List.nth_exn cases i in
-              String.Table.replace rho ~key:y ~data:vi;
-              let vd' = subst_value (String.Table.find_exn rho) vd in
+              Ident.Table.replace rho ~key:y ~data:vi;
+              let vd' = subst_value (Ident.Table.find_exn rho) vd in
               trace_block dst.name vd'
             | _ ->
               let lets = flush_lets () in
@@ -116,20 +116,20 @@ let trace_block blocks i0 =
                 List.map cases
                   ~f:(fun (y, vd, dst) ->
                     let y' = fresh_var () in
-                    String.Table.replace rho ~key:y ~data:(Var y');
-                    let vd' = subst_value (String.Table.find_exn rho) vd in
+                    Ident.Table.replace rho ~key:y ~data:(Var y');
+                    let vd' = subst_value (Ident.Table.find_exn rho) vd in
                     (y', vd', dst)) in
               Branch(l0, x0, lets, (id, params, vc', cases'))
           end
         | Return(_, x, lets, vr, a) ->
-          String.Table.replace rho ~key:x ~data:v;
+          Ident.Table.replace rho ~key:x ~data:v;
           trace_lets lets;
-          let vr' = subst_value (String.Table.find_exn rho) vr in
+          let vr' = subst_value (Ident.Table.find_exn rho) vr in
           let lets = flush_lets () in
           Return(l0, x0, lets, vr', a)
       end in
   let v0 = Var x0 in
-  String.Table.replace rho ~key:x0 ~data:v0;
+  Ident.Table.replace rho ~key:x0 ~data:v0;
   trace_block i0 v0
 
 let trace (func : Ssa.t) =

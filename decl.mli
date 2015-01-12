@@ -2,7 +2,7 @@
 
 (** Currently there is just a single declaration for interaction terms *)
 type t =
-  | TermDecl of Ast.var * Ast.t
+  | TermDecl of Ident.t * Ast.t
 
 (** Exception to use when reading an illformed declaration.
     The argments are error message, line and column. *)
