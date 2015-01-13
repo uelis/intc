@@ -45,13 +45,9 @@ let beq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
 exception Typing_error of Ast.t option * string
 
 let raise_error (failed_eqn: U.failure_reason) =
-  let raise_cyclic sactual tag =
-    match tag with
-    | Some (term, msg) ->
-      raise (Typing_error(Some(term), msg()))
-    | None ->
-      let msg = "Unification leads to cyclic type " ^ sactual^ "." in
-      raise (Typing_error(None, msg)) in
+  let raise_cyclic sactual =
+    let msg = "Unification leads to cyclic type " ^ sactual^ "." in
+    raise (Typing_error(None, msg)) in
   let raise_eqn_failed sactual sexpected tag =
     match tag with
     | Some (term, msg) ->
@@ -60,12 +56,12 @@ let raise_error (failed_eqn: U.failure_reason) =
       let msg = Printf.sprintf "Cannot unify %s and %s." sactual sexpected in
       raise (Typing_error(None, msg)) in
   match failed_eqn with
-    | U.Cyclic_type(U.Type_eq(actual, _, tag)) ->
+    | U.Cyclic_type(U.Type_eq(actual, _, _)) ->
       let sactual = Printing.string_of_type actual in
-      raise_cyclic sactual tag
-    | U.Cyclic_type(U.Basetype_eq(actual, _, tag)) ->
+      raise_cyclic sactual
+    | U.Cyclic_type(U.Basetype_eq(actual, _, _)) ->
       let sactual = Printing.string_of_basetype actual in
-      raise_cyclic sactual tag
+      raise_cyclic sactual
     | U.Equation_failed(U.Type_eq(actual, expected, tag)) ->
       let sactual = Printing.string_of_type actual in
       let sexpected = Printing.string_of_type expected in
@@ -136,10 +132,6 @@ struct
         (Ast.PatVar(x), v))
 end
 
-let rec fresh_tyVars n =
-  if n = 0 then []
-  else (Basetype.newty Basetype.Var) :: (fresh_tyVars (n-1))
-
 let rec ptV (c: ValEnv.t) (t: Ast.t)
   : Typedterm.value =
   let open Typedterm in
@@ -149,9 +141,9 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
       match ValEnv.find c v (t.Ast.loc) with
       | Some a -> a
       | None ->
-        raise (Typing_error
-                 (Some t, "Variable '" ^ (Ident.to_string v) ^
-                          "' not bound or not of value type."))
+        let msg = "Variable '" ^ (Ident.to_string v) ^
+                  "' not bound or not of value type." in
+        raise (Typing_error (Some t, msg))
     end
   | Ast.ConstV(Ast.Cintconst(_) as c) ->
      { value_desc = ConstV(c);
@@ -196,9 +188,8 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
   | Ast.InV(id, k, t1) ->
     let a1 = ptV c t1 in
     let n = Basetype.Data.params id in
-    let params = fresh_tyVars n in
+    let params = List.init n ~f:(fun _ -> Basetype.newtyvar ()) in
     let data = Basetype.newty (Basetype.DataB(id, params)) in
-    (* TODO: check that constructor exists? *)
     let argtype =
       match List.nth (Basetype.Data.constructor_types id params) k with
       | Some a -> a
@@ -475,7 +466,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     (* case distinction is allowed over values only *)
     let s1 = ptV c s in
     let n = Basetype.Data.params id in
-    let params = fresh_tyVars n in
+    let params = List.init n ~f:(fun _ -> Basetype.newtyvar ()) in
     let data = Basetype.newty (Basetype.DataB(id, params)) in
     let argtypes = Basetype.Data.constructor_types id params in
     let beta = Type.newty Type.Var in

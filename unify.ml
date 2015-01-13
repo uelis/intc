@@ -103,13 +103,32 @@ module Unify(T : sig type t end) = struct
   module BasetypeAlgs = Types.Algs(Basetype)
 
   let check_cycle (c: type_eq) : unit =
-    match c with
-    | Basetype_eq(t, _, _) ->
-      if not (BasetypeAlgs.is_acyclic t) then
-        raise (Not_Unifiable(Cyclic_type(c)))
-    | Type_eq(t, _, _) ->
+    let check_basetype b = 
+      if not (BasetypeAlgs.is_acyclic b) then
+        raise (Not_Unifiable(Cyclic_type(c))) in
+    let rec check_sub_basetypes t =
+      match Type.finddesc t with
+      | Type.Var -> ()
+      | Type.Base(b) ->
+        check_basetype b
+      | Type.Tensor(t1, t2) ->
+        check_sub_basetypes t1;
+        check_sub_basetypes t2
+      | Type.FunV(a, t1) ->
+        check_basetype a;
+        check_sub_basetypes t1
+      | Type.FunI(a, t1, t2) ->
+        check_basetype a;
+        check_sub_basetypes t1;
+        check_sub_basetypes t2
+      | Type.Link _ -> assert false in
+    let check_type t = 
       if not (TypeAlgs.is_acyclic t) then
-        raise (Not_Unifiable(Cyclic_type(c)))
+        raise (Not_Unifiable(Cyclic_type(c)));
+      check_sub_basetypes t in
+    match c with
+    | Basetype_eq(b, _, _) -> check_basetype b
+    | Type_eq(t, _, _) -> check_type t
 
   let unify_with_cycle_check (e : type_eq) : unit =
     unify_raw e;

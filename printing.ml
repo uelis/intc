@@ -37,230 +37,127 @@ let name_of_basetypevar t =
 
 module BasetypeAlgs = Types.Algs(Basetype)
 
-(*
-TODO: unexpected result
-# fun (f:'a*('a*'a) -> 'a) -> fn x { f(x,x) }
-: |(rec 'a. 'a * 'a) * 'a -> (rec 'b. 'b)| -> (rec 'c. 'c) -> (rec 'd. 'd)
-*)
 let string_of_basetype (ty: Basetype.t): string =
-  let buf = Buffer.create 80 in
-  (* recognize loops and avoid printing infinite types
-   * TODO: this is awkward and not properly tested!
-  *)
-  let cycle_names =
-    let cycles = BasetypeAlgs.dfs_cycles ty in
-    let tbl = Int.Table.create () in
-    List.iter cycles
-      ~f:(fun tid -> Int.Table.replace tbl ~key:tid ~data:None);
-    tbl in
   let open Basetype in
-  let check_rec t =
-    let tid = (Basetype.find t).id in
-    try
-      match Int.Table.find_exn cycle_names tid with
-      | Some s -> "", Some(s), ""
-      | None ->
-        let alpha = Basetype.newty Basetype.Var in
-        let s = "'" ^ (name_of_basetypevar alpha) in
-        Int.Table.replace cycle_names ~key:tid ~data:(Some s);
-        "(rec " ^ s ^ ". ", None, ")"
-    with Not_found -> "", None, "" in
-  (* Printing functions *)
-  let rec s_basetype (t: Basetype.t) =
-    let before, body, after = check_rec t in
-    Buffer.add_string buf before;
-    begin
-      match body with
-      | Some body -> Buffer.add_string buf body
-      | None -> s_summand t
-    end;
-    Buffer.add_string buf after
-  and s_summand (t: Basetype.t) =
-    let before, body, after = check_rec t in
-    Buffer.add_string buf before;
-    begin
-      match body with
-      | Some body -> Buffer.add_string buf body
-      | None ->
+  let cycle_nodes =
+    let cycles = BasetypeAlgs.dfs_cycles ty in
+    List.fold cycles ~init:Int.Set.empty ~f:Int.Set.add in
+  let strs = Int.Table.create () in
+  let rec str (t: Basetype.t) l =
+    let rec s l =
+      match l with
+      | `Summand -> 
         begin
           match Basetype.finddesc t with
           | DataB(id, [t1; t2]) when id = Data.sumid 2 ->
-            s_summand t1;
-            Buffer.add_string buf " + ";
-            s_factor t2
-          | DataB(id, []) when id = Data.sumid 0 ->
-            Buffer.add_char buf '0'
-          | DataB(id, [])  ->
-            Buffer.add_string buf id
-          | DataB(id, t1 :: l) ->
-            Buffer.add_string buf id;
-            Buffer.add_char buf '<';
-            s_summand t1;
-            List.iter l
-              ~f:(fun t2 ->
-                Buffer.add_string buf ", ";
-                s_summand t2);
-            Buffer.add_string buf ">"
+            (str t1 `Summand) ^ " + " ^ (str t2 `Factor)
+          | DataB(id, []) when id = Data.sumid 0 -> "0"
+          | DataB(id, []) -> id
+          | DataB(id, ls) ->
+            id ^ "<" ^
+            (List.map ls ~f:(fun t2 -> str t2 `Summand)
+             |> String.concat ~sep:", ") ^
+            ">"
           | PairB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
-            s_factor t
+            s `Factor
           | Link _ -> assert false
         end
-    end;
-    Buffer.add_string buf after;
-  and s_factor (t: Basetype.t) =
-    let before, body, after = check_rec t in
-    Buffer.add_string buf before;
-    begin
-      match body with
-      | Some body -> Buffer.add_string buf body
-      | None -> begin
-          match Basetype.finddesc t with
-          | PairB(t1, t2) ->
-            s_factor t1;
-            Buffer.add_string buf " * ";
-            s_atom t2
-          | DataB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
-            s_atom t
-          | Link _ -> assert false
-        end
-    end;
-    Buffer.add_string buf after
-  and s_atom (t: Basetype.t) =
-    let before, body, after = check_rec t in
-    Buffer.add_string buf before;
-    begin
-      match body with
-      | Some body -> Buffer.add_string buf body
-      | None ->
+      | `Factor ->
         begin
           match Basetype.finddesc t with
-          | Var ->
-            Buffer.add_char buf '\'';
-            Buffer.add_string buf (name_of_basetypevar t)
-          | IntB -> Buffer.add_string buf "int"
-          | ZeroB -> Buffer.add_char buf '0'
-          | UnitB -> Buffer.add_string buf "unit"
-          | BoxB(b) ->
-            Buffer.add_string buf "box<";
-            s_atom b;
-            Buffer.add_char buf '>';
-          | ArrayB(b) ->
-            Buffer.add_string buf "array<";
-            s_atom b;
-            Buffer.add_char buf '>';
-          | DataB _ | PairB _  ->
-            Buffer.add_char buf '(';
-            s_basetype t;
-            Buffer.add_char buf ')';
+          | PairB(t1, t2) -> str t1 `Factor ^ " * " ^ str t2 `Atom
+          | DataB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
+            s `Atom
           | Link _ -> assert false
         end
-    end;
-    Buffer.add_string buf after
-  in
-  s_basetype ty;
-  Buffer.contents buf
-
+      | `Atom ->
+        begin
+          match Basetype.finddesc t with
+          | Var -> "\'" ^ (name_of_basetypevar t)
+          | IntB -> "int"
+          | ZeroB -> "0"
+          | UnitB -> "unit"
+          | BoxB(b) -> "box<" ^ str b `Atom ^ ">"
+          | ArrayB(b) -> "array<" ^ str b `Atom ^ ">"
+          | DataB _
+          | PairB _  -> "(" ^ s `Summand ^ ")"
+          | Link _ -> assert false
+        end in
+    let tid = (Basetype.find t).id in
+    match Int.Table.find strs tid with
+    | Some s -> s
+    | None ->
+      if Int.Set.mem cycle_nodes tid then
+        let alpha = "'" ^ (name_of_basetypevar (Basetype.newtyvar())) in
+        Int.Table.replace strs ~key:tid ~data:alpha;
+        let s = "(rec " ^ alpha ^ ". " ^ (s l) ^ ")" in
+        Int.Table.replace strs ~key:tid ~data:s;
+        s
+      else
+        s l in
+  str ty `Summand
+        
 module TypeAlgs = Types.Algs(Type)
-
+                    
 let string_of_type ?concise:(concise=true) (ty: Type.t): string =
-  let buf = Buffer.create 80 in
-  (* TODO: this is awkward *)
-  let cycle_names =
+  let open Type in
+  let cycle_nodes =
     let cycles = TypeAlgs.dfs_cycles ty in
-    let tbl = Int.Table.create () in
-    List.iter cycles ~f:(fun tid -> Int.Table.replace tbl ~key:tid ~data:None);
-    tbl in
-  let check_rec t =
-    let tid = (Type.find t).Type.id in
-    try
-      match Int.Table.find_exn cycle_names tid with
-      | Some s -> "", Some(s), ""
-      | None ->
-        let alpha = Type.newty Type.Var in
-        let s = "'" ^ (name_of_typevar alpha) in
-        Int.Table.replace cycle_names ~key:tid ~data:(Some s);
-        "(rec " ^ s ^ ". ", None, ")"
-    with Not_found -> "", None, "" in
-  (* Printing functions *)
-  let rec s_type (t: Type.t) =
-    let before, body, after = check_rec t in
-    Buffer.add_string buf before;
-    begin
-      match body with
-      | Some body -> Buffer.add_string buf body
-      | None ->
+    List.fold cycles ~init:Int.Set.empty ~f:Int.Set.add in
+  let strs = Int.Table.create () in
+  let rec str (t: Type.t) l =
+    let rec s l =
+      match l with
+      | `Type -> 
         begin
           match Type.finddesc t with
           | Type.FunV(a1, t1) ->
-            (* TODO: parenthesis needed? *)
-            Buffer.add_string buf (string_of_basetype a1);
-            Buffer.add_string buf " -> ";
-            s_type t1
+            string_of_basetype a1 ^ " -> " ^ str t1 `Type
           | Type.FunI(a1, t1, t2) ->
-            (* TODO: put colours away *)
             if not concise then
-              begin
-                Buffer.add_string buf "\027[36m";
-                Buffer.add_char buf '{';
-                Buffer.add_string buf (string_of_basetype a1);
-                Buffer.add_char buf '}';
-                Buffer.add_string buf "\027[30m"
-              end;
-            s_atom t1;
-            Buffer.add_string buf " -> ";
-            s_type t2
+              "\027[36m" ^
+              "{" ^ (string_of_basetype a1) ^ "}" ^
+              "\027[30m" ^
+              (str t1 `Atom) ^ " -> " ^ (str t2 `Type)
+            else
+              (str t1 `Atom) ^ " -> " ^ (str t2 `Type)
           | Type.Var | Type.Base _ | Type.Tensor _ ->
-            s_factor t
+            s `Factor
           | Type.Link _ -> assert false
         end
-    end;
-    Buffer.add_string buf after
-  and s_factor (t: Type.t) =
-    let before, body, after = check_rec t in
-    Buffer.add_string buf before;
-    begin
-      match body with
-      | Some body -> Buffer.add_string buf body
-      | None -> begin
+      | `Factor ->
+        begin
           match Type.finddesc t with
           | Type.Tensor(t1, t2) ->
-            s_factor t1;
-            Buffer.add_string buf " # ";
-            s_atom t2
+            str t1 `Factor ^ " # " ^ str t2 `Atom
           | Type.Var | Type.Base _ | Type.FunV _ | Type.FunI _ ->
-            s_atom t
+            s `Atom
           | Type.Link _ -> assert false
         end
-    end;
-    Buffer.add_string buf after
-  and s_atom (t: Type.t) =
-    let before, body, after = check_rec t in
-    Buffer.add_string buf before;
-    begin
-      match body with
-      | Some body -> Buffer.add_string buf body
-      | None ->
+      | `Atom ->
         begin
           match Type.finddesc t with
           | Type.Var ->
-            Buffer.add_string buf "\'\'";
-            Buffer.add_string buf (name_of_typevar t)
+            "\'\'" ^ (name_of_typevar t)
           | Type.Base(a) ->
-            Buffer.add_string buf "[";
-            Buffer.add_string buf (string_of_basetype a);
-            Buffer.add_string buf "]"
-          | Type.Tensor _
-          | Type.FunV _
-          | Type.FunI _ ->
-            Buffer.add_char buf '(';
-            s_type t;
-            Buffer.add_char buf ')'
+            "[" ^ (string_of_basetype a) ^ "]"
+          | Type.Tensor _ | Type.FunV _ | Type.FunI _ ->
+            "(" ^ s `Type ^ ")"
           | Type.Link _ -> assert false
-        end
-    end;
-    Buffer.add_string buf after in
-  s_type ty;
-  Buffer.contents buf
+        end in
+    let tid = (Type.find t).id in
+    match Int.Table.find strs tid with
+    | Some s -> s
+    | None ->
+      if Int.Set.mem cycle_nodes tid then
+        let alpha = "'" ^ (name_of_basetypevar (Basetype.newtyvar())) in
+        Int.Table.replace strs ~key:tid ~data:alpha;
+        let s = "(rec " ^ alpha ^ ". " ^ (s l) ^ ")" in
+        Int.Table.replace strs ~key:tid ~data:s;
+        s
+      else
+        s l in
+  str ty `Type
 
 (* TODO: make tests
    let t1 = Type.newty Type.Var
@@ -330,7 +227,7 @@ let string_of_op_const (c: Ast.op_const) : string =
   | Cencode(a, b) -> "encode(" ^ (string_of_basetype a) ^
                      ", " ^ (string_of_basetype b) ^ ") "
   | Cdecode(a, b) -> "decode(" ^ (string_of_basetype a) ^
-                        ", " ^ (string_of_basetype b) ^ ") "
+                     ", " ^ (string_of_basetype b) ^ ") "
 
 let fprint_ast (f: Format.formatter) (term: Ast.t): unit =
   let open Ast in
@@ -388,15 +285,15 @@ let fprint_ast (f: Format.formatter) (term: Ast.t): unit =
       let k = ref 0 in
       List.iter l
         ~f:(fun (p, t) ->
-        let conname = List.nth_exn (Basetype.Data.constructor_names id) !k in
-        if !k > 0 then fprintf f "@ | " else fprintf f "@   ";
-        fprintf f "@[<hv 2>%s(" conname;
-        s_pattern p;
-        fprintf f ") ->@ ";
-        k := !k + 1;
-        s_term t;
-        fprintf f "@]";
-      );
+          let conname = List.nth_exn (Basetype.Data.constructor_names id) !k in
+          if !k > 0 then fprintf f "@ | " else fprintf f "@   ";
+          fprintf f "@[<hv 2>%s(" conname;
+          s_pattern p;
+          fprintf f ") ->@ ";
+          k := !k + 1;
+          s_term t;
+          fprintf f "@]";
+        );
       fprintf f "@]"
     | InV(id, k, t1) ->
       let cname = List.nth_exn (Basetype.Data.constructor_names id) k in

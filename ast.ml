@@ -109,7 +109,7 @@ let mkBox t =
        (PatVar unused, mkReturn (mkVar addr)))
 let mkUnbox t =
   let alpha = Basetype.newtyvar() in
-  let v = Ident.fresh "val" in
+  let v = Ident.fresh "v" in
   let unused = Ident.fresh "x" in
   mkBind (mkApp (mkConst (Cload alpha)) t)
     (PatVar v, mkBind (mkApp (mkConst (Cfree alpha)) t)
@@ -135,7 +135,8 @@ let rec pattern_vars p =
   | PatPair(p, q) -> pattern_vars p @ pattern_vars q
 
 (** Rename the variables in [p] so that [pattern_vars] returns [l]. 
-   Raises Ille
+    Raises [Invalid_argument] if [l] contains more or less variables
+    than needed.
  *)
 let rename_pattern_exn p l =
   let rec rn p l =

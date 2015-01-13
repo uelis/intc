@@ -1,4 +1,5 @@
 (** global options *)
+
 let keep_circuits = ref false
 let keep_ssa = ref false
 let llvm_compile = ref true

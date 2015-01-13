@@ -1,6 +1,5 @@
 %{
-  (** Parser
-  *)
+(** Parser *)
 
 open Core.Std
 open Lexing
@@ -193,22 +192,20 @@ term:
         { mkAst (Bind($4, ($2, $6))) }
     | IF term THEN term ELSE term
         { mkAst (Case(Basetype.Data.boolid, $2,
-                        [(PatUnit, $4); (PatUnit, $6)])) }
+                      [(PatUnit, $4); (PatUnit, $6)])) }
     | CASE term OF term_cases
-        {let id, c = $4 in
-         let sorted_c = List.sort c
-                          ~cmp:(fun (i, _, _) (j, _, _) -> compare i j) in
-         let indices = List.map ~f:(fun (i, _, _) -> i) sorted_c in
-         let cases = List.map ~f:(fun (_, x, t) -> (x, t)) sorted_c in
-         let n = List.length (Basetype.Data.constructor_names id) in
-         (* Check that there is a case for all constructors *)
-         if (indices = List.init n ~f:(fun i -> i)) then
-           mkAst (Case(id, $2, cases))
-         else
-           illformed "case must match each constructor exactly once!"
+       { let id, c = $4 in
+         let indices, cases =
+           List.sort c ~cmp:(fun (i, _) (j, _) -> compare i j)
+           |> List.unzip in
+         (* indices must be [1, ..., length indices] *)
+         List.iteri indices ~f:(fun i j ->
+           if i <> j then
+             illformed "case must match each constructor exactly once!");
+         mkAst (Case(id, $2, cases))
        }
     | term_app SEMICOLON term
-        { mkAst (Bind($1, (PatUnit, $3))) }
+       { mkAst (Bind($1, (PatUnit, $3))) }
     | term_app
        { $1 }
     | term_constr
@@ -219,28 +216,25 @@ term:
 term_constr:
     | CONSTR
        { try Basetype.Data.find_constructor $1
-           with Not_found ->
-             (* TODO: message *)
-             illformed (Printf.sprintf "Undefined constructor %s" $1)
+         with Not_found ->
+           illformed (Printf.sprintf "Undefined constructor %s" $1)
        }
 
 term_case:
-  | term_constr TO
+    | term_constr TO
        { let id, i = $1 in (id, i, PatVar(Ident.fresh "unused")) }
     | term_constr pattern TO
-        {
-          let id, i = $1 in
-          (id, i, $2) }
+       { let id, i = $1 in (id, i, $2) }
 
 term_cases:
     | term_case term
     %prec THEN
        { let id, i, p = $1 in
-         (id, [(i, p, $2)]) }
+         (id, [(i, (p, $2))]) }
     | term_case term VERTBAR term_cases
         {  let id, i, p = $1 in
            let id', r = $4 in
-            if id = id' then (id, (i, p, $2)::r)
+            if id = id' then (id, (i, (p, $2)) :: r)
             else illformed "Constructors from different types used in case." }
 
 term_app:

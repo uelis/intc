@@ -5,18 +5,18 @@ open Parser
 open Lexing
 
 let incr_linenum lexbuf =
-    let pos = lexbuf.Lexing.lex_curr_p in
-    lexbuf.Lexing.lex_curr_p <- { pos with
-      Lexing.pos_lnum = pos.Lexing.pos_lnum + 1;
-      Lexing.pos_bol = pos.Lexing.pos_cnum;
-    }
+  let pos = lexbuf.Lexing.lex_curr_p in
+  lexbuf.Lexing.lex_curr_p <- {
+    pos with
+    Lexing.pos_lnum = pos.Lexing.pos_lnum + 1;
+    Lexing.pos_bol = pos.Lexing.pos_cnum;
+  }
 
 let error lexbuf msg =
-       let pos = lexbuf.Lexing.lex_curr_p in
-       print_string msg;
-       Printf.printf " at position %i.\n" (pos.pos_cnum - pos.pos_bol);
-       flush stdout;
-       raise Parsing.Parse_error
+  let pos = lexbuf.Lexing.lex_curr_p in
+  print_string msg;
+  Printf.printf " at position %i.\n%!" (pos.pos_cnum - pos.pos_bol);
+  raise Parsing.Parse_error
 }
 
 let white = [' ' '\t']+
@@ -27,83 +27,82 @@ let ident =  ['a'-'z'] (alpha | num | '_' | ''' )*
 let constr =  ['A'-'Z'] (alpha | num | '_' | ''' )*
 
 rule main = parse
-  | '\n'       { incr_linenum lexbuf; main lexbuf }
-  |  white     { main lexbuf }
-  | '('        { LPAREN }
-  | ')'        { RPAREN }
-  | '{'        { LBRACE }
-  | '}'        { RBRACE }
-  | '['        { LBRACKET }
-  | ']'        { RBRACKET }
-  | '<'        { LANGLE }
-  | '>'        { RANGLE }
-  | "fn"       { FN }
-  | "λ"        { LAMBDA }
-  | '\\'       { LAMBDA }
-  | '+'        { PLUS }
-  | '-'        { MINUS }
-  | '*'        { TIMES }
-  | '/'        { DIV }
-  | ','        { COMMA }
-  | '''        { QUOTE }
-  | "''"       { DOUBLEQUOTE }
-  | ':'        { COLON }
-  | ';'        { SEMICOLON }
-  | '#'        { SHARP }
-  | '='        { EQUALS }
-  | "return"   { RETURN }
-  | "type"     { TYPE }
-  | "unit"     { UNIT }
-  | "box"      { BOX }
-  | "array"    { ARRAY }
-  | "print"    { PRINT }
-  | "intadd"   { INTADD }
-  | "intsub"   { INTSUB }
-  | "intmul"   { INTMUL }
-  | "intdiv"   { INTDIV }
-  | "inteq"    { INTEQ }
-  | "intshl"   { INTSHL }
-  | "intshr"   { INTSHR }
-  | "intsar"   { INTSAR }
-  | "intand"   { INTAND }
-  | "intor"    { INTOR }
-  | "intxor"   { INTXOR }
-  | "intlt"    { INTLT }
-  | "intslt"   { INTSLT }
-  | "alloc"    { ALLOC }
-  | "free"     { FREE }
-  | "load"     { LOAD }
-  | "store"    { STORE }
+  | '\n'         { incr_linenum lexbuf; main lexbuf }
+  |  white       { main lexbuf }
+  | '('          { LPAREN }
+  | ')'          { RPAREN }
+  | '{'          { LBRACE }
+  | '}'          { RBRACE }
+  | '['          { LBRACKET }
+  | ']'          { RBRACKET }
+  | '<'          { LANGLE }
+  | '>'          { RANGLE }
+  | "fn"         { FN }
+  | "λ"          { LAMBDA }
+  | '\\'         { LAMBDA }
+  | '+'          { PLUS }
+  | '-'          { MINUS }
+  | '*'          { TIMES }
+  | '/'          { DIV }
+  | ','          { COMMA }
+  | '''          { QUOTE }
+  | "''"         { DOUBLEQUOTE }
+  | ':'          { COLON }
+  | ';'          { SEMICOLON }
+  | '#'          { SHARP }
+  | '='          { EQUALS }
+  | "return"     { RETURN }
+  | "type"       { TYPE }
+  | "unit"       { UNIT }
+  | "box"        { BOX }
+  | "array"      { ARRAY }
+  | "print"      { PRINT }
+  | "intadd"     { INTADD }
+  | "intsub"     { INTSUB }
+  | "intmul"     { INTMUL }
+  | "intdiv"     { INTDIV }
+  | "inteq"      { INTEQ }
+  | "intshl"     { INTSHL }
+  | "intshr"     { INTSHR }
+  | "intsar"     { INTSAR }
+  | "intand"     { INTAND }
+  | "intor"      { INTOR }
+  | "intxor"     { INTXOR }
+  | "intlt"      { INTLT }
+  | "intslt"     { INTSLT }
+  | "alloc"      { ALLOC }
+  | "free"       { FREE }
+  | "load"       { LOAD }
+  | "store"      { STORE }
   | "arrayalloc" { ARRAYALLOC }
-  | "arrayfree" { ARRAYFREE }
-  | "arrayget" { ARRAYGET }
-  | "push"     { PUSH }
-  | "pop"      { POP }
-  | "call"     { CALL }
-  | "encode"   { ENCODE }
-  | "decode"   { DECODE }
-  | "if"       { IF }
-  | "then"     { THEN }
-  | "else"     { ELSE }
-  | "int"      { NAT }
-  | "direct"   { HACK }
-  | "copy"     { COPY }
-  | "let"      { LET }
-  | "val"      { VAL }
-  | "as"       { AS }
-  | "of"       { OF }
-  | "in"       { IN }
-  | "case"     { CASE }
-  | "->"       { TO }
-  | "|"        { VERTBAR }
-  | nat        { NUM (int_of_string (Lexing.lexeme lexbuf)) }
-  | ident      { IDENT (Lexing.lexeme lexbuf) }
-  | constr     { CONSTR (Lexing.lexeme lexbuf) }
-  | eof        { EOF }
-  | "/*"       { comments 0 lexbuf}
-  | "\""       { let buf = Buffer.create 1 in
-                    STRING (str buf lexbuf)}
-  | _          { error lexbuf "Unexpected symbol" }
+  | "arrayfree"  { ARRAYFREE }
+  | "arrayget"   { ARRAYGET }
+  | "push"       { PUSH }
+  | "pop"        { POP }
+  | "call"       { CALL }
+  | "encode"     { ENCODE }
+  | "decode"     { DECODE }
+  | "if"         { IF }
+  | "then"       { THEN }
+  | "else"       { ELSE }
+  | "int"        { NAT }
+  | "direct"     { HACK }
+  | "copy"       { COPY }
+  | "let"        { LET }
+  | "val"        { VAL }
+  | "as"         { AS }
+  | "of"         { OF }
+  | "in"         { IN }
+  | "case"       { CASE }
+  | "->"         { TO }
+  | "|"          { VERTBAR }
+  | nat          { NUM (int_of_string (Lexing.lexeme lexbuf)) }
+  | ident        { IDENT (Lexing.lexeme lexbuf) }
+  | constr       { CONSTR (Lexing.lexeme lexbuf) }
+  | eof          { EOF }
+  | "/*"         { comments 0 lexbuf}
+  | "\""         { let buf = Buffer.create 1 in STRING (str buf lexbuf)}
+  | _            { error lexbuf "Unexpected symbol" }
 and comments level = parse
   | '\n'       { incr_linenum lexbuf; comments level lexbuf }
   | "/*"       { comments (level+1) lexbuf }
