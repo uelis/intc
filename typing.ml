@@ -31,13 +31,16 @@ module U = Unify(struct type t = eq_tag end)
 
 let eq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
   let msg () =
-    Printf.sprintf "Term has type %s, but a term of type %s is expected."
+    Printf.sprintf
+      "Term has interactive type %s, but a term of type %s is expected."
       (Printing.string_of_type actual_ty)
       (Printing.string_of_type expected_ty) in
   U.unify_eqs [U.Type_eq(expected_ty, actual_ty, Some(t, msg))]
+    
 let beq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
   let msg () =
-    Printf.sprintf "Term has type %s, but a term of type %s is expected."
+    Printf.sprintf
+      "Term has value type %s, but a term of type %s is expected."
       (Printing.string_of_basetype actual_ty)
       (Printing.string_of_basetype expected_ty) in
   U.unify_eqs [U.Basetype_eq(expected_ty, actual_ty, Some(t, msg))]
@@ -76,20 +79,21 @@ module ValEnv:
 sig
   type t
 
-  val bind_pattern: t -> Ast.pattern -> Basetype.t -> Ident.t * t
+  (** Matches the given value against the given pattern and
+      adds the resulting variable bindings to the environment. *)
+  val match_pattern: t -> Typedterm.value -> Ast.pattern -> t
+
+  (** Find the value of a variable in the environment and update 
+      its location as given. *)
   val find: t -> Ident.t -> Ast.Location.t -> Typedterm.value option
+  
   val of_context: Basetype.t context -> t
 end =
 struct  
   type t = (Ast.pattern * Typedterm.value) list
 
-  let bind_pattern (env: t) (p: Ast.pattern) (a: Basetype.t): Ident.t * t =
-    let z = Ident.fresh "pattern" in
-    let v = { Typedterm.value_desc = Typedterm.VarV z;
-              Typedterm.value_type = a;
-              Typedterm.value_loc = Ast.Location.none } in
-    let envz = (p, v) :: env in
-    z, envz
+  let match_pattern (env: t) (v: Typedterm.value) (p: Ast.pattern) : t =
+    (p, v) :: env
 
   let find (env: t) (x: Ident.t) (loc: Ast.Location.t)
     : Typedterm.value option =
@@ -366,24 +370,30 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
   | Ast.Bind(t1, (p, t2)) ->
     let phi1, phi2 = split_context phi t1 t2 in
     let a1 = pt c phi1 t1 in
-    let alpha = Basetype.newtyvar() in
-    let z, cz = ValEnv.bind_pattern c p alpha in
-    let a2 = pt cz phi2 t2 in
+    let pat_id = Ident.fresh "pat" in
+    let pat_val = { value_desc = VarV(pat_id);
+                    value_type = Basetype.newtyvar();
+                    value_loc = Ast.Location.none } in
+    let cpat = ValEnv.match_pattern c pat_val p in
+    let a2 = pt cpat phi2 t2 in
     let beta = Basetype.newty Basetype.Var in
     eq_expected_constraint t1 ~actual:a1.t_type
-      ~expected:(Type.newty (Type.Base alpha));
+      ~expected:(Type.newty (Type.Base pat_val.value_type));
     eq_expected_constraint t2 ~actual:a2.t_type
       ~expected:(Type.newty (Type.Base beta));
-    { t_desc = Bind((a1, alpha), (z, a2));
+    { t_desc = Bind((a1, pat_val.value_type), (pat_id, a2));
       t_type = a2.t_type;
       t_context = phi;
       t_loc = t.Ast.loc }
   | Ast.Fn(p, t1) ->
-    let alpha = Basetype.newty Basetype.Var in
-    let z, c1 = ValEnv.bind_pattern c p alpha in
+    let pat_id = Ident.fresh "pat" in
+    let pat_val = { value_desc = VarV(pat_id);
+                    value_type = Basetype.newtyvar();
+                    value_loc = Ast.Location.none } in
+    let c1 = ValEnv.match_pattern c pat_val p in
     let b1 = pt c1 phi t1 in
-    { t_desc = Fn((z, alpha), b1);
-      t_type = Type.newty (Type.FunV(alpha, b1.t_type));
+    { t_desc = Fn((pat_id, pat_val.value_type), b1);
+      t_type = Type.newty (Type.FunV(pat_val.value_type, b1.t_type));
       t_context = phi;
       t_loc = t.Ast.loc }
   | Ast.App(s, t) ->
@@ -473,10 +483,14 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     let l_args = List.zip_exn l argtypes in
     let l1 = List.map l_args
                ~f:(fun ((p, u), argty) ->
-                 let z, cz = ValEnv.bind_pattern c p argty in
+                 let pat_id = Ident.fresh "pat" in
+                 let pat_val = { value_desc = VarV(pat_id);
+                                 value_type = argty;
+                                 value_loc = Ast.Location.none } in
+                 let cz = ValEnv.match_pattern c pat_val p in
                  let a2 = pt cz phi u in
                  eq_expected_constraint u ~actual:a2.t_type ~expected:beta;
-                 z, a2) in
+                 pat_id, a2) in
     beq_expected_constraint s ~actual:s1.value_type ~expected:data;
     { t_desc = Case(id, params, s1, l1);
       t_type = beta;
