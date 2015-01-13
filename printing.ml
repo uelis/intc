@@ -48,23 +48,22 @@ let string_of_basetype (ty: Basetype.t): string =
       match l with
       | `Summand -> 
         begin
-          match Basetype.finddesc t with
+          match finddesc t with
           | DataB(id, [t1; t2]) when id = Data.sumid 2 ->
-            (str t1 `Summand) ^ " + " ^ (str t2 `Factor)
+            Printf.sprintf "%s + %s" (str t1 `Summand) (str t2 `Factor)
           | DataB(id, []) when id = Data.sumid 0 -> "0"
           | DataB(id, []) -> id
           | DataB(id, ls) ->
-            id ^ "<" ^
-            (List.map ls ~f:(fun t2 -> str t2 `Summand)
-             |> String.concat ~sep:", ") ^
-            ">"
+            Printf.sprintf "%s<%s>" id 
+              (List.map ls ~f:(fun t2 -> str t2 `Summand)
+               |> String.concat ~sep:", ")
           | PairB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
             s `Factor
           | Link _ -> assert false
         end
       | `Factor ->
         begin
-          match Basetype.finddesc t with
+          match finddesc t with
           | PairB(t1, t2) -> str t1 `Factor ^ " * " ^ str t2 `Atom
           | DataB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
             s `Atom
@@ -72,23 +71,23 @@ let string_of_basetype (ty: Basetype.t): string =
         end
       | `Atom ->
         begin
-          match Basetype.finddesc t with
+          match finddesc t with
           | Var -> "\'" ^ (name_of_basetypevar t)
           | IntB -> "int"
           | ZeroB -> "0"
           | UnitB -> "unit"
-          | BoxB(b) -> "box<" ^ str b `Atom ^ ">"
-          | ArrayB(b) -> "array<" ^ str b `Atom ^ ">"
+          | BoxB(b) -> Printf.sprintf "box<%s>" (str b `Atom)
+          | ArrayB(b) -> Printf.sprintf "array<%s>" (str b `Atom)
           | DataB _
-          | PairB _  -> "(" ^ s `Summand ^ ")"
+          | PairB _  -> Printf.sprintf "(%s)" (s `Summand)
           | Link _ -> assert false
         end in
-    let tid = (Basetype.find t).id in
+    let tid = (find t).id in
     match Int.Table.find strs tid with
     | Some s -> s
     | None ->
       if Int.Set.mem cycle_nodes tid then
-        let alpha = "'" ^ (name_of_basetypevar (Basetype.newtyvar())) in
+        let alpha = "'" ^ (name_of_basetypevar (newty Var)) in
         Int.Table.replace strs ~key:tid ~data:alpha;
         let s = "(rec " ^ alpha ^ ". " ^ (s l) ^ ")" in
         Int.Table.replace strs ~key:tid ~data:s;
@@ -110,47 +109,47 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
       match l with
       | `Type -> 
         begin
-          match Type.finddesc t with
-          | Type.FunV(a1, t1) ->
-            string_of_basetype a1 ^ " -> " ^ str t1 `Type
-          | Type.FunI(a1, t1, t2) ->
+          match finddesc t with
+          | FunV(a1, t1) ->
+            Printf.sprintf "%s -> %s" (string_of_basetype a1) (str t1 `Type)
+          | FunI(a1, t1, t2) ->
             if not concise then
-              "\027[36m" ^
-              "{" ^ (string_of_basetype a1) ^ "}" ^
-              "\027[30m" ^
-              (str t1 `Atom) ^ " -> " ^ (str t2 `Type)
+              let cyan = "\027[36m" in
+              let black = "\027[30m" in
+              Printf.sprintf "%s{%s%s}%s -> %s"
+                cyan (string_of_basetype a1) black (str t1 `Atom) (str t2 `Type)
             else
-              (str t1 `Atom) ^ " -> " ^ (str t2 `Type)
-          | Type.Var | Type.Base _ | Type.Tensor _ ->
+              Printf.sprintf "%s -> %s" (str t1 `Atom) (str t2 `Type)
+          | Var | Base _ | Tensor _ ->
             s `Factor
-          | Type.Link _ -> assert false
+          | Link _ -> assert false
         end
       | `Factor ->
         begin
-          match Type.finddesc t with
-          | Type.Tensor(t1, t2) ->
-            str t1 `Factor ^ " # " ^ str t2 `Atom
-          | Type.Var | Type.Base _ | Type.FunV _ | Type.FunI _ ->
+          match finddesc t with
+          | Tensor(t1, t2) ->
+            Printf.sprintf "%s # %s" (str t1 `Factor) (str t2 `Atom)
+          | Var | Base _ | FunV _ | FunI _ ->
             s `Atom
-          | Type.Link _ -> assert false
+          | Link _ -> assert false
         end
       | `Atom ->
         begin
-          match Type.finddesc t with
-          | Type.Var ->
+          match finddesc t with
+          | Var ->
             "\'\'" ^ (name_of_typevar t)
-          | Type.Base(a) ->
-            "[" ^ (string_of_basetype a) ^ "]"
-          | Type.Tensor _ | Type.FunV _ | Type.FunI _ ->
-            "(" ^ s `Type ^ ")"
-          | Type.Link _ -> assert false
+          | Base(a) ->
+            Printf.sprintf "[%s]" (string_of_basetype a)
+          | Tensor _ | FunV _ | FunI _ ->
+            Printf.sprintf "(%s)" (s `Type)
+          | Link _ -> assert false
         end in
-    let tid = (Type.find t).id in
+    let tid = (find t).id in
     match Int.Table.find strs tid with
     | Some s -> s
     | None ->
       if Int.Set.mem cycle_nodes tid then
-        let alpha = "'" ^ (name_of_basetypevar (Basetype.newtyvar())) in
+        let alpha = "''" ^ (name_of_typevar (newty Var)) in
         Int.Table.replace strs ~key:tid ~data:alpha;
         let s = "(rec " ^ alpha ^ ". " ^ (s l) ^ ")" in
         Int.Table.replace strs ~key:tid ~data:s;
