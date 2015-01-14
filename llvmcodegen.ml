@@ -769,13 +769,13 @@ let llvm_compile (ssa_func : Ssa.t) : Llvm.llmodule =
   if ssa_func.Ssa.func_name = "main" then
     begin
       let void_ty = Llvm.void_type context in
-      let main_ty = Llvm.function_type void_ty (Array.create ~len:0 void_ty) in
+      let main_ty = Llvm.function_type native_int (Array.create ~len:0 void_ty) in
       let main = Llvm.declare_function "main" main_ty the_module in
       let start_block = Llvm.append_block context "start" main in
       let args = Array.of_list [Llvm.undef arg_ty] in
       Llvm.position_at_end start_block builder;
       ignore (Llvm.build_call func args "ret" builder);
-      ignore (Llvm.build_ret_void builder)
+      ignore (Llvm.build_ret (Llvm.const_int native_int 0) builder)
     end;
   (* Llvm.dump_module the_module; *)
   the_module

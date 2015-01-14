@@ -1,0 +1,51 @@
+/* interaction strategy for tail recursion */
+fn tailrecimp(x) =
+  case x of
+    Inr(a, ()) -> return Inl((), Inr(a, ()))
+  | Inl(u, s) ->
+      case s of
+         Inr(b) -> return Inr(b)
+       | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
+
+/* The tail recursion combinator is implemented by the above strategy */
+let tailrec =
+   direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
+
+fn fiximpl(x) =
+    case x of
+    Inl(l, x) ->
+        (case x of
+           Inl(b, q) ->
+             push(unit + 'b, Inr(b));
+             return Inl((), Inr(q))
+         | Inr(a) ->
+	     val u = pop(unit + 'b) in
+             (case u of
+                Inl -> return Inr(a)
+              | Inr(hd) ->
+                   return Inl((), Inl(hd, a))))
+  | Inr(q) ->
+     push(unit + 'b, Inl());
+     return Inl((), Inr(q))
+
+let fix = direct(fiximpl:(''a -> ''a) -> ''a)
+
+let fibtr = fix (λ fib ->
+   fn i ->
+      tailrec (λ tr ->
+         fn (i, acc) ->
+            val b = intslt(i, 2) in
+            if b then return acc else
+              val i' = intsub(i, 2) in
+              val acc' =
+                  val i1 = intsub(i, 1) in
+                  val f = fib(i1) in
+                  intadd(f, acc) in
+              tr (i', acc')
+      ) (i, 1)
+   )
+
+let main =
+  val v = fibtr 38 in
+  print v;
+  return 0

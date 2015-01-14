@@ -70,7 +70,7 @@ val make:
   return_type: Basetype.t ->
   t
 
-val circuit_to_ssa: string -> Circuit.t -> t
+val of_circuit: string -> Circuit.t -> t
 
 val fprint_value : Out_channel.t -> value -> unit
 val fprint_term : Out_channel.t -> term -> unit

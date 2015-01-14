@@ -1,0 +1,99 @@
+fn tailrecimp(x) =
+  case x of
+    Inr(a, ()) -> return Inl((), Inr(a, ()))
+  | Inl(u, s) ->
+      case s of
+         Inr(b) -> return Inr(b)
+       | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
+
+let tailrec =
+   direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
+
+type list<'a> =
+        Nil of unit
+      | Cons of 'a * box<list<'a>>
+
+let maprev = λ f ->
+   tailrec (λ mapf ->
+      fn (l, r) ->
+        case l of
+          Nil -> return r
+        | Cons(x, xs) ->
+            val tail = load(xs) in
+            /* reuse memory */
+            val () = store(xs, r) in
+            val y = f x in
+            mapf(tail, Cons(y, xs))
+      )
+
+let revaux =
+   tailrec (λ rev ->
+      fn (l, r) ->
+        case l of
+          Nil -> return r
+        | Cons(x, xs) ->
+           val tail = load(xs) in
+           val () = store(xs, r) in
+           rev(tail, Cons(x, xs))
+      )
+
+fn rev(l) =
+  revaux (l, Nil)
+
+let maptr = λ f ->
+   fn l ->
+      val l1 = maprev f (l, Nil) in
+      rev l1
+
+/* prints a list and deallocates the memory in the process */
+let printlist = tailrec (λ printlist ->
+    fn l ->
+       case l of
+           Nil ->
+            print "\n"
+         | Cons(h, t) ->
+            print h;
+            print " ";
+            val tail = load(t) in
+            val () = free(t) in
+            printlist tail
+    )
+
+/* duplicate a list */
+fn clone(l) =
+   tailrec (λ clone ->
+      fn (l, (l1, l2)) ->
+        case l of
+          Nil ->
+	    val rl1 = rev l1 in
+	    val rl2 = rev l2 in
+	     return (rl1, rl2)
+        | Cons(x, xs) ->
+	    val tl = load(xs) in
+	    val () = free(xs) in
+	    val t1 = alloc() in
+	    val () = store(t1, l1) in
+	    val t2 = alloc() in
+            val () = store(t2, l2) in
+            clone(tl, (Cons(x, t1), Cons(x, t2)))
+      )
+    (l, (Nil, Nil))
+
+fn upto(n) =
+   tailrec (λ aux ->
+   fn (m, r) ->
+      val b = inteq(m, 0) in
+      if b then return r else
+        val m' = intsub(m, 1) in
+        val tail = alloc() in
+        val () = store(tail, r) in
+        aux (m', Cons(m, tail))
+   ) (n, Nil)
+
+let main =
+   val l = upto 20 in
+   val l1 = maptr (fn i -> intmul(i, i)) l in
+   val (l2, l3) = clone l1 in
+   val l3' = rev l3 in
+   printlist l2;
+   printlist l3'

@@ -51,7 +51,7 @@ type t = {
 }
 
 (** Translate a well-typed term into a circuit. *)
-val circuit_of_term : Typedterm.t -> t
+val of_typedterm : Typedterm.t -> t
 
 (** Convert a circuit to dot format for debugging. *)
 val dot_of_circuit :

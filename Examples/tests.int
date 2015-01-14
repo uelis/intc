@@ -30,7 +30,7 @@ fn fac(i) =
    facaux (i, 1)
 
 /* factorial test */
-fn main1() =
+fn main1 =
    val v = fac 10 in
      print v
 

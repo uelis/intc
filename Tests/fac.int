@@ -1,0 +1,35 @@
+type list<'a> = Nil of unit
+              | Cons of 'a * box<list<'a>>
+
+/* interaction strategy for tail recursion */
+fn tailrecimp(x) =
+  case x of
+    Inr(a, ()) -> return Inl((), Inr(a, ()))
+  | Inl(u, s) ->
+      case s of
+         Inr(b) -> return Inr(b)
+       | Inl(d, (a, ())) -> return Inl((), Inr(a, ()))
+
+/* The tail recursion combinator is implemented by the above strategy */
+let tailrec =
+   direct(tailrecimp : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b])
+
+
+/* factorial with accumulator */
+let facaux = tailrec (λ facaux ->
+    fn (i, acc) ->
+      val b = inteq(i, 0) in
+      if b then return acc else
+        val i' = intsub(i, 1) in
+	val acc' = intmul(acc, i) in
+        facaux (i', acc')
+)
+
+/* factorial */
+fn fac(i) =
+   facaux (i, 1)
+
+/* factorial test */
+let main =
+   val v = fac 10 in
+   print v

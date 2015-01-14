@@ -1,0 +1,45 @@
+type list<'a> = Nil of unit | Cons of 'a * box<list<'a>>
+
+/* stategy implementing the fixed point combinator */
+let fiximpl =
+ fn x ->
+  case x of
+   Inl(l, x) ->
+       (case x of
+          Inl(b, q) ->
+	    /* allocate new cons cell */
+	    val a = alloc() in
+	    /* store Cons(b, l) in cell a */
+	    val () = store(a, Cons(b, l)) in
+    	    return Inl(a, Inr(q))
+        | Inr(a) ->
+	    /* load u from cell l */
+	    val u = load(l) in
+	    /* free cell l */
+	    val () = free(l) in
+            case u of
+               Nil -> return Inr(a)
+             | Cons(hd, tl) -> return Inl(tl, Inl(hd, a)))
+ | Inr(q) ->
+    val a = alloc() in
+    val () = store(a, Nil) in
+    return Inl(a, Inr(q))
+
+/* fixed point combinator */
+let fix = direct(fiximpl: /*{box<list<'b>>}*/ ( /*{'b}*/(''a) -> ''a) -> ''a)
+
+let fibs = fix (λ fib ->
+   copy fib as fib1, fib2 in
+   fn i ->
+     val b = intslt(i, 2) in
+     if b then return 1
+     else
+       val f1 = val i' = intsub(i,1) in fib1 i' in
+       val f2 = val i' = intsub(i,2) in fib2 i' in
+       intadd(f1, f2)
+   )
+
+let main =
+  val v = fibs 32 in
+  print v;
+  return 0

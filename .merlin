@@ -1,3 +1,4 @@
 S .
 B _build
 PKG core llvm
+EXT ounit

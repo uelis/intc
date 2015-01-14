@@ -45,7 +45,7 @@ let compile (d: Decl.t) : unit =
     let circuit =
       try
         let t = Typing.check_term [] [] ast in
-        let circuit = Circuit.circuit_of_term t in
+        let circuit = Circuit.of_typedterm t in
         Printf.printf "%s : %s\n"
           (Ident.to_string f)
           (Printing.string_of_type ~concise:(not !Opts.print_type_details)
@@ -63,7 +63,7 @@ let compile (d: Decl.t) : unit =
       end;
     if !Opts.keep_ssa then
       begin
-        let ssa_func = Ssa.circuit_to_ssa f_name circuit in
+        let ssa_func = Ssa.of_circuit f_name circuit in
         let ssa_traced = Trace.trace ssa_func in
         let ssa_shortcut = Trace.shortcut_jumps ssa_traced in
         let write_ssa filename ssafunc =
@@ -84,7 +84,7 @@ let compile (d: Decl.t) : unit =
       end;
     if !Opts.llvm_compile && (f_name = "main") then
       begin
-        let ssa_func = Ssa.circuit_to_ssa f_name circuit in
+        let ssa_func = Ssa.of_circuit f_name circuit in
         let ssa_traced = Trace.trace ssa_func in
         let ssa_shortcut = Trace.shortcut_jumps ssa_traced in
         let target = Printf.sprintf "%s.bc" f_name in
@@ -109,7 +109,7 @@ let arg_spec =
 
 let usage_msg = "Usage: intc input.int\nOptions:"
 
-let main =
+let () =
   try
     let file_name = ref "" in
     Arg.parse arg_spec (fun s -> file_name := s) usage_msg;

@@ -12,18 +12,16 @@ let illformed msg =
   let column = s.pos_cnum - s.pos_bol + 1 in
   raise (Decl.Illformed_decl (msg, line, column))
 
-let mkAst_with_pos startp endp d : Ast.t =
-  let lp pos = {
-    Location.line = pos.pos_lnum;
-    Location.column = pos.pos_cnum - pos.pos_bol + 1 } in
-  { Ast.desc = d;
-    loc = Some{Location.start_pos = lp startp;
-               Location.end_pos = lp endp } }
+let location_of_pos pos = 
+  { Location.line = pos.pos_lnum;
+    Location.column = pos.pos_cnum - pos.pos_bol + 1 }
 
 let mkAst d : Ast.t =
-  let s = Parsing.symbol_start_pos () in
-  let e = Parsing.symbol_end_pos () in
-  mkAst_with_pos s e d
+  let s = location_of_pos (Parsing.symbol_start_pos ()) in
+  let e = location_of_pos (Parsing.symbol_end_pos ()) in
+  { Ast.desc = d;
+    loc = Some { Location.start_pos = s;
+                 Location.end_pos = e } }
 
 let mkDatatype id params constructors =
   let n = List.length params in
@@ -101,7 +99,9 @@ let basetype_var (a : string) : Basetype.t =
      String.Table.add_exn basetype_vars ~key:a ~data:alpha;
      alpha
 
-let clear_type_vars () = Hashtbl.clear type_vars
+let clear_type_vars () =
+  Hashtbl.clear type_vars;
+  Hashtbl.clear basetype_vars
 
 %}
 

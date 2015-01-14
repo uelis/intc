@@ -227,7 +227,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
       match List.Assoc.find phi v with
       | Some a -> a
       | None ->
-        let msg = "Variable '" ^ (Ident.to_string v) ^ "' not bound. " ^
+        let msg = "Variable '" ^ (Ident.to_string v) ^ "' not bound." ^
                   "Is it a value variable or has it been used elsewhere?" in
         raise (Typing_error (Some t, msg)) in
     { t_desc = Typedterm.Var(v);

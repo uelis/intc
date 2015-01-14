@@ -870,6 +870,6 @@ let add_entry_exit_code (f: t) : t =
     ~return_type: ret_type
 
 
-let circuit_to_ssa (name: string) (c: Circuit.t) : t =
+let of_circuit (name: string) (c: Circuit.t) : t =
   let body = circuit_to_ssa_body name c in
   add_entry_exit_code body

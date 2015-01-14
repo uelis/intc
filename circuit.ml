@@ -730,7 +730,7 @@ let infer_types (c : t) : unit =
   | U.Not_Unifiable _ ->
     failwith "Internal error: cannot unify constraints in compilation"
 
-let circuit_of_term (t : Typedterm.t) : t =
+let of_typedterm (t : Typedterm.t) : t =
   try
     let c = raw_circuit_of_term [] [] t in
     ignore(infer_types c);

@@ -1,0 +1,149 @@
+/* This implementation of the fixed point combinator uses a stack,
+   which is more efficient than allocation of cons cells with alloc */
+fn fiximpl(x) =
+    case x of
+    Inl(l, x) ->
+        (case x of
+           Inl(b, q) ->
+             push(unit + 'b, Inr(b));
+             return Inl((), Inr(q))
+         | Inr(a) ->
+	     val u = pop(unit + 'b) in
+             (case u of
+                Inl -> return Inr(a)
+              | Inr(hd) ->
+                   return Inl((), Inl(hd, a))))
+  | Inr(q) ->
+     push(unit + 'b, Inl());
+     return Inl((), Inr(q))
+
+let fix = direct(fiximpl:(''a -> ''a) -> ''a)
+
+let cons = λ x -> λ xs ->
+   fn(i) ->
+     val e = inteq(i, 0) in
+     if e then x else
+       val i' = intsub(i, 1) in
+       xs i'
+
+let head = λ l -> fn () -> l(0)
+
+let tail = λ l -> fn i -> val i' = intadd(i, 1) in l(i')
+
+let andalso =
+   λ b1 -> λ b2 ->
+     val c = b1 in
+     if c then b2 else return False
+
+let orelse =
+   λ b1 -> λ b2 ->
+    val c = b1 in
+    if c then return True else b2
+
+let printlistaux = λ l ->
+   fix (λ printlist ->
+   fn (i, j) ->
+     val e = inteq(i, j) in
+     if e then return ()
+     else
+        (val v = l i in print v);
+        print "\n";
+	val i' = intadd(i, 1) in
+        printlist (i', j)
+   )
+
+let printlist = λ l ->
+   fn i ->
+      printlistaux l (0, i)
+
+fn signum(x) =
+  val c = intslt(0, x) in
+  if c then return 1 else
+    val c = inteq(x, 0) in
+    if c then return 0 else intsub(0, 1)
+
+fn abs(x) =
+  val c = intslt(0, x) in
+   if c then return x else
+     intsub(0, x)
+
+let aux = fix (λ aux ->
+    λ n ->
+      fn i ->
+         val v = n in
+         cons (return 1)
+           (cons (return v)
+              (cons (return 1)
+                  (aux (intadd (v, 2))))) i
+      )
+
+let eContFrac = cons (return 2) (aux (return 2))
+
+let ratTrans = fix (λ ratTrans ->
+   copy ratTrans as ratTrans1, ratTrans2 in
+   fn a -> fn b -> fn c -> fn d ->
+   λ xs ->
+   copy xs as xs1, xs2, xs3 in
+   fn i ->
+     val cond =
+       andalso
+          (orelse (val sc = signum c in
+	           val sd = signum d in
+		   inteq(sc, sd))
+                  (val ac = abs c in
+		   val ad = abs d in
+		   intslt(ac, ad)))
+          (andalso (
+	            val v1 =
+		      val v11 = intadd(c, d) in
+	              val v12 = intdiv(b, d) in
+		      intmul(v11, v12) in
+	            val v21 = intadd(a, b) in
+	            val v2 = intadd(v21, 1) in
+		    intslt(v1, v2))
+             (
+	      val arg =
+	        val v1 = intadd(a, b) in
+	        val v21 = intadd(c, d) in
+	      	val v22 = intdiv(b, d) in
+	      	val v23 = intmul(v21, v22) in
+		val v2 = intadd(v23, v21) in
+	     	return (v1, v2) in
+	      intslt(arg))) in
+     if cond then
+       val iz = inteq(i, 0) in
+       if iz then
+         intdiv(b, d)
+       else
+         val v1 = intdiv(b, d) in
+    	 val v2 = intmul(v1, c) in
+    	 val v3 = intsub(a, v2) in
+    	 val v4 = intmul(v1, d) in
+    	 val v5 = intsub(b, v4) in
+         val i' = intsub(i,1) in
+         ratTrans1 c d v3 v5 xs1 i'
+     else
+         val x = xs2(0) in
+         val v2 =
+             val v1 = intmul(x, b) in
+	     intadd(a, v1) in
+	 val v4 =
+	     val v3 = intmul(x, d) in
+	     intadd(c, v3) in
+       ratTrans2 b v2 d v4 (tail xs3) i
+   )
+
+let todigits = fix (λ todigits ->
+    λ l ->
+    copy l as l1, l2 in
+    fn(i) ->
+      val c = inteq(i, 0) in
+      if c then l1(i) else
+        val i' = intsub(i, 1) in
+        todigits (ratTrans 10 0 0 1 (tail l2)) i'
+  )
+
+let e = todigits eContFrac
+
+let main =
+  printlist e 10
