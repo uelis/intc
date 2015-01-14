@@ -27,5 +27,5 @@ module type S = sig
 
 end
 
-module Unify(Tag : sig type t end) : S
+module Make(Tag : sig type t end) : S
                with type tag = Tag.t

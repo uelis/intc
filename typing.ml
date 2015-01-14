@@ -1,6 +1,5 @@
 (** Type inference *)
 open Core.Std
-open Unify
 
 (* Contexts *)
 type 'a context = (Ident.t * 'a) list
@@ -26,8 +25,10 @@ let split_context (phi: 'a context) t1 t2 =
   phi1, phi2
 
 (* Unification *)
-type eq_tag = Ast.t * (unit -> string)
-module U = Unify(struct type t = eq_tag end)
+module EqTag = struct
+  type t = Ast.t * (unit -> string)
+end
+module U = Unify.Make(EqTag)
 
 let eq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
   let msg () =

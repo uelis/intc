@@ -158,13 +158,6 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
         s l in
   str ty `Type
 
-(* TODO: make tests
-   let t1 = Type.newty Type.Var
-   let t2 = Type.newty (Type.FunI(Basetype.newtyvar(), t1 ,t1))
-   module U = Unify.Unify(struct type t = () end)
-   let _ = U.unify_eqs [U.Type_eq(t1, t2, None)]
-   let _ = Printf.printf "%s\n" (string_of_type t2)
-*)
 let string_of_data id =
   let buf = Buffer.create 80 in
   let name = id in
@@ -367,3 +360,42 @@ let print_ast = fprint_ast Format.std_formatter
 let string_of_ast t =
   fprint_ast Format.str_formatter t;
   Format.flush_str_formatter ()
+
+
+
+TEST_MODULE = struct
+
+  module U = Unify.Make(Unit)
+
+  TEST "printing of cyclic types 1" =
+    let open Basetype in
+    let a = newtyvar () in
+    let aa = newty (PairB(a, a)) in
+    let b = Type.newty Type.Var in
+    let ab = Type.newty (Type.FunV(a, b)) in
+    let aab = Type.newty (Type.FunV(a, ab)) in
+    let aaab = Type.newty (Type.FunV(aa, ab)) in
+    try
+      U.unify_eqs [U.Type_eq(aab, aaab, None)];
+      false
+    with
+    | U.Not_Unifiable(U.Cyclic_type(U.Type_eq(t, _, _))) ->
+      Scanf.sscanf (string_of_type t)
+        "(rec '%s@. '%s * '%s@) -> (rec '%s@. '%s * '%s@) -> ''%s"
+        (fun a1 a2 a3 b1 b2 b3 _ -> a1 = a2 && a2 = a3 && b1 = b2 && b2 = b3)
+        
+  TEST "printing of cyclic types 2" =
+    let open Basetype in
+    let a = newtyvar () in
+    let b = Type.newty Type.Var in
+    let abb = Type.newty (Type.FunI(a, b, b)) in
+    try
+      U.unify_eqs [U.Type_eq(b, abb, None)];
+      false
+    with
+    | U.Not_Unifiable(U.Cyclic_type(U.Type_eq(t, _, _))) ->
+      Scanf.sscanf (string_of_type t)
+        "(rec ''%s@. ''%s@ -> ''%s@)"
+        (fun b1 b2 b3 -> b1 = b2 && b2 = b3)
+
+end

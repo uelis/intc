@@ -5,7 +5,6 @@
   *    without using type inference
 *)
 open Core.Std
-open Unify
 open Typing
 
 (** A wire represents a dart in an undirected graph. *)
@@ -74,7 +73,7 @@ let wires (i: instruction) : wire list =
 (* Wires for all the variables in the context.
  * They point into the graph with their dst-label. *)
 
-module U = Unify(struct type t = unit end)
+module U = Unify.Make(Unit)
 
 let tensor s t = Basetype.newty (Basetype.PairB(s, t))
 let sum s t = Basetype.newty (Basetype.DataB(Basetype.Data.sumid 2, [s; t]))

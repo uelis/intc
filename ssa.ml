@@ -1,5 +1,4 @@
 open Core.Std
-open Unify
 
 (********************
  * Values
@@ -557,7 +556,7 @@ let rec bind_context z a (gamma: Basetype.t Typing.context) : let_binding list =
     Let((x, b), Val(Snd(z, arest, b))) ::
     bind_context (Fst(z, arest, b)) arest rest
 
-module U = Unify(struct type t = unit end)
+module U = Unify.Make(Unit)
 
 let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
   let open Circuit in

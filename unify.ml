@@ -6,6 +6,7 @@
  *   The OCaml Language. LNCS 2395. Springer-Verlag 2002
  *   http://pauillac.inria.fr/~remy/cours/appsem/
 *)
+open Core.Std
 
 module type S = sig
 
@@ -26,9 +27,9 @@ module type S = sig
 
 end
 
-module Unify(T : sig type t end) = struct
+module Make(Tag : T) = struct
 
-  type tag = T.t
+  type tag = Tag.t
 
   type type_eq =
     | Type_eq of Type.t * Type.t * (tag option)
@@ -46,7 +47,7 @@ module Unify(T : sig type t end) = struct
       begin
         let open Basetype in
         let c1, c2 = find b1, find b2 in
-        if c1 != c2 then
+        if not (phys_equal c1 c2) then
           match finddesc c1, finddesc c2 with
           | Var, _ ->
             union c1 c2
@@ -65,8 +66,8 @@ module Unify(T : sig type t end) = struct
             unify_raw (Basetype_eq(t2, s2, tag))
           | DataB(i, ts), DataB(j, ss) when i = j ->
             List.iter
-              (fun (t, s) -> unify_raw (Basetype_eq (t, s, tag)))
-              (List.combine ts ss)
+              ~f:(fun (t, s) -> unify_raw (Basetype_eq (t, s, tag)))
+              (List.zip_exn ts ss)
           | IntB, _ | ZeroB, _ | UnitB, _
           | BoxB _, _ | ArrayB _, _ | PairB _, _ | DataB _, _ ->
             raise (Not_Unifiable (Equation_failed c))
@@ -76,7 +77,7 @@ module Unify(T : sig type t end) = struct
       begin
         let open Type in
         let c1, c2 = find t1, find t2 in
-        if c1 != c2 then
+        if not (phys_equal c1 c2) then
           match finddesc c1, finddesc c2 with
           | Var, _ ->
             union c1 c2
@@ -135,9 +136,29 @@ module Unify(T : sig type t end) = struct
     check_cycle e
 
   let unify_eqs (eqs: type_eq list): unit =
-    List.iter unify_with_cycle_check eqs
+    List.iter ~f:unify_with_cycle_check eqs
 
   let unify (t1 : Basetype.t) (t2 : Basetype.t) : unit =
     unify_with_cycle_check (Basetype_eq (t1, t2, None))
+
+end
+
+
+TEST_MODULE = struct
+
+  module U = Make(Unit)
+
+  TEST "cyclic sub-basetypes" =
+    let open Basetype in
+    let a = newtyvar () in
+    let aa = newty (PairB(a, a)) in
+    let b = Type.newty Type.Var in
+    let abb = Type.newty (Type.FunI(a, b, b)) in
+    let aabb = Type.newty (Type.FunI(aa, b, b)) in
+    try
+      U.unify_eqs [U.Type_eq(abb, aabb, None)];
+      false
+    with
+    | U.Not_Unifiable(U.Cyclic_type(_)) -> true
 
 end
