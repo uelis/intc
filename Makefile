@@ -3,12 +3,14 @@ all: native
 native:
 	corebuild -j 0 -cflags "-g" intc.native
 
-tests:
-	corebuild -j 0 -cflags "-g" intc_tests.native
-	./intc_tests.native
+test:
+	corebuild -j 0 test.native
+	corebuild -j 0 test_inline.native
+	./test.native
+	./test_inline.native inline-test-runner intc -show-counts
 
 clean:
-	rm -rf *.cmo *.cmx *.cmi parser.ml lexer.ml parser.mli _build intc.byte intc.native
+	rm -rf *.cmo *.cmx *.cmi parser.ml lexer.ml parser.mli _build *.byte *.native
 
 veryclean:
 	rm -f *.ssa *.ssa.traced *.ssa.shortcut *.ll *.bc

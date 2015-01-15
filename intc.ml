@@ -93,17 +93,13 @@ let compile (d: Decl.t) : unit =
        end
 
 let arg_spec =
-  [("--type-details",
-    Arg.Unit (fun _ -> Opts.print_type_details := true),
+  [("--type-details", Arg.Set Opts.print_type_details,
     "Print full type details, including subexponentials.");
-   ("--circuits",
-    Arg.Unit (fun _ -> Opts.keep_circuits := true),
+   ("--circuits", Arg.Set Opts.keep_circuits,
     "Keep circuit for each declaration (f.dot).");
-   ("--ssa",
-    Arg.Unit (fun _ -> Opts.keep_ssa := true),
+   ("--ssa", Arg.Set Opts.keep_ssa,
     "Keep ssa program for each declaration (f.ssa).");
-   ("--llvm",
-    Arg.Unit (fun _ -> Opts.llvm_compile := true),
+   ("--llvm", Arg.Set Opts.llvm_compile,
     "Keep llvm bitcode for each declaration (f.bc).");
   ]
 

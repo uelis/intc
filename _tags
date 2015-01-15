@@ -1,1 +1,1 @@
-<*.ml> or <*.mli> or "intc.byte" or "intc.native" or "intc.p.native" or "intc_tests.native": g++, package(llvm), package(llvm.bitwriter), package(pa_ounit), package(pa_ounit.syntax), pa_ounit_lib(intc)
+<*.ml> or <*.mli> or "intc.byte" or "intc.native" or "intc.p.native" or "test.native": g++, package(llvm), package(llvm.bitwriter), package(pa_ounit), package(pa_ounit.syntax), pa_ounit_lib(intc)

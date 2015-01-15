@@ -1,17 +1,26 @@
 open Core.Std
-type t =
-   { mutable desc : desc;
-     mutable mark : int;
-     id : int
-   }
-and desc =
-  | Link of t
-  | Var
-  | Base of Basetype.t
-  | Tensor of t * t
-  | FunV of Basetype.t * t
-  | FunI of Basetype.t * t * t
-with sexp
+
+module T = struct
+
+  type t =
+    { mutable desc : desc;
+      mutable mark : int;
+      id : int
+    }
+  and desc =
+    | Link of t
+    | Var
+    | Base of Basetype.t
+    | Tensor of t * t
+    | FunV of Basetype.t * t
+    | FunI of Basetype.t * t * t
+  with sexp
+
+  let compare s t = Int.compare s.id t.id
+  let hash s = s.id
+end
+
+include T
 
 let next_id = ref 0
 let newty d =
@@ -40,8 +49,6 @@ let finddesc (t : t) = (find t).desc
 
 let union (t1 : t) (t2 : t) : unit =
   (find t1).desc <- Link (find t2)
-
-type type_t = t with sexp
 
 let children a =
   match finddesc a with
@@ -80,12 +87,7 @@ let rec equals (u: t) (v: t) : bool =
         | Var, _ | Base _, _ | Tensor _, _ | FunV _, _ | FunI _, _ ->
           false
 
-module Typetbl = Hashtbl.Make(
-struct
-  type t = type_t with sexp
-  let compare s t = Int.compare s.id t.id
-  let hash s = s.id
-end)
+module Typetbl = Hashtbl.Make(T)
 
 let freshen t =
   let vm = Typetbl.create () in

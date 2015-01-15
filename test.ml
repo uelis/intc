@@ -1,5 +1,5 @@
-open OUnit2
 open Core.Std
+open OUnit2
 
 let parse s =
   let lexbuf = Lexing.from_string s in

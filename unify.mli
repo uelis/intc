@@ -1,4 +1,5 @@
 (** Unification of types *)
+open Core.Std
 
 module type S = sig
 
@@ -27,5 +28,5 @@ module type S = sig
 
 end
 
-module Make(Tag : sig type t end) : S
-               with type tag = Tag.t
+module Make(EqTag : T) :
+  S with type tag = EqTag.t
