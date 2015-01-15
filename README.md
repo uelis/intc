@@ -87,6 +87,8 @@ let main : [unit] =
 
 ### Value Functions
 
+Functions that take values as arguments can be defined as follows.
+
 ```rust
 let f : int -> [unit] =
   fn v ->
@@ -106,6 +108,10 @@ let comp = \f -> \g -> \x -> f (g x)
 They are compiled using an interactive interpretation, which can
 avoid heap allocations of closures, see the PPDP paper for details.
 
+```rust
+let tailrec : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b]) = ...
+```
+   
 The examples define combinators for tail recursion and
 recursion, using which one can define, for example:
 
