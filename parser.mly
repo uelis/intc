@@ -185,9 +185,13 @@ term:
     | FN pattern TO term
        { mkAst (Fn($2, $4)) }
     | COPY term AS identifier_list IN term
-       { mkAst (Copy($2, ($4, $6))) }
+       { if List.contains_dup $4 then
+           illformed "Duplicate variable in copy term.";
+         mkAst (Copy($2, ($4, $6))) }
     | LET LPAREN identifier SHARP identifier RPAREN EQUALS term IN term
-        { mkAst (LetPair($8, ($3, $5, $10))) }
+       { if $3 = $5 then
+           illformed "Duplicate variable in pattern.";
+         mkAst (LetPair($8, ($3, $5, $10))) }
     | VAL pattern EQUALS term IN term
         { mkAst (Bind($4, ($2, $6))) }
     | IF term THEN term ELSE term

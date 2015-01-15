@@ -458,8 +458,6 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
       t_context = phi;
       t_loc = t.Ast.loc }
   | Ast.LetPair(s, (x, y, t)) ->
-    if x = y then
-      raise (Typing_error (Some t, "Duplicate variable in pattern."));
     let alpha = Type.newty Type.Var in
     let beta = Type.newty Type.Var in
     let gamma, rest = take_subcontext phi s in
