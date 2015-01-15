@@ -1,0 +1,1 @@
+let main = \x -> let (x # x) =x in x
