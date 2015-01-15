@@ -7,7 +7,9 @@ let parse_error_loc lexbuf =
     (start_pos.pos_lnum) (start_pos.pos_cnum - start_pos.pos_bol + 1)
 
 let error_msg loc msg = if loc = "" then msg else loc ^ " " ^ msg
-let print_error loc msg = print_string (error_msg loc msg)
+let exit_with_error loc msg =
+  Printf.printf "%s\n%!" (error_msg loc msg);
+  exit 1
 let line_column_loc (line : int) (column : int ) =
   Printf.sprintf "line %i, column %i:" line column
 
@@ -17,9 +19,9 @@ let parse (s: string) : Decl.t list =
     Parser.decls Lexer.main lexbuf
   with
   | Parsing.Parse_error ->
-    failwith (error_msg (parse_error_loc lexbuf) "Parse error")
+    exit_with_error (parse_error_loc lexbuf) "Parse error"
   | Decl.Illformed_decl(msg, l, c) ->
-    failwith (error_msg (line_column_loc l c) ("Syntax error. " ^ msg))
+    exit_with_error (line_column_loc l c) ("Syntax error. " ^ msg)
 
 (* For error reporting: compute a string of where the error occurred *)
 let term_loc (s : Ast.t option) =
@@ -52,8 +54,7 @@ let compile (d: Decl.t) : unit =
              t.Typedterm.t_type);
         circuit
       with Typing.Typing_error(s, err) ->
-        let msg = "Typing error when checking " ^
-                  "declaration of '" ^ f_name ^ "'.\n" ^ err ^ "\n" in
+        let msg = err ^ "\nIn declaration of '" ^ f_name ^ "'." in
         raise (Failure (error_msg (term_loc s) msg)) in
     flush stdout;
     if !Opts.keep_circuits then
@@ -114,14 +115,17 @@ let () =
     else
       begin
         if !Opts.keep_ssa then
-          Printf.printf "*** Writing ssa files.\n";
+          Printf.printf "*** Writing ssa files.\n%!";
         if !Opts.llvm_compile then
-          Printf.printf "*** Writing llvm bitcode files.\n";
+          Printf.printf "*** Writing llvm bitcode files.\n%!";
         let input = In_channel.read_all !file_name in
         let decls = parse input in
         let substituted_decls = Decl.expand_all decls in
         List.iter ~f:compile substituted_decls
       end
   with
-  | Failure msg -> Printf.printf "%s\n" msg
-  | Typing.Typing_error(t, msg)-> print_error (term_loc t) msg
+  | Sys_error msg 
+  | Failure msg ->
+    exit_with_error "" msg
+  | Typing.Typing_error(t, msg)->
+    exit_with_error (term_loc t) msg
