@@ -104,7 +104,7 @@ module Make(Tag : T) = struct
   module BasetypeAlgs = Types.Algs(Basetype)
 
   let check_cycle (c: type_eq) : unit =
-    let check_basetype b = 
+    let check_basetype b =
       if not (BasetypeAlgs.is_acyclic b) then
         raise (Not_Unifiable(Cyclic_type(c))) in
     let rec check_sub_basetypes t =
@@ -123,7 +123,7 @@ module Make(Tag : T) = struct
         check_sub_basetypes t1;
         check_sub_basetypes t2
       | Type.Link _ -> assert false in
-    let check_type t = 
+    let check_type t =
       if not (TypeAlgs.is_acyclic t) then
         raise (Not_Unifiable(Cyclic_type(c)));
       check_sub_basetypes t in

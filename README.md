@@ -1,11 +1,14 @@
 # Experimental Int Compiler
 
 This is an experimental implementation of an Int compiler.
+Int is a language that explores higher-order types for the
+organisation of low-level code.
+
 The core of the language is described in the PPDP 2014 paper
 [Organising Low-Level Programs using Higher Types](http://www2.tcs.ifi.lmu.de/~schoepp/Docs/ssa.pdf).
 The syntax in the implementation has changed since the submission
 of this paper. The implementation referred to in this paper is
-available with tag
+still available with tag
 [ppdp14](https://github.com/uelis/intc/tree/ppdp14).
 
 The type system currently implements the fragment of types
@@ -14,10 +17,10 @@ written mathematically as
   A, B  ::=  α  |  unit  |  int  |  A x B  |  A + B  |  μ α. A
   X, Y  ::=  α  |  A → X  |  X ⊗ Y  |  A·X ⊸ Y
 ```
-(Universal quantification is used implicitly for external
-definitions.)
+These types are described in the
+[PPDP paper](http://www2.tcs.ifi.lmu.de/~schoepp/Docs/ssa.pdf).
 
-The concrete syntax currently is:
+The concrete syntax for the types is:
 ```
   A, B  ::=  'a  | unit | int | A * B | A + B | box<A> | data<A1,...,An>
   X, Y  ::=  ''a  |  A -> X  | X # Y |  {A}X -> Y
@@ -55,7 +58,99 @@ compiled to an executable `main` using the script `llvm_compile.sh`:
 
 ## Examples
 
-### Data Types in the Low-Level Language
+### Computations
+
+Computations are handeled using a monadic type `[A]`, where
+`A` is a value type. Its terms are computations that return a
+value of type `A`.
+
+A computation term that returns value:
+```rust
+let t1 = 
+  return 3
+```
+Computations can be evaluated and their result value be bound to
+variables:
+```rust
+let t2 = 
+  val v = t1 in
+  val w = intadd(v, v) in
+  return w
+```
+
+The compiler generates code for the `main` term:
+```rust
+let main : [unit] =
+  val v = t2 in
+  print v
+```
+
+### Value Functions
+
+```rust
+let f : int -> [unit] =
+  fn v ->
+    val w = intmul(v, v) in
+    print w
+
+let main =
+  f 5
+```    
+
+### Higher-Order Functions
+
+Higher-order functions are available as well. 
+```rust
+let comp = \f -> \g -> \x -> f (g x)
+```
+They are compiled using an interactive interpretation, which can
+avoid heap allocations of closures, see the PPDP paper for details.
+
+The examples define combinators for tail recursion and
+recursion, using which one can define, for example:
+
+```rust
+/* factorial with accumulator */
+let facaux : int * int -> [unit] =
+  tailrec (λ facaux ->
+    fn (i, acc) ->
+      val b = inteq(i, 0) in
+      if b then return acc else
+        val i' = intsub(i, 1) in
+	val acc' = intmul(acc, i) in
+        facaux (i', acc')
+)
+
+/* factorial */
+let fac : int -> [unit] =
+  fn i ->
+   facaux (i, 1)
+```
+   
+```rust
+/* fibonacci */
+let fib = fix (\ fib ->
+   copy fib as fib1, fib2 in
+   fn i ->
+     /* slt = signed less than */
+     val b = intslt(i, 2) in
+     if b then return 1
+     else
+       val f1 = val i' = intsub(i,1) in fib1 i' in
+       val f2 = val i' = intsub(i,2) in fib2 i' in
+       intadd(f1, f2)
+   )
+```
+
+```rust
+let main =
+  val v = fac 10 in
+  print v; print "\n";
+  val w = fib 10 in
+  print w
+```
+
+### Data Types
 
 Instead of recursive value types, the implementation uses boxed types
 `box<A>`. These are stored on the heap and can be allocated using the
@@ -63,7 +158,7 @@ primitive operation `alloc()`. A value `s: A` can be stored in `b` with
 the operation `store(b, x)`. Values can be read using the operation
 `load()`. Finally, a box is deallocated using `free(b)`.
 
-In this experimental implementation memory safety is not enforced, i.e. the
+In this experimental implementation memory safety is not enforced, e.g. the
 programmer must take care to not unbox a term twice.
 
 Example:

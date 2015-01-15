@@ -44,7 +44,7 @@ type op_const =
   | Ccall of string * Basetype.t * Basetype.t
   | Cencode of Basetype.t * Basetype.t
   | Cdecode of Basetype.t * Basetype.t
-                              
+
 type pattern =
   | PatUnit
   | PatVar of Ident.t
@@ -134,7 +134,7 @@ let rec pattern_vars p =
   | PatVar(z) -> [z]
   | PatPair(p, q) -> pattern_vars p @ pattern_vars q
 
-(** Rename the variables in [p] so that [pattern_vars] returns [l]. 
+(** Rename the variables in [p] so that [pattern_vars] returns [l].
     Raises [Invalid_argument] if [l] contains more or less variables
     than needed.
  *)
