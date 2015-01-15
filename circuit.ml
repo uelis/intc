@@ -179,7 +179,9 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let gamma_s = restrict_context gamma s in
       let gamma_t = remove_context (restrict_context gamma t) [x; y] in
       let gamma_s_inbox, i_enter_box = enter_box gamma_s in
-      let w_s, i_s = compile sigma gamma_s_inbox s in
+      let alpha = Basetype.newtyvar() in
+      let sigma_s = ((Ident.fresh "unused", alpha) ::sigma) in
+      let w_s, i_s = compile sigma_s gamma_s_inbox s in
       let w_s_left = fresh_wire () in
       let w_s_right = fresh_wire () in
       let i_unpair = [Tensor(w_s_left, w_s_right, flip w_s)] in
@@ -408,7 +410,8 @@ let solve_constraints (con: type_constraint list) : unit =
            List.hd_exn xs) in
       U.unify_eqs [U.Basetype_eq(sol, alpha, None)]
     | _ ->
-        assert false
+      Printf.printf "%s\n" (Printing.string_of_basetype alpha);
+      assert false
   in
   List.iter joined_lower_bounds ~f:solve_ineq
 
@@ -490,15 +493,15 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Ast.t) : Ast.t =
           let y = Ident.fresh "y" in
           let t1 = select id params x in
           let t2 = Ast.mkTerm (Ast.Bind(Ast.mkUnbox (Ast.mkVar y),
-                                           (PatVar x, t1))) in
-          let t3 = Ast.mkTerm (Ast.Bind(t, (PatVar y, t2))) in
+                                           (Ast.PatVar x, t1))) in
+          let t3 = Ast.mkTerm (Ast.Bind(t, (Ast.PatVar y, t2))) in
           t3
         | _ -> raise Not_Leq
       end
     | Basetype.DataB(id, params) ->
       let x = Ident.fresh "x" in
       let t1 = select id params x in
-      let t2 = Ast.mkTerm (Ast.Bind(t, (PatVar x, t1))) in
+      let t2 = Ast.mkTerm (Ast.Bind(t, (Ast.PatVar x, t1))) in
       t2
     | _ -> raise Not_Leq
 
