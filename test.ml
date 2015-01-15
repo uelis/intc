@@ -65,7 +65,8 @@ let testfiles = [
   "fib_cps.int";
   "euler.int";
   "fac.int";
-  "box.int"
+  "box.int";
+  "typing.int";
 ]
 
 let suite =

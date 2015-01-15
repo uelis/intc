@@ -1,0 +1,24 @@
+/* shadowing */
+let t1 : ''a # ''b -> ''a = \x -> let (x # y) = x in x
+/* check that variables have not been instantiated */
+let t11 : [int] # [bool] -> [int] = t1
+let t12 : [bool] # [int] -> [bool] = t1
+
+let t2 : ''a # ''b -> ''b # (''a # ''a) =
+  \x -> let (x # y) = x in
+        (y # copy x as x, y in (y # x))
+let t21 : [int] # [bool] -> [bool] # ([int] # [int]) = t2
+let t22 : [bool] # [int] -> [int] # ([bool] # [bool]) = t2
+
+let t3 : [unit] -> [unit] = (\x -> copy x as x1, x2 in x1; x2)
+
+let main =
+  /* run t1 */ 
+  t1 (print 1 # print 2);
+  /* run t2 */ 
+  let (x1 # z) = t2 (print 3 # print 4) in
+  let (x2 # x3) = z in
+  x1; x2; x3;
+  /* run t3 */ 
+  t3 (print 5);
+  return 0
