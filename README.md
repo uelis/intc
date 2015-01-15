@@ -70,13 +70,15 @@ let t1 =
   return 3
 ```
 Computations can be evaluated and their result value be bound to
-variables:
+variables.
 ```rust
 let t2 = 
   val v = t1 in
   val w = intadd(v, v) in
   return w
 ```
+In this program `v` is a value variable and `t1` is evaluated only
+once.
 
 The compiler generates code for the `main` term:
 ```rust
@@ -86,6 +88,8 @@ let main : [unit] =
 ```
 
 ### Value Functions
+
+Functions that take values as arguments can be defined as follows.
 
 ```rust
 let f : int -> [unit] =
@@ -106,13 +110,21 @@ let comp = \f -> \g -> \x -> f (g x)
 They are compiled using an interactive interpretation, which can
 avoid heap allocations of closures, see the PPDP paper for details.
 
-The examples define combinators for tail recursion and
-recursion, using which one can define, for example:
+The examples in the directory `Examples` define combinators for
+tail recursion and recursion.
+```rust
+let tailrec : (('a -> ['b]) -> 'a -> ['b]) -> 'a -> ['b]) = ...
+let fix : (''a -> ''a) -> ''a = ...
+```
+Note that `'a` is a value type variable and `''a` ranges
+over computation and higher-order types.
 
+Using these combinators, one can define recursive function as
+follows:
 ```rust
 /* factorial with accumulator */
 let facaux : int * int -> [unit] =
-  tailrec (λ facaux ->
+  tailrec (\ facaux ->
     fn (i, acc) ->
       val b = inteq(i, 0) in
       if b then return acc else
