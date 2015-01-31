@@ -8,6 +8,7 @@ type t =
 and desc =
   | Link of t
   | Var
+  | EncodedB
   | IntB
   | ZeroB
   | UnitB
@@ -51,7 +52,7 @@ type type_t = t with sexp
 
 let children a =
   match finddesc a with
-  | Var | IntB | ZeroB | UnitB -> []
+  | Var | EncodedB | IntB | ZeroB | UnitB -> []
   | BoxB(b1) -> [b1]
   | ArrayB(b1) -> [b1]
   | PairB(b1, b2) -> [b1; b2]
@@ -61,7 +62,7 @@ let children a =
 let rec free_vars (b: t) : t list =
   match (find b).desc with
     | Var -> [find b]
-    | IntB | ZeroB | UnitB -> []
+    | EncodedB | IntB | ZeroB | UnitB -> []
     | BoxB(b1) -> free_vars b1
     | ArrayB(b1) -> free_vars b1
     | PairB(b1, b2) -> free_vars b1 @ (free_vars b2)
@@ -71,9 +72,7 @@ let rec free_vars (b: t) : t list =
 let rec subst (f: t -> t) (b: t) : t =
   match (find b).desc with
     | Var -> f (find b)
-    | IntB -> newty IntB
-    | ZeroB -> newty ZeroB
-    | UnitB -> newty UnitB
+    | EncodedB | IntB | ZeroB | UnitB -> b
     | BoxB(b1) -> newty(BoxB(subst f b1))
     | ArrayB(b1) -> newty(ArrayB(subst f b1))
     | PairB(b1, b2) -> newty(PairB(subst f b1, subst f b2))
@@ -88,6 +87,8 @@ let rec equals (u: t) (v: t) : bool =
       match ur.desc, vr.desc with
         | Var, Var ->
             false
+        | EncodedB, EncodedB ->
+            false
         | IntB, IntB | ZeroB, ZeroB | UnitB, UnitB ->
             true
         | BoxB(u1), BoxB(v1)  ->
@@ -100,7 +101,7 @@ let rec equals (u: t) (v: t) : bool =
             idu = idv &&
             List.for_all2_exn lu lv ~f:equals
         | Link _, _ | _, Link _ -> assert false
-        | Var, _ | IntB, _ | ZeroB, _ | UnitB, _
+        | Var, _ | EncodedB, _ | IntB, _ | ZeroB, _ | UnitB, _
         | BoxB _, _ | ArrayB _ , _ | PairB _ , _ | DataB _ , _ ->
             false
 
@@ -200,7 +201,7 @@ struct
   let is_recursive id =
     let rec check_rec a =
       match finddesc a with
-        | Var | ZeroB | UnitB | IntB -> false
+        | Var | EncodedB | ZeroB | UnitB | IntB -> false
         | BoxB(b1) -> check_rec b1
         | ArrayB(b1) -> check_rec b1
         | PairB(b1, b2) -> check_rec b1 && check_rec b2
@@ -261,7 +262,7 @@ struct
     (* check that all recursive occurrences of the type are under a box. *)
     let rec check_rec_occ a =
       match finddesc a with
-      | Var | IntB | UnitB | ZeroB -> ()
+      | Var | EncodedB | IntB | UnitB | ZeroB -> ()
       | PairB(a1, a2) ->
         check_rec_occ a1;
         check_rec_occ a2

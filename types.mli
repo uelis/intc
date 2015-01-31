@@ -34,7 +34,9 @@ module type Repr = sig
   (** [finddesc x] return the description of the node [find x]. *)
   val finddesc : t -> desc
 
-  (** Take the union of two nodes, i.e. the union in union-find *)
+  (** Take the union of two nodes, i.e. the union in union-find.
+      [union t1 t2] causes [t1] to be linked to [t2].
+   *)
   val union : t -> t -> unit
 
   (** Equality of types. *)

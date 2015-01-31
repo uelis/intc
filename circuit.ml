@@ -281,16 +281,15 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       U.unify w_s.type_forward (tensor sigma a); (* TODO *)
       wr, Seq(flip w_s, flip w_t, wr) ::
           i_s @ i_t
-    | Typedterm.Const(Ast.Cencode(a, b)) ->
+    | Typedterm.Const(Ast.Cencode(a)) ->
       let w = fresh_wire () in
       let sigma = Basetype.newty Basetype.Var in
-      U.unify w.type_back (tensor sigma a);
-      U.unify w.type_forward (tensor sigma b);
+      let unitB = Basetype.newty Basetype.UnitB in
+      U.unify w.type_back (tensor sigma (tensor a unitB));
       w, [Encode(w)]
-    | Typedterm.Const(Ast.Cdecode(a, b)) ->
+    | Typedterm.Const(Ast.Cdecode(b)) ->
       let w = fresh_wire () in
       let sigma = Basetype.newty Basetype.Var in
-      U.unify w.type_back (tensor sigma a);
       U.unify w.type_forward (tensor sigma b);
       w, [Decode(w)]
     | Typedterm.Const(_) ->
@@ -355,6 +354,14 @@ let solve_constraints (con: type_constraint list) : unit =
   let cmp a b = Int.compare
                   (Basetype.find a).Basetype.id
                   (Basetype.find b).Basetype.id in
+  if !Opts.verbose then
+    begin
+      Printf.printf "Solving constraints:\n";
+      List.iter ineqs
+        ~f:(fun (a, b) -> Printf.printf "  %s <= %s\n"
+                            (Printing.string_of_basetype a)
+                            (Printing.string_of_basetype b))
+    end;
   (* All inequalities have the form A <= alpha for some variable alpha.
    * Gather now all constraints A1 <= alpha, ..., An <= alpha for each
    * variable alpha in the form [A1,...,An] <= alpha. *)
@@ -367,10 +374,12 @@ let solve_constraints (con: type_constraint list) : unit =
            | [] -> assert false
            | (b, a)::rest ->
              let bs, _ = List.unzip rest in
-             (b :: bs, a)) in
+             let bs' =
+               if List.mem ~equal:Basetype.equals bs b then bs else b :: bs in
+             (bs', a)) in
   let solve_ineq (xs, alpha) =
     match Basetype.finddesc alpha with
-    | Basetype.Var ->
+    | Basetype.Var | Basetype.EncodedB ->
       let fv_unique =
         List.map xs ~f:Basetype.free_vars
         |> List.concat
@@ -403,12 +412,15 @@ let solve_constraints (con: type_constraint list) : unit =
                   (recty ^ "_" ^ (string_of_int i))
                   params
                   arg_type);
+            if !Opts.verbose then
+              Printf.printf "Declaring type:\n  %s\n" (Printing.string_of_data recty);
             sol
           end
         else
           (assert (xs <> []);
            List.hd_exn xs) in
-      U.unify_eqs [U.Basetype_eq(sol, alpha, None)]
+      (* update alpha to become a link to sol *)
+      Basetype.union alpha sol
     | _ ->
       Printf.printf "%s\n" (Printing.string_of_basetype alpha);
       assert false
@@ -460,7 +472,11 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Ast.t): Ast.t =
           else
             inject bs (n + 1) in
       inject cs 0
-    | _ -> raise Not_Leq
+    | _ ->
+      Printf.printf "%s <= %s\n"
+        (Printing.string_of_basetype a)
+        (Printing.string_of_basetype b);
+      raise Not_Leq
 
 (* If alpha <= beta then (embed alpha beta) is a corresponding
  * embedding from beta to alpha. The functions (embed a b) and
@@ -531,19 +547,20 @@ let infer_types (c : t) : unit =
     | [] -> []
     | Base(w1, (s, f))::rest ->
       let sigma = type_of_context s in
-      let one = Basetype.newty Basetype.UnitB in
+      let unitB = Basetype.newty Basetype.UnitB in
       let beta =
         match Type.finddesc f.Typedterm.t_type with
         | Type.Base beta -> beta
         | _ -> assert false in
-      beq_constraint w1.type_back (tensor sigma one) ::
+      beq_constraint w1.type_back (tensor sigma unitB) ::
       beq_constraint w1.type_forward (tensor sigma beta) ::
       (constraints rest)
     | Encode(w1)::rest ->
       let sigma = Basetype.newty Basetype.Var in
       let alpha = Basetype.newty Basetype.Var in
       let beta = Basetype.newty Basetype.Var in
-      beq_constraint w1.type_back (tensor sigma alpha) ::
+      let unitB = Basetype.newty Basetype.UnitB in
+      beq_constraint w1.type_back (tensor sigma (tensor alpha unitB)) ::
       beq_constraint w1.type_forward (tensor sigma beta) ::
       leq_constraint alpha beta ::
       (constraints rest)
@@ -551,7 +568,8 @@ let infer_types (c : t) : unit =
       let sigma = Basetype.newty Basetype.Var in
       let alpha = Basetype.newty Basetype.Var in
       let beta = Basetype.newty Basetype.Var in
-      beq_constraint w1.type_back (tensor sigma alpha) ::
+      let unitB = Basetype.newty Basetype.UnitB in
+      beq_constraint w1.type_back (tensor sigma (tensor alpha unitB)) ::
       beq_constraint w1.type_forward (tensor sigma beta) ::
       leq_constraint beta alpha ::
       (constraints rest)

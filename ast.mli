@@ -40,8 +40,8 @@ type op_const =
   | Carrayfree of Basetype.t
   | Carrayget of Basetype.t
   | Ccall of string * Basetype.t * Basetype.t
-  | Cencode of Basetype.t * Basetype.t
-  | Cdecode of Basetype.t * Basetype.t
+  | Cencode of Basetype.t
+  | Cdecode of Basetype.t
 
 (** The type of terms is a single type to represent both value terms
     and interaction terms. Eventually, we are interested only in terms

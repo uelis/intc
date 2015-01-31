@@ -354,9 +354,21 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
       t_type = b;
       t_context = phi;
       t_loc = t.Ast.loc}
-  | Ast.Const(Ast.Ccall(_, a, b) as c)
-  | Ast.Const(Ast.Cencode(a, b) as c)
-  | Ast.Const(Ast.Cdecode(a, b) as c) ->
+  | Ast.Const(Ast.Ccall(_, a, b) as c) ->
+    let d = Type.newty (Type.FunV(a, Type.newty (Type.Base b))) in
+    { t_desc = Const(c);
+      t_type = d;
+      t_context = phi;
+      t_loc = t.Ast.loc }
+  | Ast.Const(Ast.Cencode(a) as c) ->
+    let b = Basetype.newty Basetype.EncodedB in
+    let d = Type.newty (Type.FunV(a, Type.newty (Type.Base b))) in
+    { t_desc = Const(c);
+      t_type = d;
+      t_context = phi;
+      t_loc = t.Ast.loc }
+  | Ast.Const(Ast.Cdecode(b) as c) ->
+    let a = Basetype.newty Basetype.EncodedB in
     let d = Type.newty (Type.FunV(a, Type.newty (Type.Base b))) in
     { t_desc = Const(c);
       t_type = d;
@@ -521,7 +533,8 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     (* TODO: move to type/basetype *)
     let rec check_wf_base (b: Basetype.t) : unit =
       match (Basetype.find b).Basetype.desc with
-      | Basetype.Var | Basetype.IntB | Basetype.ZeroB | Basetype.UnitB -> ()
+      | Basetype.Var | Basetype.EncodedB
+      | Basetype.IntB | Basetype.ZeroB | Basetype.UnitB -> ()
       | Basetype.BoxB(b1) ->
         check_wf_base b1
       | Basetype.ArrayB(b1) ->

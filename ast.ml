@@ -42,8 +42,8 @@ type op_const =
   | Carrayfree of Basetype.t
   | Carrayget of Basetype.t
   | Ccall of string * Basetype.t * Basetype.t
-  | Cencode of Basetype.t * Basetype.t
-  | Cdecode of Basetype.t * Basetype.t
+  | Cencode of Basetype.t
+  | Cdecode of Basetype.t
 
 type pattern =
   | PatUnit
@@ -113,7 +113,7 @@ let mkUnbox t =
   let unused = Ident.fresh "x" in
   mkBind (mkApp (mkConst (Cload alpha)) t)
     (PatVar v, mkBind (mkApp (mkConst (Cfree alpha)) t)
-          (PatVar unused, mkReturn (mkVar v)))
+                 (PatVar unused, mkReturn (mkVar v)))
 
 let rec is_value (term: t) : bool =
   match term.desc with
@@ -128,7 +128,7 @@ let rec is_value (term: t) : bool =
   | TypeAnnot _ ->
     false
 
-let rec pattern_vars p =
+let rec pattern_vars (p: pattern) =
   match p with
   | PatUnit -> []
   | PatVar(z) -> [z]
@@ -137,7 +137,7 @@ let rec pattern_vars p =
 (** Rename the variables in [p] so that [pattern_vars] returns [l].
     Raises [Invalid_argument] if [l] contains more or less variables
     than needed.
- *)
+*)
 let rename_pattern_exn p l =
   let rec rn p l =
     match p with
@@ -359,20 +359,11 @@ let freshen_type_vars t =
   let new_type_vars = Int.Table.create () in
   let new_basetype_vars = Int.Table.create () in
   let fv x =
-    match Int.Table.find new_type_vars (Type.find x).Type.id with
-    | Some y -> y
-    | None ->
-      let y = Type.newty Type.Var in
-      Int.Table.replace new_type_vars ~key:(Type.find x).Type.id ~data:y;
-      y in
+    Int.Table.find_or_add new_type_vars (Type.find x).Type.id
+      ~default:(fun () -> Type.newty Type.Var) in
   let basefv x =
-    match Int.Table.find new_basetype_vars (Basetype.find x).Basetype.id with
-    | Some y -> y
-    | None ->
-      let y = Basetype.newty Basetype.Var in
-      Int.Table.replace new_basetype_vars
-        ~key:(Basetype.find x).Basetype.id ~data:y;
-      y in
+    Int.Table.find_or_add new_basetype_vars (Basetype.find x).Basetype.id
+      ~default:(fun () -> Basetype.newty Basetype.Var) in
   let f a = Type.subst fv basefv a in
   let fbase a = Basetype.subst basefv a in
   let rec mta term =
@@ -400,10 +391,10 @@ let freshen_type_vars t =
       { term with desc = Const(Carrayfree(fbase a)) }
     | Const(Ccall(s, a, b)) ->
       { term with desc = Const(Ccall(s, fbase a, fbase b)) }
-    | Const(Cencode(a, b)) ->
-      { term with desc = Const(Cencode(fbase a, fbase b)) }
-    | Const(Cdecode(a, b)) ->
-      { term with desc = Const(Cdecode(fbase a, fbase b)) }
+    | Const(Cencode(a)) ->
+      { term with desc = Const(Cencode(fbase a)) }
+    | Const(Cdecode(a)) ->
+      { term with desc = Const(Cdecode(fbase a)) }
     | ConstV(Cintconst _)
     | Const(Cintadd)
     | Const(Cintsub)

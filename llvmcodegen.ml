@@ -213,6 +213,7 @@ let payload_size (a: Basetype.t) : int =
     let open Basetype in
     match finddesc a with
     | Link _ -> assert false
+    | EncodedB -> assert false
     | ZeroB | UnitB -> 0
     | Var -> 0
     | IntB -> 1
@@ -229,6 +230,7 @@ let attrib_size (a: Basetype.t) : profile =
     let open Basetype in
     match finddesc a with
     | Link _ -> assert false
+    | EncodedB -> assert false
     | Var | ZeroB | UnitB | IntB | BoxB _ | ArrayB _ -> M.empty
     | PairB(a1, a2) -> add_profiles (a_s a1) (a_s a2)
     | DataB(id, ps) ->

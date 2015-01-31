@@ -49,6 +49,8 @@ module Make(Tag : T) = struct
         let c1, c2 = find b1, find b2 in
         if not (phys_equal c1 c2) then
           match finddesc c1, finddesc c2 with
+          | EncodedB, EncodedB ->
+            union c1 c2
           | Var, _ ->
             union c1 c2
           | _, Var ->
@@ -68,7 +70,7 @@ module Make(Tag : T) = struct
             List.iter
               ~f:(fun (t, s) -> unify_raw (Basetype_eq (t, s, tag)))
               (List.zip_exn ts ss)
-          | IntB, _ | ZeroB, _ | UnitB, _
+          | EncodedB, _ | _, EncodedB | IntB, _ | ZeroB, _ | UnitB, _
           | BoxB _, _ | ArrayB _, _ | PairB _, _ | DataB _, _ ->
             raise (Not_Unifiable (Equation_failed c))
           | Link _, _ -> assert false

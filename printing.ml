@@ -57,7 +57,7 @@ let string_of_basetype (ty: Basetype.t): string =
             Printf.sprintf "%s<%s>" id 
               (List.map ls ~f:(fun t2 -> str t2 `Summand)
                |> String.concat ~sep:", ")
-          | PairB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
+          | PairB _ | Var | EncodedB | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
             s `Factor
           | Link _ -> assert false
         end
@@ -65,7 +65,7 @@ let string_of_basetype (ty: Basetype.t): string =
         begin
           match finddesc t with
           | PairB(t1, t2) -> str t1 `Factor ^ " * " ^ str t2 `Atom
-          | DataB _ | Var | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
+          | DataB _ | Var | EncodedB | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
             s `Atom
           | Link _ -> assert false
         end
@@ -73,6 +73,7 @@ let string_of_basetype (ty: Basetype.t): string =
         begin
           match finddesc t with
           | Var -> "\'" ^ (name_of_basetypevar t)
+          | EncodedB -> "'''" ^ (name_of_basetypevar t)
           | IntB -> "int"
           | ZeroB -> "0"
           | UnitB -> "unit"
@@ -216,10 +217,8 @@ let string_of_op_const (c: Ast.op_const) : string =
   | Cpop(_) -> "pop"
   | Ccall(f, a, b) -> "call(" ^ f ^ ": " ^ (string_of_basetype a) ^
                       " -> " ^ (string_of_basetype b) ^ ") "
-  | Cencode(a, b) -> "encode(" ^ (string_of_basetype a) ^
-                     ", " ^ (string_of_basetype b) ^ ") "
-  | Cdecode(a, b) -> "decode(" ^ (string_of_basetype a) ^
-                     ", " ^ (string_of_basetype b) ^ ") "
+  | Cencode _ -> "encode"
+  | Cdecode _ -> "decode"
 
 let fprint_ast (f: Format.formatter) (term: Ast.t): unit =
   let open Ast in

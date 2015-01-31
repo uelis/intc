@@ -1,0 +1,2 @@
+let f : 'a -> ['''b] = fn x -> encode x
+let main = return ()

@@ -1,0 +1,3 @@
+let f : 'a -> ['''b] = fn x -> if True then encode x else encode (x,x)
+
+let main = return ()

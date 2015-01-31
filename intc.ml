@@ -96,6 +96,8 @@ let compile (d: Decl.t) : unit =
 let arg_spec =
   [("--type-details", Arg.Set Opts.print_type_details,
     "Print full type details, including subexponentials.");
+   ("--verbose", Arg.Set Opts.verbose,
+    "Print compilation details..");
    ("--circuits", Arg.Set Opts.keep_circuits,
     "Keep circuit for each declaration (f.dot).");
    ("--ssa", Arg.Set Opts.keep_ssa,

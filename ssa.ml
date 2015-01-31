@@ -367,12 +367,13 @@ let typecheck_term
     let c = typeof_value gamma v in
     equals_exn c (newty UnitB);
     equals_exn a b
-  | Const(Ast.Ccall(_, b1, b2), v)
-  | Const(Ast.Cencode(b1, b2), v)
-  | Const(Ast.Cdecode(b1, b2), v) ->
+  | Const(Ast.Ccall(_, b1, b2), v) ->
     let c = typeof_value gamma v in
     equals_exn c b1;
     equals_exn a b2
+  | Const(Ast.Cencode _, _)
+  | Const(Ast.Cdecode _, _) ->
+    () (* TODO: check *)
 
 let rec typecheck_let_bindings
       (gamma: Basetype.t Typing.context)
@@ -577,7 +578,6 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
   let make_block src dst =
     let z = Ident.fresh "z" in
     let sigma_type, m_type = unPairB src.message_type in
-    let m_term = Ast.mkReturn (Ast.mkSndV (Ast.mkVar z)) in
     let sigma_val = Fst(Var z, sigma_type, m_type) in
     let m_val = Snd(Var z, sigma_type, m_type) in
 
@@ -603,29 +603,29 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           assert false
       | Circuit.Encode(w1) ->
         if dst = w1.src then
-          let _, a = unPairB w1.type_back in
+          let a, _ = unPairB m_type in
+          let m_term = Ast.mkReturn (Ast.mkFstV (Ast.mkSndV (Ast.mkVar z))) in
           let _, b = unPairB w1.type_forward in
           let embed = Typing.check_term [(z, src.message_type)] []
                         (Ast.mkTypeAnnot
                            (Circuit.embed a b m_term)
                            (Type.newty (Type.Base b))) in
-          let l = Let((z,  src.message_type), Val(Var(z))) in
-          let lt, m' = term_to_ssa embed in
-          let vt = Pair(sigma_val, m') in
-          Direct(src, z, lt @ [l], vt, label_of_dst w1)
+          let lt, r = term_to_ssa embed in
+          let vt = Pair(sigma_val, r) in
+          Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
       | Circuit.Decode(w1) ->
         if dst = w1.src then
-          let _, a = unPairB w1.type_back in
+          let a, _ = unPairB m_type in
+          let m_term = Ast.mkReturn (Ast.mkFstV (Ast.mkSndV (Ast.mkVar z))) in
           let _, b = unPairB w1.type_forward in
           let project = Typing.check_term [(z, src.message_type)] []
                           (Ast.mkTypeAnnot
                              (Circuit.project b a m_term)
                              (Type.newty (Type.Base b))) in
-          let l = Let((z,  src.message_type), Val(Var(z))) in
           let lt, m' = term_to_ssa project in
           let vt = Pair(sigma_val, m') in
-          Direct(src, z, lt @ [l], vt, label_of_dst w1)
+          Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
       | Circuit.Tensor(w1, w2, w3) ->
         if dst = w1.src then

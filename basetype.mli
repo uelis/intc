@@ -30,6 +30,7 @@ type t = {
 and desc =
   | Link of t
   | Var
+  | EncodedB
   | IntB
   | ZeroB
   | UnitB

@@ -49,7 +49,7 @@ let mkDatatype id params constructors =
       (* check that all recursive occurrences of the type are under a box. *)
       let rec check_rec_occ a =
         match Basetype.finddesc a with
-        | Var | IntB | UnitB | ZeroB | BoxB _ | ArrayB _ -> ()
+        | Var | EncodedB | IntB | UnitB | ZeroB | BoxB _ | ArrayB _ -> ()
         | PairB(a1, a2) ->
           check_rec_occ a1;
           check_rec_occ a2
@@ -83,21 +83,18 @@ let check_pattern p =
   
 let type_vars = String.Table.create ()
 let type_var (a : string) : Type.t =
-   try
-     String.Table.find_exn type_vars a
-   with Not_found ->
-     let alpha = Type.newty Type.Var in
-     String.Table.add_exn type_vars ~key:a ~data:alpha;
-     alpha
+  String.Table.find_or_add type_vars a
+    ~default:(fun () -> Type.newty Type.Var)
 
 let basetype_vars = String.Table.create ()
 let basetype_var (a : string) : Basetype.t =
-   try
-     String.Table.find_exn basetype_vars a
-   with Not_found ->
-     let alpha = Basetype.newty Basetype.Var in
-     String.Table.add_exn basetype_vars ~key:a ~data:alpha;
-     alpha
+  String.Table.find_or_add basetype_vars a
+    ~default:(fun () -> Basetype.newty Basetype.Var)
+     
+let encoded_vars = String.Table.create ()
+let encoded_var (a : string) : Basetype.t =
+  String.Table.find_or_add encoded_vars a
+    ~default:(fun () -> Basetype.newty Basetype.EncodedB)
 
 let clear_type_vars () =
   Hashtbl.clear type_vars;
@@ -107,7 +104,7 @@ let clear_type_vars () =
 
 %token LBRACE RBRACE LPAREN RPAREN LANGLE RANGLE LBRACKET RBRACKET
 %token PLUS MINUS TIMES DIV
-%token COMMA QUOTE DOUBLEQUOTE COLON SEMICOLON SHARP EQUALS TO VERTBAR
+%token COMMA QUOTE DOUBLEQUOTE TRIPLEQUOTE COLON SEMICOLON SHARP EQUALS TO VERTBAR
 %token FN LAMBDA TYPE UNIT PUSH POP BOX ARRAY ALLOC FREE LOAD STORE CALL NAT
 %token ENCODE DECODE
 %token INTADD INTSUB INTMUL INTDIV INTEQ INTLT INTSLT
@@ -254,8 +251,6 @@ term_atom:
        { mkAst UnitV }
     | LPAREN term RPAREN
        { $2 }
-    | LBRACE term RBRACE
-       { mkAst (Fn(PatUnit, $2)) }
     | LPAREN term COMMA term RPAREN
        { mkAst (PairV($2, $4)) }
     | LPAREN term SHARP term RPAREN
@@ -315,11 +310,9 @@ term_atom:
          mkAst (Const(Carrayget(alpha)))}
     | ENCODE
        { let alpha = Basetype.newty Basetype.Var in
-         let beta = Basetype.newty Basetype.Var in
-          mkAst (Const(Cencode(alpha, beta))) }
+         mkAst (Const(Cencode(alpha))) }
     | DECODE LPAREN basetype COMMA term RPAREN
-       { let alpha = Basetype.newty Basetype.Var in
-         mkAst (App(mkAst (Const(Cdecode(alpha, $3))), $5)) }
+       { mkAst (App(mkAst (Const(Cdecode($3))), $5)) }
     | PUSH LPAREN basetype COMMA term RPAREN
         { mkAst (App(mkAst (Const(Cpush($3))), $5)) }
     | POP LPAREN basetype RPAREN
@@ -398,6 +391,8 @@ basetype_factor:
 basetype_atom:
     | QUOTE IDENT
       { basetype_var $2 }
+    | TRIPLEQUOTE IDENT
+      { encoded_var $2 }
     | UNIT
       { Basetype.newty (Basetype.UnitB) }
     | NAT

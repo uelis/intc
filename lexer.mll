@@ -47,6 +47,7 @@ rule main = parse
   | ','          { COMMA }
   | '''          { QUOTE }
   | "''"         { DOUBLEQUOTE }
+  | "'''"        { TRIPLEQUOTE }
   | ':'          { COLON }
   | ';'          { SEMICOLON }
   | '#'          { SHARP }
