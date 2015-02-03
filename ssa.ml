@@ -530,11 +530,11 @@ let rec term_to_ssa (t: Typedterm.t) : let_bindings * value =
                      _},
                    arg) ->
     let retty =
-      match Type.finddesc a with
-      | Type.FunV(_, r) ->
+      match Type.case a with
+      | Type.Sgn (Type.FunV(_, r)) ->
         begin
-          match Type.finddesc r with
-          | Type.Base(ar) -> ar
+          match Type.case r with
+          | Type.Sgn(Type.Base(ar)) -> ar
           | _ -> assert false
         end
       | _ -> assert false in

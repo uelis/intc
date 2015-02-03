@@ -18,11 +18,11 @@ let reset_names () =
 
 let name_table = Int.Table.create ()
 let name_of_typevar t =
-  match Int.Table.find name_table (Type.find t).Type.id with
+  match Int.Table.find name_table (Type.repr_id t) with
   | Some name -> name
   | None ->
     let name = new_name() in
-    Int.Table.add_exn name_table ~key:(Type.find t).Type.id ~data:name;
+    Int.Table.add_exn name_table ~key:(Type.repr_id t) ~data:name;
     name
 
 let name_base_table = Int.Table.create ()
@@ -105,12 +105,10 @@ let string_of_basetype (ty: Basetype.t): string =
         s l in
   str ty `Summand
         
-module TypeAlgs = Types.Algs(Type)
-                    
 let string_of_type ?concise:(concise=true) (ty: Type.t): string =
   let open Type in
   let cycle_nodes =
-    let cycles = TypeAlgs.dfs_cycles ty in
+    let cycles = Type.dfs_cycles ty |> List.map ~f:Type.repr_id in
     List.fold cycles ~init:Int.Set.empty ~f:Int.Set.add in
   let strs = Int.Table.create () in
   let rec str (t: Type.t) l =
@@ -118,47 +116,52 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
       match l with
       | `Type -> 
         begin
-          match finddesc t with
-          | FunV(a1, t1) ->
-            Printf.sprintf "%s -> %s" (string_of_basetype a1) (str t1 `Type)
-          | FunI(a1, t1, t2) ->
-            if not concise then
-              let cyan = "\027[36m" in
-              let black = "\027[30m" in
-              Printf.sprintf "%s{%s%s}%s -> %s"
-                cyan (string_of_basetype a1) black (str t1 `Atom) (str t2 `Type)
-            else
-              Printf.sprintf "%s -> %s" (str t1 `Atom) (str t2 `Type)
-          | Var | Base _ | Tensor _ ->
-            s `Factor
-          | Link _ -> assert false
+          match case t with
+          | Var -> s `Factor
+          | Sgn st ->
+            match st with
+            | FunV(a1, t1) ->
+              Printf.sprintf "%s -> %s" (string_of_basetype a1) (str t1 `Type)
+            | FunI(a1, t1, t2) ->
+              if not concise then
+                let cyan = "\027[36m" in
+                let black = "\027[30m" in
+                Printf.sprintf "%s{%s%s}%s -> %s"
+                  cyan (string_of_basetype a1) black (str t1 `Atom) (str t2 `Type)
+              else
+                Printf.sprintf "%s -> %s" (str t1 `Atom) (str t2 `Type)
+            | Base _ | Tensor _ ->
+              s `Factor
         end
       | `Factor ->
         begin
-          match finddesc t with
-          | Tensor(t1, t2) ->
-            Printf.sprintf "%s # %s" (str t1 `Factor) (str t2 `Atom)
-          | Var | Base _ | FunV _ | FunI _ ->
-            s `Atom
-          | Link _ -> assert false
+          match case t with
+          | Var -> s `Atom
+          | Sgn st ->
+            match st with
+            | Tensor(t1, t2) ->
+              Printf.sprintf "%s # %s" (str t1 `Factor) (str t2 `Atom)
+            | Base _ | FunV _ | FunI _ ->
+              s `Atom
         end
       | `Atom ->
         begin
-          match finddesc t with
+          match case t with
           | Var ->
             "\'\'" ^ (name_of_typevar t)
-          | Base(a) ->
-            Printf.sprintf "[%s]" (string_of_basetype a)
-          | Tensor _ | FunV _ | FunI _ ->
-            Printf.sprintf "(%s)" (s `Type)
-          | Link _ -> assert false
+          | Sgn st ->
+            match st with
+            | Base(a) ->
+              Printf.sprintf "[%s]" (string_of_basetype a)
+            | Tensor _ | FunV _ | FunI _ ->
+              Printf.sprintf "(%s)" (s `Type)
         end in
-    let tid = (find t).id in
+    let tid = repr_id t in
     match Int.Table.find strs tid with
     | Some s -> s
     | None ->
       if Int.Set.mem cycle_nodes tid then
-        let alpha = "''" ^ (name_of_typevar (newty Var)) in
+        let alpha = "''" ^ (name_of_typevar (newvar())) in
         Int.Table.replace strs ~key:tid ~data:alpha;
         let s = "(rec " ^ alpha ^ ". " ^ (s l) ^ ")" in
         Int.Table.replace strs ~key:tid ~data:s;
@@ -378,7 +381,7 @@ TEST_MODULE = struct
     let open Basetype in
     let a = newvar () in
     let aa = newty (PairB(a, a)) in
-    let b = Type.newty Type.Var in
+    let b = Type.newvar() in
     let ab = Type.newty (Type.FunV(a, b)) in
     let aab = Type.newty (Type.FunV(a, ab)) in
     let aaab = Type.newty (Type.FunV(aa, ab)) in
@@ -394,7 +397,7 @@ TEST_MODULE = struct
   TEST "printing of cyclic types 2" =
     let open Basetype in
     let a = newvar () in
-    let b = Type.newty Type.Var in
+    let b = Type.newvar() in
     let abb = Type.newty (Type.FunI(a, b, b)) in
     try
       U.unify_eqs [U.Type_eq(b, abb, None)];

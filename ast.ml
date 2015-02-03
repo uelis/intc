@@ -359,12 +359,12 @@ let freshen_type_vars t =
   let new_type_vars = Int.Table.create () in
   let new_basetype_vars = Int.Table.create () in
   let fv x =
-    Int.Table.find_or_add new_type_vars (Type.find x).Type.id
-      ~default:(fun () -> Type.newty Type.Var) in
+    Int.Table.find_or_add new_type_vars (Type.repr_id x)
+      ~default:(fun () -> Type.newvar()) in
   let basefv x =
     Int.Table.find_or_add new_basetype_vars (Basetype.repr_id x)
       ~default:(fun () -> Basetype.newvar()) in
-  let f a = Type.subst fv basefv a in
+  let f a = Type.full_subst a fv basefv in
   let fbase a = Basetype.subst a basefv in
   let rec mta term =
     match term.desc with

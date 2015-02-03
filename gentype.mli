@@ -13,6 +13,7 @@ end
 
 exception Not_equal
 exception Not_unifiable
+exception Cyclic_type
 
 module type S = sig
   type t with sexp

@@ -88,7 +88,7 @@ let check_pattern p =
 let type_vars = String.Table.create ()
 let type_var (a : string) : Type.t =
   String.Table.find_or_add type_vars a
-    ~default:(fun () -> Type.newty Type.Var)
+    ~default:(fun () -> Type.newvar())
 
 let basetype_vars = String.Table.create ()
 let basetype_var (a : string) : Basetype.t =
@@ -178,7 +178,7 @@ term:
         { mkAst (Return($2)) }
     | LAMBDA identifier TO term
         { let alpha = Basetype.newvar() in
-          let ty = Type.newty Type.Var in
+          let ty = Type.newvar() in
           mkAst (Fun(($2, alpha, ty), $4)) }
     | LAMBDA LPAREN identifier COLON inttype RPAREN TO term
         { let alpha = Basetype.newvar() in

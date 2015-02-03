@@ -2,28 +2,17 @@
 
 open Core.Std
 
-type t =
-   { mutable desc : desc;
-     mutable mark : int;
-     id : int
-   }
-and desc =
-  | Link of t
-  | Var
+type 'a sgn =
   | Base of Basetype.t
-  | Tensor of t * t
-  | FunV of Basetype.t * t
-  | FunI of Basetype.t * t * t
+  | Tensor of 'a * 'a
+  | FunV of Basetype.t * 'a
+  | FunI of Basetype.t * 'a * 'a
+with sexp
 
-include Types.Repr
-  with type t := t with type desc := desc
+include Gentype.S with type 'a Sgn.t = 'a sgn
 
 (** Substitution of types for types and base types for base types. *)
-val subst: (t -> t) -> (Basetype.t -> Basetype.t) -> t -> t
-
-(** Freshen all type variables, both for interactive types and
-    for base types. *)
-val freshen: t -> t
+val full_subst: t -> (t -> t) -> (Basetype.t -> Basetype.t) -> t
 
 (** Apply the given function to all index types in the given
     type. Index types are all the types [a] in [FunI(a, _, _)]. *)

@@ -417,7 +417,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     begin
       if Ast.is_value t && (not t_is_int_var) then
         begin
-        let beta = Type.newty Type.Var in
+        let beta = Type.newvar() in
         let a1 = ptV c t in
         let b = pt c phi s in
         eq_expected_constraint s
@@ -433,7 +433,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
         let gamma, delta = split_context phi s t in
         let s1 = pt c gamma s in
         let alpha = Basetype.newvar() in
-        let betaY = Type.newty Type.Var in
+        let betaY = Type.newvar() in
         let t1 = pt c delta t in
         eq_expected_constraint s
           ~actual:s1.t_type
@@ -452,7 +452,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
       t_loc = t.Ast.loc }
   | Ast.Copy(s, (xs, t)) ->
     let gamma, delta = split_context phi s t in
-    let beta = Type.newty Type.Var in
+    let beta = Type.newvar() in
     let delta1 = List.map ~f:(fun x -> (x, beta)) xs in
     let t1 = pt c (delta1 @ delta) t in
     let s1 = pt c gamma s in
@@ -470,8 +470,8 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
       t_context = phi;
       t_loc = t.Ast.loc }
   | Ast.LetPair(s, (x, y, t)) ->
-    let alpha = Type.newty Type.Var in
-    let beta = Type.newty Type.Var in
+    let alpha = Type.newvar() in
+    let beta = Type.newvar() in
     let gamma, rest = take_subcontext phi s in
     let delta, _ = take_subcontext rest t in
     let s1 = pt c gamma s in
@@ -490,7 +490,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     let params = List.init n ~f:(fun _ -> Basetype.newvar ()) in
     let data = Basetype.newty (Basetype.DataB(id, params)) in
     let argtypes = Basetype.Data.constructor_types id params in
-    let beta = Type.newty Type.Var in
+    let beta = Type.newvar() in
     let l_args = List.zip_exn l argtypes in
     let l1 = List.map l_args
                ~f:(fun ((p, u), argty) ->
@@ -563,17 +563,20 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
             end
         end in
     let rec check_wf (b: Type.t) : unit =
-      match Type.finddesc b with
+      match Type.case b with
       | Type.Var -> ()
-      | Type.Base(b) ->
-        check_wf_base b
-      | Type.Tensor(b1, b2) ->
-        check_wf b1; check_wf b2
-      | Type.FunV(b1, b2) ->
-        check_wf_base b1; check_wf b2
-      | Type.FunI(a1, b1, b2) ->
-        check_wf_base a1; check_wf b1; check_wf b2
-      | Type.Link _ -> assert false in
+      | Type.Sgn sb ->
+        begin
+        match sb with
+        | Type.Base(b) ->
+          check_wf_base b
+        | Type.Tensor(b1, b2) ->
+          check_wf b1; check_wf b2
+        | Type.FunV(b1, b2) ->
+          check_wf_base b1; check_wf b2
+        | Type.FunI(a1, b1, b2) ->
+          check_wf_base a1; check_wf b1; check_wf b2
+        end in
     check_wf ty;
     let t1 = pt c phi t in
     eq_expected_constraint t ~actual:t1.t_type ~expected:ty;

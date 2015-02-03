@@ -298,8 +298,8 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let w2 = fresh_wire () in
       let xv = Ident.fresh "x" in
       let x, a, b =
-        match Type.finddesc t.Typedterm.t_type with
-        | Type.FunV(a, b) ->
+        match Type.case t.Typedterm.t_type with
+        | Type.Sgn (Type.FunV(a, b)) ->
           { Typedterm.value_desc = Typedterm.VarV xv;
             Typedterm.value_type = a;
             Typedterm.value_loc = Ast.Location.none },
@@ -555,8 +555,8 @@ let infer_types (c : t) : unit =
       let sigma = type_of_context s in
       let unitB = Basetype.newty Basetype.UnitB in
       let beta =
-        match Type.finddesc f.Typedterm.t_type with
-        | Type.Base beta -> beta
+        match Type.case f.Typedterm.t_type with
+        | Type.Sgn (Type.Base beta) -> beta
         | _ -> assert false in
       beq_constraint w1.type_back (tensor sigma unitB) ::
       beq_constraint w1.type_forward (tensor sigma beta) ::
