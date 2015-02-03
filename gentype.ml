@@ -1,7 +1,6 @@
 open Core.Std
        
-exception Not_equal
-exception Not_unifiable
+exception Constructor_mismatch
 exception Cyclic_type
 
 module type Typesgn = sig
@@ -10,7 +9,7 @@ module type Typesgn = sig
   val map: ('a -> 'b) -> 'a t -> 'b t
   val children: 'a t -> 'a list
 
-  val eq_exn: 'a t -> 'a t -> eq:('a -> 'a -> unit) -> unit
+  val equals: 'a t -> 'a t -> equals:('a -> 'a -> bool) -> bool
     
   val unify_exn: 'a t -> 'a t -> unify:('a -> 'a -> unit) -> unit
 end
@@ -77,10 +76,12 @@ module Make(T: Typesgn) = struct
   with sexp
 
   let next_id = ref 0
-  let newty d =
-    incr next_id; { desc = D (Sgn d); mark = 0; id = !next_id }
-  let newvar () =
-    incr next_id; { desc = D Var; mark = 0; id = !next_id }
+                  
+  let newD d =
+    incr next_id;
+    { desc = D d; mark = 0; id = !next_id }
+  let newty s = newD (Sgn s)
+  let newvar () = newD Var
 
   let phys_id t = t.id
 
@@ -132,25 +133,15 @@ module Make(T: Typesgn) = struct
   let identical (u: t) (v: t) : bool =
     phys_id u = phys_id v
       
-  let rec equals_exn (u: t) (v: t) : unit =
+  let rec equals (u: t) (v: t) : bool =
     let ur = find u in
     let vr = find v in
-    if ur.id = vr.id then ()
+    if ur.id = vr.id then true
     else
       match ur.desc, vr.desc with
-      | D Var, _
-      | _, D Var -> raise Not_equal
-      | D (Sgn d), D (Sgn e) ->
-        T.eq_exn d e ~eq:equals_exn
-      | _, Link _
-      | Link _, _ -> assert false
-
-  let equals (u: t) (v: t) : bool =
-    try
-      equals_exn u v;
-      true
-    with
-    | Not_equal -> false
+      | D Var, _ | _, D Var -> false
+      | D (Sgn d), D (Sgn e) -> T.equals d e ~equals:equals
+      | _, Link _ | Link _, _ -> assert false
 
   let freshen_list ts =
     let vm = Int.Table.create () in

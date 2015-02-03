@@ -37,7 +37,29 @@ module Sig = struct
      | PairB(x, y) -> [x; y]
      | DataB(_, xs) -> xs
 
-  let eq_exn (s: 'a t) (t: 'a t) ~eq:(eq: 'a -> 'a -> unit) : unit =
+  let equals (s: 'a t) (t: 'a t) ~equals:(equals: 'a -> 'a -> bool) : bool =
+    match s, t with
+    | IntB, IntB
+    | ZeroB, ZeroB
+    | UnitB, UnitB ->
+      true
+    | EncodedB(t1), EncodedB(s1) 
+    | BoxB(t1), BoxB(s1) 
+    | ArrayB(t1), ArrayB(s1) ->
+      equals t1 s1
+    | PairB(t1, t2), PairB(s1, s2) ->
+      equals t1 s1 && equals t2 s2
+    | DataB(i, ts), DataB(j, ss) when i = j ->
+      begin
+        match List.zip ts ss with
+        | None -> false
+        | Some l -> List.for_all l ~f:(fun (t, s) -> equals t s)
+      end
+    | EncodedB _, _ | IntB, _ | ZeroB, _ | UnitB, _
+    | BoxB _, _ | ArrayB _, _ | PairB _, _ | DataB _, _ ->
+      false
+
+  let unify_exn (s: 'a t) (t: 'a t) ~unify:(unify: 'a -> 'a -> unit) : unit =
     match s, t with
     | IntB, IntB
     | ZeroB, ZeroB
@@ -46,20 +68,19 @@ module Sig = struct
     | EncodedB(t1), EncodedB(s1) 
     | BoxB(t1), BoxB(s1) 
     | ArrayB(t1), ArrayB(s1) ->
-      eq t1 s1
+      unify t1 s1
     | PairB(t1, t2), PairB(s1, s2) ->
-      eq t1 s1;
-      eq t2 s2
+      unify t1 s1;
+      unify t2 s2
     | DataB(i, ts), DataB(j, ss) when i = j ->
-      List.iter
-        ~f:(fun (t, s) -> eq t s)
-        (List.zip_exn ts ss) (* FIXME: wrong exception *)
+      begin
+        match List.zip ts ss with
+        | None -> raise Gentype.Constructor_mismatch
+        | Some l -> List.iter l ~f:(fun (t, s) -> unify t s)
+      end
     | EncodedB _, _ | IntB, _ | ZeroB, _ | UnitB, _
     | BoxB _, _ | ArrayB _, _ | PairB _, _ | DataB _, _ ->
-      raise Gentype.Not_equal
-
-  let unify_exn (s: 'a t) (t: 'a t) ~unify:(unify: 'a -> 'a -> unit) : unit =
-    eq_exn s t ~eq:unify (* FIXME: wrong exception *)
+      raise Gentype.Constructor_mismatch
 end
 
 module Basetype = Gentype.Make(Sig)

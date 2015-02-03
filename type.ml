@@ -25,22 +25,18 @@ module Sig = struct
     | FunV(_, x) -> [x]
     | FunI(_, x, y) -> [x; y]
 
-  let eq_exn (s: 'a t) (t: 'a t) ~eq:(eq: 'a -> 'a -> unit) : unit =
+  let equals (s: 'a t) (t: 'a t) ~equals:(equals: 'a -> 'a -> bool) : bool =
     match s, t with
     | Base(a1), Base(b1) ->
-      if not (Basetype.equals a1 b1) then raise Gentype.Not_equal
+      Basetype.equals a1 b1
     | Tensor(t1, t2), Tensor(s1, s2) ->
-      eq t1 s1;
-      eq t2 s2;
+      equals t1 s1 && equals t2 s2
     | FunV(a1, t2), FunV(b1, s2) ->
-      if not (Basetype.equals a1 b1) then raise Gentype.Not_equal;
-      eq t2 s2
+      Basetype.equals a1 b1 && equals t2 s2
     | FunI(a1, t1, t2), FunI(b1, s1, s2) ->
-      if not (Basetype.equals a1 b1) then raise Gentype.Not_equal;
-      eq t1 s1;
-      eq t2 s2;
+      Basetype.equals a1 b1 && equals t1 s1 && equals t2 s2;
     | Base _, _ | Tensor _ , _ | FunV _, _ | FunI _, _ ->
-      raise Gentype.Not_equal
+      false
 
   let unify_exn (s: 'a t) (t: 'a t) ~unify:(unify: 'a -> 'a -> unit) : unit =
     match s, t with
@@ -57,7 +53,7 @@ module Sig = struct
       unify t1 s1;
       unify t2 s2;
     | Base _, _ | Tensor _ , _ | FunV _, _ | FunI _, _ ->
-      raise Gentype.Not_unifiable
+      raise Gentype.Constructor_mismatch
 end
 
 module Type = Gentype.Make(Sig)
@@ -131,3 +127,21 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
         newty (DataB(Data.sumid 2, [newty (PairB(a, bp1)); bm2])),
         newty (DataB(Data.sumid 2, [newty (PairB(a, bm1)); bp2]))
   in qap s
+
+
+TEST_MODULE = struct
+
+  TEST "cyclic sub-basetypes" =
+    let open Basetype in
+    let a = newvar () in
+    let aa = newty (PairB(a, a)) in
+    let b = Type.newvar() in
+    let abb = Type.newty (FunI(a, b, b)) in
+    let aabb = Type.newty (FunI(aa, b, b)) in
+    try
+      Type.unify_exn abb aabb;
+      false
+    with
+    | Gentype.Cyclic_type -> true
+
+end

@@ -1,19 +1,18 @@
 open Core.Std
 
+exception Constructor_mismatch
+exception Cyclic_type
+
 module type Typesgn = sig
   type 'a t with sexp
 
   val map: ('a -> 'b) -> 'a t -> 'b t
   val children: 'a t -> 'a list
 
-  val eq_exn: 'a t -> 'a t -> eq:('a -> 'a -> unit) -> unit
+  val equals: 'a t -> 'a t -> equals:('a -> 'a -> bool) -> bool
     
   val unify_exn: 'a t -> 'a t -> unify:('a -> 'a -> unit) -> unit
 end
-
-exception Not_equal
-exception Not_unifiable
-exception Cyclic_type
 
 module type S = sig
   type t with sexp

@@ -34,7 +34,7 @@ let eq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
     let msg = "Unification leads to cyclic type " ^
               (Printing.string_of_type actual_ty) ^ "." in
     raise (Typing_error(None, msg)) 
-  | Gentype.Not_unifiable ->
+  | Gentype.Constructor_mismatch ->
     let msg =
       Printf.sprintf
         "Term has interactive type %s, but a term of type %s is expected."
@@ -50,7 +50,7 @@ let beq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
     let msg = "Unification leads to cyclic value type " ^
               (Printing.string_of_basetype actual_ty) ^ "." in
     raise (Typing_error(None, msg)) 
-  | Gentype.Not_unifiable ->
+  | Gentype.Constructor_mismatch ->
     let msg =
       Printf.sprintf
         "Term has value type %s, but a term of type %s is expected."

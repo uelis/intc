@@ -1,4 +1,4 @@
-open Unify
+open Type
 open Printing
 
 let () =
