@@ -104,8 +104,8 @@ struct
       | Ast.PatVar(y) ->
         if x = y then Some v else None
       | Ast.PatPair(p1, p2) ->
-        let alpha = Basetype.newtyvar() in
-        let beta = Basetype.newtyvar() in
+        let alpha = Basetype.newvar() in
+        let beta = Basetype.newvar() in
         U.unify
           v.Typedterm.value_type
           (Basetype.newty (Basetype.PairB(alpha, beta)));
@@ -170,8 +170,8 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
         value_loc = t.Ast.loc }
   | Ast.FstV(t1) ->
     let a1 = ptV c t1 in
-    let a = Basetype.newtyvar() in
-    let b = Basetype.newtyvar() in
+    let a = Basetype.newvar() in
+    let b = Basetype.newvar() in
     let expected = Basetype.newty (Basetype.PairB(a, b)) in
     beq_expected_constraint t1
       ~actual:a1.value_type
@@ -181,8 +181,8 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
       value_loc = t.Ast.loc }
   | Ast.SndV(t1) ->
     let a1 = ptV c t1 in
-    let a = Basetype.newtyvar() in
-    let b = Basetype.newtyvar() in
+    let a = Basetype.newvar() in
+    let b = Basetype.newvar() in
     let expected = Basetype.newty (Basetype.PairB(a, b)) in
     beq_expected_constraint t1
       ~actual:a1.value_type
@@ -193,7 +193,7 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
   | Ast.InV(id, k, t1) ->
     let a1 = ptV c t1 in
     let n = Basetype.Data.params id in
-    let params = List.init n ~f:(fun _ -> Basetype.newtyvar ()) in
+    let params = List.init n ~f:(fun _ -> Basetype.newvar ()) in
     let data = Basetype.newty (Basetype.DataB(id, params)) in
     let argtype =
       match List.nth (Basetype.Data.constructor_types id params) k with
@@ -361,14 +361,14 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
       t_context = phi;
       t_loc = t.Ast.loc }
   | Ast.Const(Ast.Cencode(a) as c) ->
-    let b = Basetype.newty Basetype.EncodedB in
+    let b = Basetype.newty (Basetype.EncodedB(Basetype.newvar())) in
     let d = Type.newty (Type.FunV(a, Type.newty (Type.Base b))) in
     { t_desc = Const(c);
       t_type = d;
       t_context = phi;
       t_loc = t.Ast.loc }
   | Ast.Const(Ast.Cdecode(b) as c) ->
-    let a = Basetype.newty Basetype.EncodedB in
+    let a = Basetype.newty (Basetype.EncodedB(Basetype.newvar())) in
     let d = Type.newty (Type.FunV(a, Type.newty (Type.Base b))) in
     { t_desc = Const(c);
       t_type = d;
@@ -385,11 +385,11 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     let a1 = pt c phi1 t1 in
     let pat_id = Ident.fresh "pat" in
     let pat_val = { value_desc = VarV(pat_id);
-                    value_type = Basetype.newtyvar();
+                    value_type = Basetype.newvar();
                     value_loc = Ast.Location.none } in
     let cpat = ValEnv.match_pattern c pat_val p in
     let a2 = pt cpat phi2 t2 in
-    let beta = Basetype.newty Basetype.Var in
+    let beta = Basetype.newvar() in
     eq_expected_constraint t1 ~actual:a1.t_type
       ~expected:(Type.newty (Type.Base pat_val.value_type));
     eq_expected_constraint t2 ~actual:a2.t_type
@@ -401,7 +401,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
   | Ast.Fn(p, t1) ->
     let pat_id = Ident.fresh "pat" in
     let pat_val = { value_desc = VarV(pat_id);
-                    value_type = Basetype.newtyvar();
+                    value_type = Basetype.newvar();
                     value_loc = Ast.Location.none } in
     let c1 = ValEnv.match_pattern c pat_val p in
     let b1 = pt c1 phi t1 in
@@ -432,7 +432,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
         begin
         let gamma, delta = split_context phi s t in
         let s1 = pt c gamma s in
-        let alpha = Basetype.newty Basetype.Var in
+        let alpha = Basetype.newvar() in
         let betaY = Type.newty Type.Var in
         let t1 = pt c delta t in
         eq_expected_constraint s
@@ -487,7 +487,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     (* case distinction is allowed over values only *)
     let s1 = ptV c s in
     let n = Basetype.Data.params id in
-    let params = List.init n ~f:(fun _ -> Basetype.newtyvar ()) in
+    let params = List.init n ~f:(fun _ -> Basetype.newvar ()) in
     let data = Basetype.newty (Basetype.DataB(id, params)) in
     let argtypes = Basetype.Data.constructor_types id params in
     let beta = Type.newty Type.Var in
@@ -512,13 +512,13 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     let b' = Type.map_index_types b
                (fun a ->
                   begin
-                    match Basetype.finddesc a with
+                    match Basetype.case a with
                     | Basetype.Var -> ()
                     | _ -> print_string
                              ("Warning: Non-variable index type annotations " ^
                               "are ignored.\n")
                   end;
-                  Basetype.newtyvar()) in
+                  Basetype.newvar()) in
     let b_minus, b_plus =
       Type.question_answer_pair b' in
     eq_expected_constraint t
@@ -532,32 +532,36 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
   | Ast.TypeAnnot(t, ty) ->
     (* TODO: move to type/basetype *)
     let rec check_wf_base (b: Basetype.t) : unit =
-      match (Basetype.find b).Basetype.desc with
-      | Basetype.Var | Basetype.EncodedB
-      | Basetype.IntB | Basetype.ZeroB | Basetype.UnitB -> ()
-      | Basetype.BoxB(b1) ->
-        check_wf_base b1
-      | Basetype.ArrayB(b1) ->
-        check_wf_base b1
-      | Basetype.PairB(b1, b2) ->
-        check_wf_base b1;
-        check_wf_base b2
-      | Basetype.DataB(id, bs) ->
+      match Basetype.case b with
+      | Basetype.Var -> ()
+      | Basetype.Sgn sb ->
         begin
-          try
-            let n = Basetype.Data.params id in
-            if List.length bs <> n then
-              let error_msg =
-                Printf.sprintf "Data type %s takes %i argument(s)." id n in
-              raise (Typing_error(Some t, error_msg))
-            else
-              List.iter bs ~f:check_wf_base
-          with Not_found ->
-              let error_msg =
-                Printf.sprintf "The data type %s is undefined." id in
-              raise (Typing_error(Some t, error_msg))
-        end
-      | Basetype.Link _ -> assert false in
+          match sb with
+          | Basetype.IntB | Basetype.ZeroB | Basetype.UnitB -> ()
+          | Basetype.EncodedB(b1)
+          | Basetype.BoxB(b1) ->
+            check_wf_base b1
+          | Basetype.ArrayB(b1) ->
+            check_wf_base b1
+          | Basetype.PairB(b1, b2) ->
+            check_wf_base b1;
+            check_wf_base b2
+          | Basetype.DataB(id, bs) ->
+            begin
+              try
+                let n = Basetype.Data.params id in
+                if List.length bs <> n then
+                  let error_msg =
+                    Printf.sprintf "Data type %s takes %i argument(s)." id n in
+                  raise (Typing_error(Some t, error_msg))
+                else
+                  List.iter bs ~f:check_wf_base
+              with Not_found ->
+                let error_msg =
+                  Printf.sprintf "The data type %s is undefined." id in
+                raise (Typing_error(Some t, error_msg))
+            end
+        end in
     let rec check_wf (b: Type.t) : unit =
       match Type.finddesc b with
       | Type.Var -> ()

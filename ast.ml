@@ -100,7 +100,7 @@ let mkCopy s (xs, t) = mkTerm (Copy(s, (xs, t)))
 let mkDirect ty t = mkTerm (Direct(ty, t))
 let mkTypeAnnot t a = mkTerm (TypeAnnot(t, a))
 let mkBox t =
-  let alpha = Basetype.newtyvar() in
+  let alpha = Basetype.newvar() in
   let addr = Ident.fresh "addr" in
   let unused = Ident.fresh "x" in
   mkBind (mkApp (mkConst (Calloc alpha)) mkUnitV)
@@ -108,7 +108,7 @@ let mkBox t =
      mkBind (mkApp (mkConst (Cstore alpha)) (mkPairV (mkVar addr) t))
        (PatVar unused, mkReturn (mkVar addr)))
 let mkUnbox t =
-  let alpha = Basetype.newtyvar() in
+  let alpha = Basetype.newvar() in
   let v = Ident.fresh "v" in
   let unused = Ident.fresh "x" in
   mkBind (mkApp (mkConst (Cload alpha)) t)
@@ -362,10 +362,10 @@ let freshen_type_vars t =
     Int.Table.find_or_add new_type_vars (Type.find x).Type.id
       ~default:(fun () -> Type.newty Type.Var) in
   let basefv x =
-    Int.Table.find_or_add new_basetype_vars (Basetype.find x).Basetype.id
-      ~default:(fun () -> Basetype.newty Basetype.Var) in
+    Int.Table.find_or_add new_basetype_vars (Basetype.repr_id x)
+      ~default:(fun () -> Basetype.newvar()) in
   let f a = Type.subst fv basefv a in
-  let fbase a = Basetype.subst basefv a in
+  let fbase a = Basetype.subst a basefv in
   let rec mta term =
     match term.desc with
     | Var(_) | UnitV -> term

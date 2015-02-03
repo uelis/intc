@@ -13,38 +13,18 @@
 
 open Core.Std
 
-(** The representation of types uses a union find data
-    structure that makes unification easy.
-    I learned about this representation of types
-    from the following article (Section 1.4):
-    Didier Remy. Using, Understanding, and Unraveling
-    The OCaml Language. LNCS 2395. Springer-Verlag 2002
-    http://pauillac.inria.fr/~remy/cours/appsem/
-*)
-
-type t = {
-  mutable desc : desc;
-  mutable mark : int;
-  id : int (* unique id *)
-}
-and desc =
-  | Link of t
-  | Var
-  | EncodedB
+type 'a sgn =
+  | EncodedB of 'a
   | IntB
   | ZeroB
   | UnitB
-  | BoxB of t
-  | ArrayB of t
-  | PairB of t * t
-  | DataB of string * t list
+  | BoxB of 'a
+  | ArrayB of 'a
+  | PairB of 'a * 'a
+  | DataB of string * 'a list
+with sexp
 
-val sexp_of_t: t -> Sexplib.Sexp.t
-val t_of_sexp: Sexplib.Sexp.t -> t
-
-
-include Types.Repr
-  with type t := t with type desc := desc
+include Gentype.S with type 'a Sgn.t = 'a sgn
 
 (** Representation of algebraic data types.
 *)
@@ -108,6 +88,7 @@ sig
   val add_constructor : id -> string -> t list -> t -> unit
 end
 
+(*
 val newtyvar: unit -> t
 
 (** Returns the list of free type variables in their order of
@@ -129,3 +110,4 @@ val freshen: t -> t
     replaced with the same new variabe.
 *)
 val freshen_list: t list -> t list
+*)

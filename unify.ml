@@ -43,37 +43,12 @@ module Make(Tag : T) = struct
 
   let rec unify_raw (c : type_eq) : unit =
     match c with
-    | Basetype_eq(b1, b2, tag) ->
+    | Basetype_eq(b1, b2, _) ->
       begin
-        let open Basetype in
-        let c1, c2 = find b1, find b2 in
-        if not (phys_equal c1 c2) then
-          match finddesc c1, finddesc c2 with
-          | EncodedB, EncodedB ->
-            union c1 c2
-          | Var, _ ->
-            union c1 c2
-          | _, Var ->
-            union c2 c1
-          | IntB, IntB
-          | ZeroB, ZeroB
-          | UnitB, UnitB ->
-            ()
-          | BoxB(t1), BoxB(s1) ->
-            unify_raw (Basetype_eq(t1, s1, tag))
-          | ArrayB(t1), ArrayB(s1) ->
-            unify_raw (Basetype_eq(t1, s1, tag))
-          | PairB(t1, t2), PairB(s1, s2) ->
-            unify_raw (Basetype_eq(t1, s1, tag));
-            unify_raw (Basetype_eq(t2, s2, tag))
-          | DataB(i, ts), DataB(j, ss) when i = j ->
-            List.iter
-              ~f:(fun (t, s) -> unify_raw (Basetype_eq (t, s, tag)))
-              (List.zip_exn ts ss)
-          | EncodedB, _ | _, EncodedB | IntB, _ | ZeroB, _ | UnitB, _
-          | BoxB _, _ | ArrayB _, _ | PairB _, _ | DataB _, _ ->
-            raise (Not_Unifiable (Equation_failed c))
-          | Link _, _ -> assert false
+        try
+          Basetype.unify_exn b1 b2
+        with
+        | _ -> raise (Not_Unifiable (Equation_failed c))
       end
     | Type_eq(t1, t2, tag) ->
       begin
@@ -103,11 +78,10 @@ module Make(Tag : T) = struct
       end
 
   module TypeAlgs = Types.Algs(Type)
-  module BasetypeAlgs = Types.Algs(Basetype)
 
   let check_cycle (c: type_eq) : unit =
     let check_basetype b =
-      if not (BasetypeAlgs.is_acyclic b) then
+      if not (Basetype.is_acyclic b) then
         raise (Not_Unifiable(Cyclic_type(c))) in
     let rec check_sub_basetypes t =
       match Type.finddesc t with
@@ -152,7 +126,7 @@ TEST_MODULE = struct
 
   TEST "cyclic sub-basetypes" =
     let open Basetype in
-    let a = newtyvar () in
+    let a = newvar () in
     let aa = newty (PairB(a, a)) in
     let b = Type.newty Type.Var in
     let abb = Type.newty (Type.FunI(a, b, b)) in

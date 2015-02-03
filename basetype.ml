@@ -1,126 +1,69 @@
 open Core.Std
 
-type t =
-   { mutable desc : desc;
-     mutable mark : int;
-     id : int
-   }
-and desc =
-  | Link of t
-  | Var
-  | EncodedB
+type 'a sgn =
+  | EncodedB of 'a
   | IntB
   | ZeroB
   | UnitB
-  | BoxB of t
-  | ArrayB of t
-  | PairB of t * t
-  | DataB of string * t list
+  | BoxB of 'a
+  | ArrayB of 'a
+  | PairB of 'a * 'a
+  | DataB of string * 'a list
 with sexp
+    
+module Sig = struct
 
-let next_id = ref 0
-let newty d =
-  incr next_id; { desc = d; mark = 0; id = !next_id }
-let newtyvar () =
-  newty Var
+  type 'a t = 'a sgn with sexp                  
 
-let phys_id t = t.id
+  let map (f : 'a -> 'b) (t : 'a t) : 'b t =
+    match t with
+     | EncodedB x -> EncodedB (f x)
+     | IntB  -> IntB
+     | ZeroB  -> ZeroB
+     | UnitB  -> UnitB
+     | BoxB x -> BoxB (f x)
+     | ArrayB x -> ArrayB (f x)
+     | PairB(x, y) -> PairB(f x, f y)
+     | DataB(id, xs) -> DataB(id, List.map ~f:f xs)
 
-let current_mark : int ref = ref 0
-let next_mark () : int = incr current_mark; !current_mark
+  let children (t: 'a t) : 'a list =
+    match t with
+     | EncodedB x -> [x]
+     | IntB
+     | ZeroB
+     | UnitB -> []
+     | BoxB x -> [x]
+     | ArrayB x -> [x]
+     | PairB(x, y) -> [x; y]
+     | DataB(_, xs) -> xs
 
-let set_mark t i =
-  t.mark <- i
+  let eq_exn (s: 'a t) (t: 'a t) ~eq:(eq: 'a -> 'a -> unit) : unit =
+    match s, t with
+    | IntB, IntB
+    | ZeroB, ZeroB
+    | UnitB, UnitB ->
+      ()
+    | EncodedB(t1), EncodedB(s1) 
+    | BoxB(t1), BoxB(s1) 
+    | ArrayB(t1), ArrayB(s1) ->
+      eq t1 s1
+    | PairB(t1, t2), PairB(s1, s2) ->
+      eq t1 s1;
+      eq t2 s2
+    | DataB(i, ts), DataB(j, ss) when i = j ->
+      List.iter
+        ~f:(fun (t, s) -> eq t s)
+        (List.zip_exn ts ss) (* FIXME: wrong exception *)
+    | EncodedB _, _ | IntB, _ | ZeroB, _ | UnitB, _
+    | BoxB _, _ | ArrayB _, _ | PairB _, _ | DataB _, _ ->
+      raise Gentype.Not_equal
 
-let get_mark t =
-  t.mark
+  let unify_exn (s: 'a t) (t: 'a t) ~unify:(unify: 'a -> 'a -> unit) : unit =
+    eq_exn s t ~eq:unify (* FIXME: wrong exception *)
+end
 
-let rec find (t : t) : t =
-  match t.desc with
-  | Link l ->
-    let r = find l
-    in t.desc <- Link r;
-    r
-  | _ -> t
-
-let finddesc (t : t) = (find t).desc
-
-let union (t1 : t) (t2 : t) : unit =
-  (find t1).desc <- Link (find t2)
-
-type type_t = t with sexp
-
-let children a =
-  match finddesc a with
-  | Var | EncodedB | IntB | ZeroB | UnitB -> []
-  | BoxB(b1) -> [b1]
-  | ArrayB(b1) -> [b1]
-  | PairB(b1, b2) -> [b1; b2]
-  | DataB(_, bs) -> bs
-  | Link _ -> assert false
-
-let rec free_vars (b: t) : t list =
-  match (find b).desc with
-    | Var -> [find b]
-    | EncodedB | IntB | ZeroB | UnitB -> []
-    | BoxB(b1) -> free_vars b1
-    | ArrayB(b1) -> free_vars b1
-    | PairB(b1, b2) -> free_vars b1 @ (free_vars b2)
-    | DataB(_, bs) -> List.concat (List.map ~f:free_vars bs)
-    | Link _ -> assert false
-
-let rec subst (f: t -> t) (b: t) : t =
-  match (find b).desc with
-    | Var -> f (find b)
-    | EncodedB | IntB | ZeroB | UnitB -> b
-    | BoxB(b1) -> newty(BoxB(subst f b1))
-    | ArrayB(b1) -> newty(ArrayB(subst f b1))
-    | PairB(b1, b2) -> newty(PairB(subst f b1, subst f b2))
-    | DataB(id, bs) -> newty(DataB(id, List.map ~f:(subst f) bs))
-    | Link _ -> assert false
-
-let rec equals (u: t) (v: t) : bool =
-  let ur = find u in
-  let vr = find v in
-    if ur.id = vr.id then true
-    else
-      match ur.desc, vr.desc with
-        | Var, Var ->
-            false
-        | EncodedB, EncodedB ->
-            false
-        | IntB, IntB | ZeroB, ZeroB | UnitB, UnitB ->
-            true
-        | BoxB(u1), BoxB(v1)  ->
-            equals u1 v1
-        | ArrayB(u1), ArrayB(v1)  ->
-            equals u1 v1
-        | PairB(u1, u2), PairB(v1, v2)  ->
-            equals u1 v1 && equals u2 v2
-        | DataB(idu, lu), DataB(idv, lv) ->
-            idu = idv &&
-            List.for_all2_exn lu lv ~f:equals
-        | Link _, _ | _, Link _ -> assert false
-        | Var, _ | EncodedB, _ | IntB, _ | ZeroB, _ | UnitB, _
-        | BoxB _, _ | ArrayB _ , _ | PairB _ , _ | DataB _ , _ ->
-            false
-
-let freshen_list ts =
-  let vm = Int.Table.create () in
-  let fv x =
-    match Int.Table.find vm (find x).id with
-    | Some y -> y
-    | None ->
-      let y = newty Var in
-      Int.Table.replace vm ~key:(find x).id ~data:y;
-      y in
-    List.map ts ~f:(subst fv)
-
-let freshen t =
-  match freshen_list [t] with
-    | [f] -> f
-    | _ -> assert false
-
+module Basetype = Gentype.Make(Sig)
+include Basetype
 
 module Data =
 struct
@@ -150,7 +93,7 @@ struct
       | Some id -> id
       | None ->
         let name = "sum" ^ (string_of_int n) in
-        let l = List.init n ~f:(fun i -> i, newty Var) in
+        let l = List.init n ~f:(fun i -> i, newvar()) in
         let params = List.map ~f:snd l in
         let constructors =
           List.map l
@@ -193,21 +136,26 @@ struct
       let l = List.zip_exn ps newparams in
       List.Assoc.find l alpha
       |> Option.value ~default:alpha in
-    List.map ~f:(subst param_subst) ts
+    List.map ~f:(fun a -> subst a param_subst) ts
 
   let is_discriminated id =
     (String.Table.find_exn datatypes id).discriminated
 
   let is_recursive id =
     let rec check_rec a =
-      match finddesc a with
-        | Var | EncodedB | ZeroB | UnitB | IntB -> false
-        | BoxB(b1) -> check_rec b1
-        | ArrayB(b1) -> check_rec b1
-        | PairB(b1, b2) -> check_rec b1 && check_rec b2
-        | DataB(id', bs) -> id = id' || List.exists ~f:check_rec bs
-        | Link _ -> assert false in
-    let freshparams = List.init (params id) ~f:(fun _ -> newty Var) in
+      match case a with
+      | Var -> false
+      | Sgn s ->
+        begin
+          match s with
+          | ZeroB | UnitB | IntB -> false
+          | EncodedB(b1) | BoxB(b1) -> check_rec b1
+          | ArrayB(b1) -> check_rec b1
+          | PairB(b1, b2) -> check_rec b1 && check_rec b2
+          | DataB(id', bs) -> id = id' || List.exists ~f:check_rec bs
+        end
+    in
+    let freshparams = List.init (params id) ~f:(fun _ -> newvar ()) in
     let ct = constructor_types id freshparams in
     List.exists ~f:check_rec ct
 
@@ -228,7 +176,7 @@ struct
     String.Table.replace datatypes ~key:name
       ~data:{ name = name;
               (* (these type variables must remain private) *)
-              params = List.init nparams ~f:(fun _ -> newty Var);
+              params = List.init nparams ~f:(fun _ -> newvar ());
               discriminated = discriminated;
               constructors = [] }
 
@@ -261,19 +209,23 @@ struct
 
     (* check that all recursive occurrences of the type are under a box. *)
     let rec check_rec_occ a =
-      match finddesc a with
-      | Var | EncodedB | IntB | UnitB | ZeroB -> ()
-      | PairB(a1, a2) ->
-        check_rec_occ a1;
-        check_rec_occ a2
-      | DataB(id', params) ->
-        if (id = id') then
-          failwith "Recursive occurrences are only allowed within box<...>"
-        else
-          List.iter params ~f:check_rec_occ
-      | BoxB _ -> ()
-      | ArrayB _ -> ()
-      | Link _ -> assert false
+      match case a with
+      | Var -> ()
+      | Sgn s ->
+        begin
+          match s with
+          | EncodedB _ | IntB | UnitB | ZeroB -> ()
+          | PairB(a1, a2) ->
+            check_rec_occ a1;
+            check_rec_occ a2
+          | DataB(id', params) ->
+            if (id = id') then
+              failwith "Recursive occurrences are only allowed within box<...>"
+            else
+              List.iter params ~f:check_rec_occ
+          | BoxB _ -> ()
+          | ArrayB _ -> ()
+        end
     in
     check_rec_occ argtype;
 
@@ -282,7 +234,7 @@ struct
       let l = List.zip_exn paramvars d.params in
       List.Assoc.find l alpha
       |> Option.value ~default:alpha in
-    let argtype' = subst param_subst argtype in
+    let argtype' = subst argtype param_subst in
     let d' = { d with constructors = d.constructors @ [name, argtype'] } in
     String.Table.replace datatypes ~key:id ~data:d'
 end

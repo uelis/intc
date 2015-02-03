@@ -115,8 +115,8 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
     next_wirename := !next_wirename + 2;
     { src = n;
       dst = n + 1;
-      type_forward = Basetype.newty Basetype.Var;
-      type_back = Basetype.newty Basetype.Var
+      type_forward = Basetype.newvar();
+      type_back = Basetype.newvar()
     } in
   let rec enter_box (gamma: wire context) : (wire context) * instruction list =
     match gamma with
@@ -142,7 +142,7 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       w, [Der(flip w', w, (sigma, v)); LWeak(flip wx, w')]
     | Typedterm.Return(v) ->
       let w = fresh_wire () in
-      let s = Basetype.newty Basetype.Var in
+      let s = Basetype.newvar() in
       let one = Basetype.newty Basetype.UnitB in
       U.unify w.type_back (tensor s one);
       U.unify w.type_forward (tensor s v.Typedterm.value_type);
@@ -151,7 +151,7 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let tym, typ = Type.question_answer_pair ty in
       let w_t, i_t = compile sigma gamma t in
       let w = fresh_wire () in
-      let sigma = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
       U.unify w.type_back (tensor sigma tym);
       U.unify w.type_forward (tensor sigma typ);
       w, Direct(flip w_t, w) :: i_t
@@ -163,7 +163,7 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let gamma_s = restrict_context gamma s in
       let gamma_t = restrict_context gamma t in
       let w_s, i_s = compile sigma gamma_s s in
-      let alpha = Basetype.newtyvar() in
+      let alpha = Basetype.newvar() in
       let w_t, i_t =
         compile_in_box (Ident.fresh "unused", alpha) sigma gamma_t t in
       let wr = fresh_wire () in
@@ -179,7 +179,7 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let gamma_s = restrict_context gamma s in
       let gamma_t = remove_context (restrict_context gamma t) [x; y] in
       let gamma_s_inbox, i_enter_box = enter_box gamma_s in
-      let alpha = Basetype.newtyvar() in
+      let alpha = Basetype.newvar() in
       let sigma_s = ((Ident.fresh "unused", alpha) ::sigma) in
       let w_s, i_s = compile sigma_s gamma_s_inbox s in
       let w_s_left = fresh_wire () in
@@ -194,12 +194,12 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
     | Typedterm.Copy(s, (xs, t)) ->
       let gamma_s = restrict_context gamma s in
       let gamma_t = remove_context (restrict_context gamma t) xs in
-      let alpha = Basetype.newtyvar() in
+      let alpha = Basetype.newvar() in
       let w_s, i_s =
         compile_in_box (Ident.fresh "unused", alpha) sigma gamma_s s in
       let delta  = List.map ~f:(fun x -> (x, fresh_wire())) xs in
       let ws = List.map ~f:(fun (_, w) -> w) delta in
-      let w_types = List.map ~f:(fun _ -> Basetype.newtyvar()) ws in
+      let w_types = List.map ~f:(fun _ -> Basetype.newvar()) ws in
       let n = List.length ws in
       let w_t, i_t = compile sigma (delta @ gamma_t) t in
       (* TODO: check that types are really inferred! *)
@@ -243,8 +243,8 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
                          ~f:(fun (t, w) -> Door(flip t, w)) in
       let w_join = fresh_wire () in
       let i_join = [Case(id, params, w_join, List.map ~f:flip ws)] in
-      let sigmaty = Basetype.newty Basetype.Var in
-      let qty = Basetype.newty Basetype.Var in
+      let sigmaty = Basetype.newvar() in
+      let qty = Basetype.newvar() in
       let data = Basetype.newty (Basetype.DataB(id, params)) in
       U.unify w_join.type_back (tensor sigmaty (tensor data qty));
       let w = fresh_wire () in
@@ -252,8 +252,8 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       (w, i_der @ i_join @ i_leavebox @ i_ts @ i_dup)
     | Typedterm.Fun((x, a, ty), s) ->
       let tym, typ = Type.question_answer_pair ty in
-      let sigma1 = Basetype.newty Basetype.Var in
-      let sigma2 = Basetype.newty Basetype.Var in
+      let sigma1 = Basetype.newvar() in
+      let sigma2 = Basetype.newvar() in
       (* ASSUMPTION: all annotations must have type variables as index
        * types.
        * TODO: Give a warning otherwise! *)
@@ -266,8 +266,8 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       w, Tensor(wx, flip w_s, w) :: i_s
     | Typedterm.Fn((x, a), t) ->
       let w_t, i_t = compile_in_box (x, a) sigma gamma t in
-      let sigmat = Basetype.newty Basetype.Var in
-      let beta = Basetype.newty Basetype.Var in
+      let sigmat = Basetype.newvar() in
+      let beta = Basetype.newvar() in
       U.unify w_t.type_back (tensor sigmat (tensor a beta));
       let w = fresh_wire () in
       w, Bind(flip w_t, w) :: i_t
@@ -277,19 +277,19 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let wr = fresh_wire () in
       let w_s, i_s = compile sigma gamma_s s in
       let w_t, i_t = compile_in_box (c, a) sigma gamma_t t in
-      let sigma = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
       U.unify w_s.type_forward (tensor sigma a); (* TODO *)
       wr, Seq(flip w_s, flip w_t, wr) ::
           i_s @ i_t
     | Typedterm.Const(Ast.Cencode(a)) ->
       let w = fresh_wire () in
-      let sigma = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
       let unitB = Basetype.newty Basetype.UnitB in
       U.unify w.type_back (tensor sigma (tensor a unitB));
       w, [Encode(w)]
     | Typedterm.Const(Ast.Cdecode(b)) ->
       let w = fresh_wire () in
-      let sigma = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
       U.unify w.type_forward (tensor sigma b);
       w, [Decode(w)]
     | Typedterm.Const(_) ->
@@ -352,8 +352,8 @@ let solve_constraints (con: type_constraint list) : unit =
   (* unify equations first *)
   U.unify_eqs eqs;
   let cmp a b = Int.compare
-                  (Basetype.find a).Basetype.id
-                  (Basetype.find b).Basetype.id in
+                  (Basetype.repr_id a)
+                  (Basetype.repr_id b) in
   if !Opts.verbose then
     begin
       Printf.printf "Solving constraints:\n";
@@ -378,8 +378,14 @@ let solve_constraints (con: type_constraint list) : unit =
                if List.mem ~equal:Basetype.equals bs b then bs else b :: bs in
              (bs', a)) in
   let solve_ineq (xs, alpha) =
-    match Basetype.finddesc alpha with
-    | Basetype.Var | Basetype.EncodedB ->
+    begin
+      match Basetype.case alpha with
+      | Basetype.Sgn (Basetype.EncodedB _) ->
+        Basetype.replace_by_fresh_var alpha
+      | _ -> ()
+    end;
+    match Basetype.case alpha with
+    | Basetype.Var ->
       let fv_unique =
         List.map xs ~f:Basetype.free_vars
         |> List.concat
@@ -403,10 +409,10 @@ let solve_constraints (con: type_constraint list) : unit =
             List.iteri xs
               ~f:(fun i -> fun b ->
                 let arg_type =
-                  Basetype.subst
+                  Basetype.subst b
                     (fun beta ->
                        if Basetype.equals beta alpha then sol else beta)
-                    b in
+                    in
                 Basetype.Data.add_constructor
                   recty
                   (recty ^ "_" ^ (string_of_int i))
@@ -420,7 +426,7 @@ let solve_constraints (con: type_constraint list) : unit =
           (assert (xs <> []);
            List.hd_exn xs) in
       (* update alpha to become a link to sol *)
-      Basetype.union alpha sol
+      Basetype.unify_exn alpha sol
     | _ ->
       Printf.printf "%s\n" (Printing.string_of_basetype alpha);
       assert false
@@ -438,11 +444,11 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Ast.t): Ast.t =
   if Basetype.equals a b then
     t
   else
-    match Basetype.finddesc b with
-    | Basetype.BoxB(c) ->
+    match Basetype.case b with
+    | Basetype.Sgn (Basetype.BoxB(c)) ->
       begin
-        match Basetype.finddesc c with
-        | Basetype.DataB(id, l) ->
+        match Basetype.case c with
+        | Basetype.Sgn (Basetype.DataB(id, l)) ->
           let cs = Basetype.Data.constructor_types id l in
           let rec inject l n =
             match l with
@@ -458,7 +464,7 @@ let embed (a: Basetype.t) (b: Basetype.t) (t: Ast.t): Ast.t =
           inject cs 0
         | _ -> raise Not_Leq
       end
-    | Basetype.DataB(id, l) ->
+    | Basetype.Sgn (Basetype.DataB(id, l)) ->
       let cs = Basetype.Data.constructor_types id l in
       let rec inject l n =
         match l with
@@ -500,11 +506,11 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Ast.t) : Ast.t =
   if Basetype.equals a b then
     t
   else
-    match Basetype.finddesc b with
-    | Basetype.BoxB(c) ->
+    match Basetype.case b with
+    | Basetype.Sgn (Basetype.BoxB(c)) ->
       begin
-        match Basetype.finddesc c with
-        | Basetype.DataB(id, params) ->
+        match Basetype.case c with
+        | Basetype.Sgn (Basetype.DataB(id, params)) ->
           let x = Ident.fresh "x" in
           let y = Ident.fresh "y" in
           let t1 = select id params x in
@@ -514,7 +520,7 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Ast.t) : Ast.t =
           t3
         | _ -> raise Not_Leq
       end
-    | Basetype.DataB(id, params) ->
+    | Basetype.Sgn (Basetype.DataB(id, params)) ->
       let x = Ident.fresh "x" in
       let t1 = select id params x in
       let t2 = Ast.mkTerm (Ast.Bind(t, (Ast.PatVar x, t1))) in
@@ -538,7 +544,7 @@ let project (a: Basetype.t) (b: Basetype.t) (t : Ast.t) : Ast.t =
 let infer_types (c : t) : unit =
   let rec type_of_context (gamma: Basetype.t context): Basetype.t =
     match gamma with
-    | [] -> Basetype.newtyvar()
+    | [] -> Basetype.newvar()
     | (_, a) :: rest ->
       Basetype.newty (Basetype.PairB(type_of_context rest, a)) in
   let rec constraints (instructions: instruction list)
@@ -556,36 +562,36 @@ let infer_types (c : t) : unit =
       beq_constraint w1.type_forward (tensor sigma beta) ::
       (constraints rest)
     | Encode(w1)::rest ->
-      let sigma = Basetype.newty Basetype.Var in
-      let alpha = Basetype.newty Basetype.Var in
-      let beta = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
+      let alpha = Basetype.newvar() in
+      let beta = Basetype.newvar() in
       let unitB = Basetype.newty Basetype.UnitB in
       beq_constraint w1.type_back (tensor sigma (tensor alpha unitB)) ::
       beq_constraint w1.type_forward (tensor sigma beta) ::
       leq_constraint alpha beta ::
       (constraints rest)
     | Decode(w1)::rest ->
-      let sigma = Basetype.newty Basetype.Var in
-      let alpha = Basetype.newty Basetype.Var in
-      let beta = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
+      let alpha = Basetype.newvar() in
+      let beta = Basetype.newvar() in
       let unitB = Basetype.newty Basetype.UnitB in
       beq_constraint w1.type_back (tensor sigma (tensor alpha unitB)) ::
       beq_constraint w1.type_forward (tensor sigma beta) ::
       leq_constraint beta alpha ::
       (constraints rest)
     | Tensor(w1, w2, w3)::rest ->
-      let sigma1 = Basetype.newty Basetype.Var in
-      let alpha1 = Basetype.newty Basetype.Var in
-      let beta1 = Basetype.newty Basetype.Var in
+      let sigma1 = Basetype.newvar() in
+      let alpha1 = Basetype.newvar() in
+      let beta1 = Basetype.newvar() in
       beq_constraint
         w3.type_forward (tensor sigma1 (sum alpha1 beta1)) ::
       beq_constraint
         w1.type_back (tensor sigma1 alpha1) ::
       beq_constraint
         w2.type_back (tensor sigma1 beta1) ::
-      let sigma2 = Basetype.newty Basetype.Var in
-      let alpha2 = Basetype.newty Basetype.Var in
-      let beta2 = Basetype.newty Basetype.Var in
+      let sigma2 = Basetype.newvar() in
+      let alpha2 = Basetype.newvar() in
+      let beta2 = Basetype.newvar() in
       beq_constraint
         w1.type_forward (tensor sigma2 alpha2) ::
       beq_constraint
@@ -595,14 +601,14 @@ let infer_types (c : t) : unit =
       (constraints rest)
     | Der(w1, w2, (s, f))::rest ->
       let sigma1 = type_of_context s in
-      let alpha1 = Basetype.newty Basetype.Var in
-      let beta1 = Basetype.newty Basetype.Var in
+      let alpha1 = Basetype.newvar() in
+      let beta1 = Basetype.newvar() in
       beq_constraint
         w2.type_forward (tensor sigma1 beta1) ::
       beq_constraint
         w1.type_back (tensor sigma1 (tensor alpha1 beta1)) ::
-      let sigma2 = Basetype.newty Basetype.Var in
-      let alpha2 = Basetype.newty Basetype.Var in
+      let sigma2 = Basetype.newvar() in
+      let alpha2 = Basetype.newvar() in
       let tyf = f.Typedterm.value_type in
       beq_constraint
         w1.type_forward (tensor sigma2 (tensor tyf alpha2)) ::
@@ -610,14 +616,14 @@ let infer_types (c : t) : unit =
         w2.type_back (tensor sigma2 alpha2) ::
       (constraints rest)
     | App(w1(* (A => X)^* *), (s, f), w2 (* X *))::rest ->
-      let sigma1 = Basetype.newty Basetype.Var in
-      let beta1 = Basetype.newty Basetype.Var in
+      let sigma1 = Basetype.newvar() in
+      let beta1 = Basetype.newvar() in
       beq_constraint
         w2.type_forward (tensor sigma1 beta1) ::
       beq_constraint
         w1.type_back (tensor sigma1 beta1) ::
       let sigma2 = type_of_context s in
-      let alpha2 = Basetype.newty Basetype.Var in
+      let alpha2 = Basetype.newvar() in
       let tyf = f.Typedterm.value_type in
       beq_constraint
         w1.type_forward (tensor sigma2 (tensor tyf alpha2)) ::
@@ -628,9 +634,9 @@ let infer_types (c : t) : unit =
       (*let n = Basetype.Data.params id in*)
       let data = Basetype.newty (Basetype.DataB(id, params)) in
       let conss = Basetype.Data.constructor_types id params in
-      let sigma1 = Basetype.newty Basetype.Var in
-      let gamma1 = Basetype.newty Basetype.Var in
-      let gamma2 = Basetype.newty Basetype.Var in
+      let sigma1 = Basetype.newvar() in
+      let gamma1 = Basetype.newvar() in
+      let gamma2 = Basetype.newvar() in
       beq_constraint
         w1.type_forward
         (tensor sigma1 (tensor data gamma1)) ::
@@ -647,17 +653,17 @@ let infer_types (c : t) : unit =
          (List.zip_exn ws conss)) @
       (constraints rest)
     | Door(w1 (* X *) , w2 (* \Tens A X *))::rest ->
-      let sigma1 = Basetype.newty Basetype.Var in
-      let alpha1 = Basetype.newty Basetype.Var in
-      let beta1 = Basetype.newty Basetype.Var in
+      let sigma1 = Basetype.newvar() in
+      let alpha1 = Basetype.newvar() in
+      let beta1 = Basetype.newvar() in
       beq_constraint
         w2.type_forward (tensor sigma1 (tensor alpha1 beta1)) ::
       beq_constraint
         w1.type_back
         (tensor (tensor sigma1 alpha1) beta1) ::
-      let sigma2 = Basetype.newty Basetype.Var in
-      let alpha2 = Basetype.newty Basetype.Var in
-      let beta2 = Basetype.newty Basetype.Var in
+      let sigma2 = Basetype.newvar() in
+      let alpha2 = Basetype.newvar() in
+      let beta2 = Basetype.newvar() in
       beq_constraint
         w1.type_forward
         (tensor (tensor sigma2 alpha2) beta2) ::
@@ -666,20 +672,20 @@ let infer_types (c : t) : unit =
         (tensor sigma2 (tensor alpha2 beta2)) ::
       (constraints rest)
     | Assoc(w1 (* \Tens (A x B) X *), w2 (* \Tens A (\Tens B X) *))::rest ->
-      let sigma1 = Basetype.newty Basetype.Var in
-      let alpha1 = Basetype.newty Basetype.Var in
-      let beta1 = Basetype.newty Basetype.Var in
-      let gamma1 = Basetype.newty Basetype.Var in
+      let sigma1 = Basetype.newvar() in
+      let alpha1 = Basetype.newvar() in
+      let beta1 = Basetype.newvar() in
+      let gamma1 = Basetype.newvar() in
       beq_constraint
         w2.type_forward
         (tensor sigma1 (tensor alpha1 (tensor beta1 gamma1))) ::
       beq_constraint
         w1.type_back
         (tensor sigma1 (tensor (tensor alpha1 beta1) gamma1)) ::
-      let sigma2 = Basetype.newty Basetype.Var in
-      let alpha2 = Basetype.newty Basetype.Var in
-      let beta2 = Basetype.newty Basetype.Var in
-      let gamma2 = Basetype.newty Basetype.Var in
+      let sigma2 = Basetype.newvar() in
+      let alpha2 = Basetype.newvar() in
+      let beta2 = Basetype.newvar() in
+      let gamma2 = Basetype.newvar() in
       beq_constraint
         w1.type_forward
         (tensor sigma2 (tensor (tensor alpha2 beta2) gamma2)) ::
@@ -688,11 +694,11 @@ let infer_types (c : t) : unit =
         (tensor sigma2 (tensor alpha2 (tensor beta2 gamma2))) ::
       (constraints rest)
     | Direct(w1 (* (X- => T X+)* *), w2 (* X *))::rest ->
-      let sigma = Basetype.newty Basetype.Var in
-      let beta1 = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
+      let beta1 = Basetype.newvar() in
       beq_constraint w2.type_forward (tensor sigma beta1) ::
       beq_constraint w1.type_back (tensor sigma beta1) ::
-      let beta2 = Basetype.newty Basetype.Var in
+      let beta2 = Basetype.newvar() in
       let one = Basetype.newty Basetype.UnitB in
       beq_constraint
         w1.type_forward
@@ -702,10 +708,10 @@ let infer_types (c : t) : unit =
         (tensor sigma beta2) ::
       (constraints rest)
     | Bind(w1 (* \Tens A X *), w2 (* A => X *)) :: rest ->
-      let sigma = Basetype.newty Basetype.Var in
-      let alpha = Basetype.newty Basetype.Var in
-      let betam = Basetype.newty Basetype.Var in
-      let betap = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
+      let alpha = Basetype.newvar() in
+      let betam = Basetype.newvar() in
+      let betap = Basetype.newvar() in
       beq_constraint
         w1.type_forward (tensor sigma (tensor alpha betam)) ::
       beq_constraint
@@ -716,11 +722,11 @@ let infer_types (c : t) : unit =
         w2.type_back (tensor sigma (tensor alpha betam)) ::
       (constraints rest)
     | LWeak(w1 (* \Tens A X*), w2 (* \Tens B X*)) (* B <= A *)::rest ->
-      let sigma = Basetype.newty Basetype.Var in
-      let alpha = Basetype.newty Basetype.Var in
-      let beta = Basetype.newty Basetype.Var in
-      let gamma1 = Basetype.newty Basetype.Var in
-      let gamma2 = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
+      let alpha = Basetype.newvar() in
+      let beta = Basetype.newvar() in
+      let gamma1 = Basetype.newvar() in
+      let gamma2 = Basetype.newvar() in
       beq_constraint
         w1.type_forward (tensor sigma (tensor alpha gamma1)) ::
       beq_constraint
@@ -733,9 +739,9 @@ let infer_types (c : t) : unit =
       (constraints rest)
     | Seq(w1 (* (T A)^* *), w2 (* (\Tens A (TB))^* *), w3 (* TB *)) :: rest ->
       let one = Basetype.newty Basetype.UnitB in
-      let sigma = Basetype.newty Basetype.Var in
-      let alpha = Basetype.newty Basetype.Var in
-      let beta = Basetype.newty Basetype.Var in
+      let sigma = Basetype.newvar() in
+      let alpha = Basetype.newvar() in
+      let beta = Basetype.newvar() in
       beq_constraint w1.type_forward (tensor sigma one) ::
       beq_constraint w1.type_back (tensor sigma alpha) ::
       beq_constraint w2.type_forward (tensor sigma (tensor alpha one)) ::
@@ -830,8 +836,8 @@ let dot_of_circuit
     (Door(flip c.output,
           { src = (-1);
             dst = (-2);
-            type_forward = Basetype.newty Basetype.Var;
-            type_back = Basetype.newty Basetype.Var})) :: c.instructions in
+            type_forward = Basetype.newvar();
+            type_back = Basetype.newvar()})) :: c.instructions in
   let node_map_by_src =
     let rec build_dst_map i =
       match i with

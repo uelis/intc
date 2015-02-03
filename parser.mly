@@ -48,17 +48,21 @@ let mkDatatype id params constructors =
 
       (* check that all recursive occurrences of the type are under a box. *)
       let rec check_rec_occ a =
-        match Basetype.finddesc a with
-        | Var | EncodedB | IntB | UnitB | ZeroB | BoxB _ | ArrayB _ -> ()
-        | PairB(a1, a2) ->
-          check_rec_occ a1;
-          check_rec_occ a2
-        | DataB(id', params) ->
-          if (id = id') then
-            illformed "Recursive occurrences are only allowed within box<...>"
-          else
-            List.iter params ~f:check_rec_occ
-        | Link _ -> assert false
+        match Basetype.case a with
+        | Basetype.Var -> ()
+        | Basetype.Sgn sa ->
+          begin
+            match sa with
+              EncodedB _ | IntB | UnitB | ZeroB | BoxB _ | ArrayB _ -> ()
+            | PairB(a1, a2) ->
+              check_rec_occ a1;
+              check_rec_occ a2
+            | DataB(id', params) ->
+              if (id = id') then
+                illformed "Recursive occurrences are only allowed within box<...>"
+              else
+                List.iter params ~f:check_rec_occ
+          end
       in
       check_rec_occ cargty;
       (* if all succeeds, add the constructor *)
@@ -89,12 +93,12 @@ let type_var (a : string) : Type.t =
 let basetype_vars = String.Table.create ()
 let basetype_var (a : string) : Basetype.t =
   String.Table.find_or_add basetype_vars a
-    ~default:(fun () -> Basetype.newty Basetype.Var)
+    ~default:(fun () -> Basetype.newvar())
      
 let encoded_vars = String.Table.create ()
 let encoded_var (a : string) : Basetype.t =
   String.Table.find_or_add encoded_vars a
-    ~default:(fun () -> Basetype.newty Basetype.EncodedB)
+    ~default:(fun () -> Basetype.newty (Basetype.EncodedB(Basetype.newvar())))
 
 let clear_type_vars () =
   Hashtbl.clear type_vars;
@@ -173,11 +177,11 @@ term:
     | RETURN term
         { mkAst (Return($2)) }
     | LAMBDA identifier TO term
-        { let alpha = Basetype.newty Basetype.Var in
+        { let alpha = Basetype.newvar() in
           let ty = Type.newty Type.Var in
           mkAst (Fun(($2, alpha, ty), $4)) }
     | LAMBDA LPAREN identifier COLON inttype RPAREN TO term
-        { let alpha = Basetype.newty Basetype.Var in
+        { let alpha = Basetype.newvar() in
           mkAst (Fun (($3, alpha, $5), $8)) }
     | FN pattern TO term
        { mkAst (Fn($2, $4)) }
@@ -288,28 +292,28 @@ term_atom:
     | INTXOR
        { mkAst (Const(Cintxor))}
     | ALLOC
-       { let alpha = Basetype.newty Basetype.Var in
+       { let alpha = Basetype.newvar() in
          mkAst (Const(Calloc(alpha)))}
     | FREE
-       { let alpha = Basetype.newty Basetype.Var in
+       { let alpha = Basetype.newvar() in
          mkAst (Const(Cfree(alpha))) }
     | LOAD
-       { let alpha = Basetype.newty Basetype.Var in
+       { let alpha = Basetype.newvar() in
          mkAst (Const(Cload(alpha))) }
     | STORE
-       { let alpha = Basetype.newty Basetype.Var in
+       { let alpha = Basetype.newvar() in
          mkAst (Const(Cstore(alpha))) }
     | ARRAYALLOC
-       { let alpha = Basetype.newty Basetype.Var in
+       { let alpha = Basetype.newvar() in
          mkAst (Const(Carrayalloc(alpha)))}
     | ARRAYFREE
-       { let alpha = Basetype.newty Basetype.Var in
+       { let alpha = Basetype.newvar() in
          mkAst (Const(Carrayfree(alpha)))}
     | ARRAYGET
-       { let alpha = Basetype.newty Basetype.Var in
+       { let alpha = Basetype.newvar() in
          mkAst (Const(Carrayget(alpha)))}
     | ENCODE
-       { let alpha = Basetype.newty Basetype.Var in
+       { let alpha = Basetype.newvar() in
          mkAst (Const(Cencode(alpha))) }
     | DECODE LPAREN basetype COMMA term RPAREN
        { mkAst (App(mkAst (Const(Cdecode($3))), $5)) }
@@ -420,7 +424,7 @@ inttype:
     | LBRACE basetype RBRACE inttype_atom TO inttype
       { Type.newty (Type.FunI($2, $4, $6)) }
     | inttype_factor TO inttype
-      { Type.newty (Type.FunI(Basetype.newty Basetype.Var, $1, $3)) }
+      { Type.newty (Type.FunI(Basetype.newvar(), $1, $3)) }
     | basetype TO inttype
       {  Type.newty (Type.FunV($1, $3)) }
 

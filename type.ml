@@ -61,10 +61,10 @@ let children a =
 let rec subst (f: t -> t) (fbase: Basetype.t -> Basetype.t) (b: t) : t =
   match (find b).desc with
     | Var -> f (find b)
-    | Base(a) -> newty (Base(Basetype.subst fbase a))
+    | Base(a) -> newty (Base(Basetype.subst a fbase))
     | Tensor(b1, b2) -> newty(Tensor(subst f fbase b1, subst f fbase b2))
-    | FunV(b1, b2) -> newty (FunV(Basetype.subst fbase b1, subst f fbase b2))
-    | FunI(a1, b1, b2) -> newty(FunI(Basetype.subst fbase a1, subst f fbase b1, subst f fbase b2))
+    | FunV(b1, b2) -> newty (FunV(Basetype.subst b1 fbase, subst f fbase b2))
+    | FunI(a1, b1, b2) -> newty(FunI(Basetype.subst a1 fbase, subst f fbase b1, subst f fbase b2))
     | Link _ -> assert false
 
 let rec equals (u: t) (v: t) : bool =
@@ -100,11 +100,11 @@ let freshen t =
       Typetbl.replace vm ~key:(find x) ~data:y;
       y in
   let fbase x =
-    match Int.Table.find vbasem (Basetype.find x).Basetype.id with
+    match Int.Table.find vbasem (Basetype.repr_id x) with
     | Some y -> y
     | None ->
-      let y = Basetype.newty Basetype.Var in
-      Int.Table.replace vbasem ~key:(Basetype.find x).Basetype.id ~data:y;
+      let y = Basetype.newvar() in
+      Int.Table.replace vbasem ~key:(Basetype.repr_id x) ~data:y;
       y in
   subst f fbase t
 
@@ -131,8 +131,8 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
           match Typetbl.find vm (find t) with
           | Some mp -> mp
           | None ->
-            let betam = Basetype.newty Basetype.Var in
-            let betap = Basetype.newty Basetype.Var in
+            let betam = Basetype.newvar() in
+            let betap = Basetype.newvar() in
             Typetbl.replace vm ~key:(find t) ~data:(betam, betap);
             betam, betap
           end

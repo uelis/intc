@@ -79,8 +79,8 @@ let rec subst_value (rho: Ident.t -> value) (v: value) =
         if i=j then w else
           (* undefined *)
           let ai =
-            match Basetype.finddesc a with
-            | Basetype.DataB(id, params) ->
+            match Basetype.case a with
+            | Basetype.Sgn (Basetype.DataB(id, params)) ->
               begin
                 match List.nth (Basetype.Data.constructor_types id params) i with
                 | Some b -> b
@@ -252,8 +252,8 @@ let rec typeof_value
   | In((id, n, v), a) ->
     let b = typeof_value gamma v in
     begin
-      match finddesc a with
-      | DataB(id', params) ->
+      match case a with
+      | Sgn (DataB(id', params)) ->
         let constructor_types = Data.constructor_types id' params in
         if (id <> id') then failwith "internal ssa.ml: wrong data type";
         (match List.nth constructor_types n with
@@ -455,13 +455,13 @@ let make ~func_name:(func_name: string)
  ****************************)
 
 let unPairB a =
-  match Basetype.finddesc a with
-  | Basetype.PairB(a1, a2) -> a1, a2
+  match Basetype.case a with
+  | Basetype.Sgn (Basetype.PairB(a1, a2)) -> a1, a2
   | _ -> assert false
 
 let unSumB a =
-  match Basetype.finddesc a with
-  | Basetype.DataB(id, params) ->
+  match Basetype.case a with
+  | Basetype.Sgn (Basetype.DataB(id, params)) ->
     begin
       assert (id = Basetype.Data.sumid 2);
       match params with
@@ -499,15 +499,15 @@ let rec term_value_to_ssa (t: Typedterm.value) : let_bindings * value =
   | Typedterm.FstV(t1) ->
     let lt1, v1 = term_value_to_ssa t1 in
     let a, b =
-      match Basetype.finddesc t1.Typedterm.value_type with
-      | Basetype.PairB(a, b) -> a, b
+      match Basetype.case t1.Typedterm.value_type with
+      | Basetype.Sgn (Basetype.PairB(a, b)) -> a, b
       | _ -> assert false in
     lt1, Fst(v1, a, b)
   | Typedterm.SndV(t1) ->
     let lt1, v1 = term_value_to_ssa t1 in
     let a, b =
-      match Basetype.finddesc t1.Typedterm.value_type with
-      | Basetype.PairB(a, b) -> a, b
+      match Basetype.case t1.Typedterm.value_type with
+      | Basetype.Sgn (Basetype.PairB(a, b)) -> a, b
       | _ -> assert false in
     lt1, Snd(v1, a, b)
   | Typedterm.SelectV(id, params, t1, i) ->
@@ -549,8 +549,8 @@ let rec bind_context z a (gamma: Basetype.t Typing.context) : let_binding list =
   | [] -> []
   | (x, b) :: rest ->
     let arest =
-      match Basetype.finddesc a with
-      | Basetype.PairB(arest, ax) ->
+      match Basetype.case a with
+      | Basetype.Sgn (Basetype.PairB(arest, ax)) ->
         assert (Basetype.equals b ax);
         arest
       | _ -> assert false in

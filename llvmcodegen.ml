@@ -211,40 +211,47 @@ type encoded_value = {
 let payload_size (a: Basetype.t) : int =
   let rec p_s a =
     let open Basetype in
-    match finddesc a with
-    | Link _ -> assert false
-    | EncodedB -> assert false
-    | ZeroB | UnitB -> 0
+    match case a with
     | Var -> 0
-    | IntB -> 1
-    | BoxB _ -> 1
-    | ArrayB _ -> 1
-    | PairB(a1, a2) -> p_s a1 + (p_s a2)
-    | DataB(id, ps) ->
-      let cs = Basetype.Data.constructor_types id ps in
-      List.fold_right cs ~f:(fun c m -> max (p_s c) m) ~init:0
+    | Sgn sa ->
+      begin
+        match sa with
+        | EncodedB _ -> assert false
+        | ZeroB | UnitB -> 0
+        | IntB -> 1
+        | BoxB _ -> 1
+        | ArrayB _ -> 1
+        | PairB(a1, a2) -> p_s a1 + (p_s a2)
+        | DataB(id, ps) ->
+          let cs = Basetype.Data.constructor_types id ps in
+          List.fold_right cs ~f:(fun c m -> max (p_s c) m) ~init:0
+      end
   in p_s a
 
 let attrib_size (a: Basetype.t) : profile =
   let rec a_s a =
     let open Basetype in
-    match finddesc a with
-    | Link _ -> assert false
-    | EncodedB -> assert false
-    | Var | ZeroB | UnitB | IntB | BoxB _ | ArrayB _ -> M.empty
-    | PairB(a1, a2) -> add_profiles (a_s a1) (a_s a2)
-    | DataB(id, ps) ->
+    match case a with
+    | Var -> M.empty
+    | Sgn sa ->
       begin
-        let cs = Basetype.Data.constructor_types id ps in
-        let n = List.length cs in
-        let mx = List.fold_right cs ~f:(fun c mx -> max_profiles (a_s c) mx)
-                   ~init:M.empty in
-        if n = 1 || Basetype.Data.is_discriminated id = false then
-          mx
-        else
-          let i = log n in
-          let ni = M.find mx i |> Option.value ~default:0 in
-          M.add mx ~key:i ~data:(ni + 1)
+        match sa with
+        | EncodedB _ -> assert false
+        | ZeroB | UnitB | IntB | BoxB _ | ArrayB _ -> M.empty
+        | PairB(a1, a2) -> add_profiles (a_s a1) (a_s a2)
+        | DataB(id, ps) ->
+          begin
+            let cs = Basetype.Data.constructor_types id ps in
+            let n = List.length cs in
+            let mx = List.fold_right cs ~f:(fun c mx -> max_profiles (a_s c) mx)
+                       ~init:M.empty in
+            if n = 1 || Basetype.Data.is_discriminated id = false then
+              mx
+            else
+              let i = log n in
+              let ni = M.find mx i |> Option.value ~default:0 in
+              M.add mx ~key:i ~data:(ni + 1)
+          end
       end
   in a_s a
 

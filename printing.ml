@@ -27,20 +27,18 @@ let name_of_typevar t =
 
 let name_base_table = Int.Table.create ()
 let name_of_basetypevar t =
-  match Int.Table.find name_base_table (Basetype.find t).Basetype.id with
+  match Int.Table.find name_base_table (Basetype.repr_id t) with
   | Some name -> name
   | None ->
     let name = new_name() in
     Int.Table.add_exn name_base_table
-      ~key:(Basetype.find t).Basetype.id ~data:name;
+      ~key:(Basetype.repr_id t) ~data:name;
     name
-
-module BasetypeAlgs = Types.Algs(Basetype)
 
 let string_of_basetype (ty: Basetype.t): string =
   let open Basetype in
   let cycle_nodes =
-    let cycles = BasetypeAlgs.dfs_cycles ty in
+    let cycles = Basetype.dfs_cycles ty |> List.map ~f:Basetype.repr_id in
     List.fold cycles ~init:Int.Set.empty ~f:Int.Set.add in
   let strs = Int.Table.create () in
   let rec str (t: Basetype.t) l =
@@ -48,47 +46,57 @@ let string_of_basetype (ty: Basetype.t): string =
       match l with
       | `Summand -> 
         begin
-          match finddesc t with
-          | DataB(id, [t1; t2]) when id = Data.sumid 2 ->
-            Printf.sprintf "%s + %s" (str t1 `Summand) (str t2 `Factor)
-          | DataB(id, []) when id = Data.sumid 0 -> "0"
-          | DataB(id, []) -> id
-          | DataB(id, ls) ->
-            Printf.sprintf "%s<%s>" id 
-              (List.map ls ~f:(fun t2 -> str t2 `Summand)
-               |> String.concat ~sep:", ")
-          | PairB _ | Var | EncodedB | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
-            s `Factor
-          | Link _ -> assert false
+          match case t with
+          | Var -> s `Factor
+          | Sgn st ->
+            begin match st with
+            | DataB(id, [t1; t2]) when id = Data.sumid 2 ->
+              Printf.sprintf "%s + %s" (str t1 `Summand) (str t2 `Factor)
+            | DataB(id, []) when id = Data.sumid 0 -> "0"
+            | DataB(id, []) -> id
+            | DataB(id, ls) ->
+              Printf.sprintf "%s<%s>" id 
+                (List.map ls ~f:(fun t2 -> str t2 `Summand)
+                 |> String.concat ~sep:", ")
+            | PairB _ | EncodedB _ | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
+              s `Factor
+            end
         end
       | `Factor ->
         begin
-          match finddesc t with
-          | PairB(t1, t2) -> str t1 `Factor ^ " * " ^ str t2 `Atom
-          | DataB _ | Var | EncodedB | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
-            s `Atom
-          | Link _ -> assert false
+          match case t with
+          | Var -> s `Atom
+          | Sgn st ->
+            begin
+              match st with
+              | PairB(t1, t2) -> str t1 `Factor ^ " * " ^ str t2 `Atom
+              | DataB _ | EncodedB _ | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
+                s `Atom
+            end
         end
       | `Atom ->
         begin
-          match finddesc t with
+          match case t with
           | Var -> "\'" ^ (name_of_basetypevar t)
-          | EncodedB -> "'''" ^ (name_of_basetypevar t)
-          | IntB -> "int"
-          | ZeroB -> "0"
-          | UnitB -> "unit"
-          | BoxB(b) -> Printf.sprintf "box<%s>" (str b `Atom)
-          | ArrayB(b) -> Printf.sprintf "array<%s>" (str b `Atom)
-          | DataB _
-          | PairB _  -> Printf.sprintf "(%s)" (s `Summand)
-          | Link _ -> assert false
+          | Sgn st ->
+            begin
+              match st with
+              | EncodedB b -> "''" ^ (str b `Atom)
+              | IntB -> "int"
+              | ZeroB -> "0"
+              | UnitB -> "unit"
+              | BoxB(b) -> Printf.sprintf "box<%s>" (str b `Atom)
+              | ArrayB(b) -> Printf.sprintf "array<%s>" (str b `Atom)
+              | DataB _
+              | PairB _  -> Printf.sprintf "(%s)" (s `Summand)
+            end
         end in
-    let tid = (find t).id in
+    let tid = repr_id t in
     match Int.Table.find strs tid with
     | Some s -> s
     | None ->
       if Int.Set.mem cycle_nodes tid then
-        let alpha = "'" ^ (name_of_basetypevar (newty Var)) in
+        let alpha = "'" ^ (name_of_basetypevar (newvar())) in
         Int.Table.replace strs ~key:tid ~data:alpha;
         let s = "(rec " ^ alpha ^ ". " ^ (s l) ^ ")" in
         Int.Table.replace strs ~key:tid ~data:s;
@@ -164,7 +172,7 @@ let string_of_data id =
   let name = id in
   let cnames = Basetype.Data.constructor_names id in
   let nparams = Basetype.Data.params id in
-  let params = List.init nparams ~f:(fun _ -> Basetype.newty Basetype.Var) in
+  let params = List.init nparams ~f:(fun _ -> Basetype.newvar()) in
   let ctypes = Basetype.Data.constructor_types id params in
   let cs = List.zip_exn cnames ctypes in
   Buffer.add_string buf "type ";
@@ -368,7 +376,7 @@ TEST_MODULE = struct
 
   TEST "printing of cyclic types 1" =
     let open Basetype in
-    let a = newtyvar () in
+    let a = newvar () in
     let aa = newty (PairB(a, a)) in
     let b = Type.newty Type.Var in
     let ab = Type.newty (Type.FunV(a, b)) in
@@ -385,7 +393,7 @@ TEST_MODULE = struct
         
   TEST "printing of cyclic types 2" =
     let open Basetype in
-    let a = newtyvar () in
+    let a = newvar () in
     let b = Type.newty Type.Var in
     let abb = Type.newty (Type.FunI(a, b, b)) in
     try
