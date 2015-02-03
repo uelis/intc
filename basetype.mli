@@ -87,27 +87,3 @@ sig
   *)
   val add_constructor : id -> string -> t list -> t -> unit
 end
-
-(*
-val newtyvar: unit -> t
-
-(** Returns the list of free type variables in their order of
-    appearance in the term, including duplicates.
-*)
-val free_vars: t -> t list
-
-(** Substitution.
-    The result of [subst f t] is the term obtained by
-    replacing each variable [alpha] in [t] by [f alpha].
-*)
-val subst: (t -> t) -> t -> t
-
-(** Replace all type variables by fresh variables *)
-val freshen: t -> t
-
-(** Freshen a list of types. If a variable alpha appears in more
-    than one type in the input list, then any occurrence will be
-    replaced with the same new variabe.
-*)
-val freshen_list: t list -> t list
-*)
