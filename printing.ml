@@ -375,8 +375,6 @@ let string_of_ast t =
 
 TEST_MODULE = struct
 
-  module U = Unify.Make(Unit)
-
   TEST "printing of cyclic types 1" =
     let open Basetype in
     let a = newvar () in
@@ -386,11 +384,11 @@ TEST_MODULE = struct
     let aab = Type.newty (Type.FunV(a, ab)) in
     let aaab = Type.newty (Type.FunV(aa, ab)) in
     try
-      U.unify_eqs [U.Type_eq(aab, aaab, None)];
+      Type.unify_exn aab aaab;
       false
     with
-    | U.Not_Unifiable(U.Cyclic_type(U.Type_eq(t, _, _))) ->
-      Scanf.sscanf (string_of_type t)
+    | Gentype.Cyclic_type ->
+      Scanf.sscanf (string_of_type aab)
         "(rec '%s@. '%s * '%s@) -> (rec '%s@. '%s * '%s@) -> ''%s"
         (fun a1 a2 a3 b1 b2 b3 _ -> a1 = a2 && a2 = a3 && b1 = b2 && b2 = b3)
         
@@ -400,11 +398,11 @@ TEST_MODULE = struct
     let b = Type.newvar() in
     let abb = Type.newty (Type.FunI(a, b, b)) in
     try
-      U.unify_eqs [U.Type_eq(b, abb, None)];
+      Type.unify_exn b abb;
       false
     with
-    | U.Not_Unifiable(U.Cyclic_type(U.Type_eq(t, _, _))) ->
-      Scanf.sscanf (string_of_type t)
+    | Gentype.Cyclic_type ->
+      Scanf.sscanf (string_of_type b)
         "(rec ''%s@. ''%s@ -> ''%s@)"
         (fun b1 b2 b3 -> b1 = b2 && b2 = b3)
 

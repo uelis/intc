@@ -557,8 +557,6 @@ let rec bind_context z a (gamma: Basetype.t Typing.context) : let_binding list =
     Let((x, b), Val(Snd(z, arest, b))) ::
     bind_context (Fst(z, arest, b)) arest rest
 
-module U = Unify.Make(Unit)
-
 let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
   let open Circuit in
 
@@ -822,15 +820,15 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
 
 let add_entry_exit_code (f: t) : t =
   let sigma, arg_type = unPairB f.entry_label.message_type in
-  U.unify sigma (Basetype.newty Basetype.UnitB);
+  Basetype.unify_exn sigma (Basetype.newty Basetype.UnitB);
   List.iter (Basetype.free_vars arg_type)
-    ~f:(U.unify (Basetype.newty Basetype.IntB));
+    ~f:(Basetype.unify_exn (Basetype.newty Basetype.IntB));
 
   let sigma, ret_type = unPairB f.return_type in
 
-  U.unify sigma (Basetype.newty Basetype.UnitB);
+  Basetype.unify_exn sigma (Basetype.newty Basetype.UnitB);
   List.iter (Basetype.free_vars ret_type)
-    ~f:(U.unify (Basetype.newty Basetype.IntB));
+    ~f:(Basetype.unify_exn (Basetype.newty Basetype.IntB));
 
   let label_names = List.map f.blocks ~f:(fun b -> (label_of_block b).name) in
   let max_label_name = List.fold_right label_names ~f:max ~init:0 in

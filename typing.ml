@@ -24,56 +24,39 @@ let split_context (phi: 'a context) t1 t2 =
   let phi2, _ = take_subcontext rest t2 in
   phi1, phi2
 
-(* Unification *)
-module EqTag = struct
-  type t = Ast.t * (unit -> string)
-end
-module U = Unify.Make(EqTag)
-
-let eq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
-  let msg () =
-    Printf.sprintf
-      "Term has interactive type %s, but a term of type %s is expected."
-      (Printing.string_of_type actual_ty)
-      (Printing.string_of_type expected_ty) in
-  U.unify_eqs [U.Type_eq(expected_ty, actual_ty, Some(t, msg))]
-    
-let beq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
-  let msg () =
-    Printf.sprintf
-      "Term has value type %s, but a term of type %s is expected."
-      (Printing.string_of_basetype actual_ty)
-      (Printing.string_of_basetype expected_ty) in
-  U.unify_eqs [U.Basetype_eq(expected_ty, actual_ty, Some(t, msg))]
-
 exception Typing_error of Ast.t option * string
 
-let raise_error (failed_eqn: U.failure_reason) =
-  let raise_cyclic sactual =
-    let msg = "Unification leads to cyclic type " ^ sactual^ "." in
-    raise (Typing_error(None, msg)) in
-  let raise_eqn_failed sactual sexpected tag =
-    match tag with
-    | Some (term, msg) ->
-      raise (Typing_error (Some term, msg()))
-    | None ->
-      let msg = Printf.sprintf "Cannot unify %s and %s." sactual sexpected in
-      raise (Typing_error(None, msg)) in
-  match failed_eqn with
-    | U.Cyclic_type(U.Type_eq(actual, _, _)) ->
-      let sactual = Printing.string_of_type actual in
-      raise_cyclic sactual
-    | U.Cyclic_type(U.Basetype_eq(actual, _, _)) ->
-      let sactual = Printing.string_of_basetype actual in
-      raise_cyclic sactual
-    | U.Equation_failed(U.Type_eq(actual, expected, tag)) ->
-      let sactual = Printing.string_of_type actual in
-      let sexpected = Printing.string_of_type expected in
-      raise_eqn_failed sactual sexpected tag
-    | U.Equation_failed(U.Basetype_eq(actual, expected, tag)) ->
-      let sactual = Printing.string_of_basetype actual in
-      let sexpected = Printing.string_of_basetype expected in
-      raise_eqn_failed sactual sexpected tag
+let eq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
+  try
+    Type.unify_exn expected_ty actual_ty
+  with
+  | Gentype.Cyclic_type ->
+    let msg = "Unification leads to cyclic type " ^
+              (Printing.string_of_type actual_ty) ^ "." in
+    raise (Typing_error(None, msg)) 
+  | Gentype.Not_unifiable ->
+    let msg =
+      Printf.sprintf
+        "Term has interactive type %s, but a term of type %s is expected."
+        (Printing.string_of_type actual_ty)
+        (Printing.string_of_type expected_ty) in
+    raise (Typing_error(Some t, msg))
+    
+let beq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
+  try
+    Basetype.unify_exn expected_ty actual_ty
+  with
+  | Gentype.Cyclic_type ->
+    let msg = "Unification leads to cyclic value type " ^
+              (Printing.string_of_basetype actual_ty) ^ "." in
+    raise (Typing_error(None, msg)) 
+  | Gentype.Not_unifiable ->
+    let msg =
+      Printf.sprintf
+        "Term has value type %s, but a term of type %s is expected."
+        (Printing.string_of_basetype actual_ty)
+        (Printing.string_of_basetype expected_ty) in
+    raise (Typing_error(Some t, msg))
 
 (** Value environments *)
 module ValEnv:
@@ -106,7 +89,7 @@ struct
       | Ast.PatPair(p1, p2) ->
         let alpha = Basetype.newvar() in
         let beta = Basetype.newvar() in
-        U.unify
+        Basetype.unify_exn
           v.Typedterm.value_type
           (Basetype.newty (Basetype.PairB(alpha, beta)));
         let v1 = { Typedterm.value_desc = Typedterm.FstV v;
@@ -587,14 +570,8 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     raise (Typing_error (Some t, "Interactive term expected."))
 
 let check_value (c: Basetype.t context) (t: Ast.t) : Typedterm.value =
-  try
-    ptV (ValEnv.of_context c) t
-  with
-    | U.Not_Unifiable failed_cnstrnt -> raise_error failed_cnstrnt
+  ptV (ValEnv.of_context c) t
 
 let check_term (c: Basetype.t context) (phi: Type.t context) (t: Ast.t)
   : Typedterm.t =
-  try
-    pt (ValEnv.of_context c) phi t
-  with
-    | U.Not_Unifiable failed_cnstrnt -> raise_error failed_cnstrnt
+  pt (ValEnv.of_context c) phi t

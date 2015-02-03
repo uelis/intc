@@ -73,8 +73,6 @@ let wires (i: instruction) : wire list =
 (* Wires for all the variables in the context.
  * They point into the graph with their dst-label. *)
 
-module U = Unify.Make(Unit)
-
 let tensor s t = Basetype.newty (Basetype.PairB(s, t))
 let sum s t = Basetype.newty (Basetype.DataB(Basetype.Data.sumid 2, [s; t]))
 
@@ -144,16 +142,16 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let w = fresh_wire () in
       let s = Basetype.newvar() in
       let one = Basetype.newty Basetype.UnitB in
-      U.unify w.type_back (tensor s one);
-      U.unify w.type_forward (tensor s v.Typedterm.value_type);
+      Basetype.unify_exn w.type_back (tensor s one);
+      Basetype.unify_exn w.type_forward (tensor s v.Typedterm.value_type);
       w, [Base(w, (sigma, t))]
     | Typedterm.Direct(ty, t) ->
       let tym, typ = Type.question_answer_pair ty in
       let w_t, i_t = compile sigma gamma t in
       let w = fresh_wire () in
       let sigma = Basetype.newvar() in
-      U.unify w.type_back (tensor sigma tym);
-      U.unify w.type_forward (tensor sigma typ);
+      Basetype.unify_exn w.type_back (tensor sigma tym);
+      Basetype.unify_exn w.type_forward (tensor sigma typ);
       w, Direct(flip w_t, w) :: i_t
     | Typedterm.AppV(s, v) ->
       let wr = fresh_wire () in
@@ -246,7 +244,7 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let sigmaty = Basetype.newvar() in
       let qty = Basetype.newvar() in
       let data = Basetype.newty (Basetype.DataB(id, params)) in
-      U.unify w_join.type_back (tensor sigmaty (tensor data qty));
+      Basetype.unify_exn w_join.type_back (tensor sigmaty (tensor data qty));
       let w = fresh_wire () in
       let i_der = [Der(flip w_join, w, (sigma, f))] in
       (w, i_der @ i_join @ i_leavebox @ i_ts @ i_dup)
@@ -268,7 +266,7 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let w_t, i_t = compile_in_box (x, a) sigma gamma t in
       let sigmat = Basetype.newvar() in
       let beta = Basetype.newvar() in
-      U.unify w_t.type_back (tensor sigmat (tensor a beta));
+      Basetype.unify_exn w_t.type_back (tensor sigmat (tensor a beta));
       let w = fresh_wire () in
       w, Bind(flip w_t, w) :: i_t
     | Typedterm.Bind((s, a), (c, t)) ->
@@ -278,19 +276,19 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       let w_s, i_s = compile sigma gamma_s s in
       let w_t, i_t = compile_in_box (c, a) sigma gamma_t t in
       let sigma = Basetype.newvar() in
-      U.unify w_s.type_forward (tensor sigma a); (* TODO *)
+      Basetype.unify_exn w_s.type_forward (tensor sigma a); (* TODO *)
       wr, Seq(flip w_s, flip w_t, wr) ::
           i_s @ i_t
     | Typedterm.Const(Ast.Cencode(a)) ->
       let w = fresh_wire () in
       let sigma = Basetype.newvar() in
       let unitB = Basetype.newty Basetype.UnitB in
-      U.unify w.type_back (tensor sigma (tensor a unitB));
+      Basetype.unify_exn w.type_back (tensor sigma (tensor a unitB));
       w, [Encode(w)]
     | Typedterm.Const(Ast.Cdecode(b)) ->
       let w = fresh_wire () in
       let sigma = Basetype.newvar() in
-      U.unify w.type_forward (tensor sigma b);
+      Basetype.unify_exn w.type_forward (tensor sigma b);
       w, [Decode(w)]
     | Typedterm.Const(_) ->
       let w = fresh_wire () in
@@ -329,11 +327,11 @@ let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
  *)
 
 type type_constraint =
-  | Eq of U.type_eq
+  | Eq of Basetype.t * Basetype.t
   | LEq of Basetype.t * Basetype.t
 
 let beq_constraint expected_ty actual_ty =
-  Eq (U.Basetype_eq(expected_ty, actual_ty, None))
+  Eq (expected_ty, actual_ty)
 let leq_constraint a b =
   LEq (a, b)
 
@@ -345,12 +343,12 @@ let solve_constraints (con: type_constraint list) : unit =
       | [] -> ineqs, eqs
       | LEq(t, t') :: con' ->
         separate con' ((t, t') :: ineqs) eqs
-      | Eq(e) :: con' ->
-        separate con' ineqs  (e :: eqs)
+      | Eq(a, b) :: con' ->
+        separate con' ineqs  ((a, b) :: eqs)
     end in
   let ineqs, eqs = separate con [] [] in
   (* unify equations first *)
-  U.unify_eqs eqs;
+  List.iter eqs ~f:(fun (a, b) -> Basetype.unify_exn a b);
   let cmp a b = Int.compare
                   (Basetype.repr_id a)
                   (Basetype.repr_id b) in
@@ -753,7 +751,8 @@ let infer_types (c : t) : unit =
     let cs = constraints c.instructions in
     solve_constraints cs;
   with
-  | U.Not_Unifiable _ ->
+  | Gentype.Not_unifiable
+  | Gentype.Cyclic_type ->
     failwith "Internal error: cannot unify constraints in compilation"
 
 let of_typedterm (t : Typedterm.t) : t =
@@ -762,7 +761,8 @@ let of_typedterm (t : Typedterm.t) : t =
     ignore(infer_types c);
     c
   with
-  | U.Not_Unifiable _ ->
+  | Gentype.Not_unifiable
+  | Gentype.Cyclic_type ->
     raise (Typing_error(None, "Cannot unify index types: invalid direct definition."))
 
 (* TODO: This function should be cleaned up *)
