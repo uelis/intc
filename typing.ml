@@ -33,14 +33,14 @@ let eq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
   | Uftype.Cyclic_type ->
     let msg = "Unification leads to cyclic type " ^
               (Printing.string_of_type actual_ty) ^ "." in
-    raise (Typing_error(None, msg)) 
+    raise (Typing_error(t, msg)) 
   | Uftype.Constructor_mismatch ->
     let msg =
       Printf.sprintf
         "Term has interactive type %s, but a term of type %s is expected."
         (Printing.string_of_type actual_ty)
         (Printing.string_of_type expected_ty) in
-    raise (Typing_error(Some t, msg))
+    raise (Typing_error(t, msg))
     
 let beq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
   try
@@ -49,14 +49,14 @@ let beq_expected_constraint t ~expected:expected_ty ~actual:actual_ty =
   | Uftype.Cyclic_type ->
     let msg = "Unification leads to cyclic value type " ^
               (Printing.string_of_basetype actual_ty) ^ "." in
-    raise (Typing_error(None, msg)) 
+    raise (Typing_error(t, msg)) 
   | Uftype.Constructor_mismatch ->
     let msg =
       Printf.sprintf
         "Term has value type %s, but a term of type %s is expected."
         (Printing.string_of_basetype actual_ty)
         (Printing.string_of_basetype expected_ty) in
-    raise (Typing_error(Some t, msg))
+    raise (Typing_error(t, msg))
 
 (** Value environments *)
 module ValEnv:
@@ -89,9 +89,9 @@ struct
       | Ast.PatPair(p1, p2) ->
         let alpha = Basetype.newvar() in
         let beta = Basetype.newvar() in
-        Basetype.unify_exn
-          v.Typedterm.value_type
-          (Basetype.newty (Basetype.PairB(alpha, beta)));
+        beq_expected_constraint None
+          ~actual:v.Typedterm.value_type
+          ~expected:(Basetype.newty (Basetype.PairB(alpha, beta)));
         let v1 = { Typedterm.value_desc = Typedterm.FstV v;
                    Typedterm.value_type = alpha;
                    Typedterm.value_loc = loc } in
@@ -156,7 +156,7 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
     let a = Basetype.newvar() in
     let b = Basetype.newvar() in
     let expected = Basetype.newty (Basetype.PairB(a, b)) in
-    beq_expected_constraint t1
+    beq_expected_constraint (Some t1)
       ~actual:a1.value_type
       ~expected:expected;
     { value_desc = FstV(a1);
@@ -167,7 +167,7 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
     let a = Basetype.newvar() in
     let b = Basetype.newvar() in
     let expected = Basetype.newty (Basetype.PairB(a, b)) in
-    beq_expected_constraint t1
+    beq_expected_constraint (Some t1)
       ~actual:a1.value_type
       ~expected:expected;
     { value_desc = SndV(a1);
@@ -184,7 +184,7 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
       | None ->
         let msg = "No such constructor" in
         raise (Typing_error (Some t, msg)) in
-    beq_expected_constraint t1 ~actual:a1.value_type ~expected:argtype;
+    beq_expected_constraint (Some t1) ~actual:a1.value_type ~expected:argtype;
     { value_desc = InV(id, k, a1);
       value_type = data;
       value_loc = t.Ast.loc }
@@ -194,7 +194,7 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
     let data = Basetype.newty (Basetype.DataB(id, params)) in
     let ctypes = Basetype.Data.constructor_types id params in
     let ai = List.nth_exn ctypes i in
-    beq_expected_constraint s ~actual:a1.value_type ~expected:data;
+    beq_expected_constraint (Some s) ~actual:a1.value_type ~expected:data;
     { value_desc = SelectV(id, params, a1, i);
       value_type = ai;
       value_loc = t.Ast.loc }
@@ -373,9 +373,9 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     let cpat = ValEnv.match_pattern c pat_val p in
     let a2 = pt cpat phi2 t2 in
     let beta = Basetype.newvar() in
-    eq_expected_constraint t1 ~actual:a1.t_type
+    eq_expected_constraint (Some t1) ~actual:a1.t_type
       ~expected:(Type.newty (Type.Base pat_val.value_type));
-    eq_expected_constraint t2 ~actual:a2.t_type
+    eq_expected_constraint (Some t2) ~actual:a2.t_type
       ~expected:(Type.newty (Type.Base beta));
     { t_desc = Bind((a1, pat_val.value_type), (pat_id, a2));
       t_type = a2.t_type;
@@ -403,7 +403,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
         let beta = Type.newvar() in
         let a1 = ptV c t in
         let b = pt c phi s in
-        eq_expected_constraint s
+        eq_expected_constraint (Some s)
           ~actual:b.t_type
           ~expected:(Type.newty (Type.FunV(a1.value_type, beta)));
         { t_desc = AppV(b, a1);
@@ -418,7 +418,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
         let alpha = Basetype.newvar() in
         let betaY = Type.newvar() in
         let t1 = pt c delta t in
-        eq_expected_constraint s
+        eq_expected_constraint (Some s)
           ~actual:s1.t_type
           ~expected:(Type.newty (Type.FunI(alpha, t1.t_type, betaY)));
         { t_desc = AppI(s1, t1);
@@ -439,7 +439,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     let delta1 = List.map ~f:(fun x -> (x, beta)) xs in
     let t1 = pt c (delta1 @ delta) t in
     let s1 = pt c gamma s in
-    eq_expected_constraint s ~actual:s1.t_type ~expected:beta;
+    eq_expected_constraint (Some s) ~actual:s1.t_type ~expected:beta;
     { t_desc = Copy(s1, (xs, t1));
       t_type = t1.t_type;
       t_context = phi;
@@ -460,7 +460,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     let s1 = pt c gamma s in
     let t1 = pt c ([(x, alpha); (y, beta)] @ delta) t in
     let ab = Type.newty (Type.Tensor(alpha, beta)) in
-    eq_expected_constraint s ~actual:s1.t_type ~expected:ab;
+    eq_expected_constraint (Some s) ~actual:s1.t_type ~expected:ab;
     { t_desc = LetPair(s1, ((x, alpha), (y, beta), t1));
       t_type = t1.t_type;
       t_context = phi;
@@ -483,9 +483,9 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
                                  value_loc = Ast.Location.none } in
                  let cz = ValEnv.match_pattern c pat_val p in
                  let a2 = pt cz phi u in
-                 eq_expected_constraint u ~actual:a2.t_type ~expected:beta;
+                 eq_expected_constraint (Some u) ~actual:a2.t_type ~expected:beta;
                  pat_id, a2) in
-    beq_expected_constraint s ~actual:s1.value_type ~expected:data;
+    beq_expected_constraint (Some s) ~actual:s1.value_type ~expected:data;
     { t_desc = Case(id, params, s1, l1);
       t_type = beta;
       t_context = phi;
@@ -504,7 +504,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
                   Basetype.newvar()) in
     let b_minus, b_plus =
       Type.question_answer_pair b' in
-    eq_expected_constraint t
+    eq_expected_constraint (Some t)
       ~actual:s1.t_type
       ~expected:(Type.newty (Type.FunV(b_minus,
                                        Type.newty (Type.Base b_plus))));
@@ -562,7 +562,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
         end in
     check_wf ty;
     let t1 = pt c phi t in
-    eq_expected_constraint t ~actual:t1.t_type ~expected:ty;
+    eq_expected_constraint (Some t) ~actual:t1.t_type ~expected:ty;
     t1
   | Ast.ConstV _ | Ast.UnitV | Ast.PairV _ | Ast.InV _
   | Ast.FstV _ | Ast.SndV _ | Ast.SelectV _

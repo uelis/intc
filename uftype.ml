@@ -161,9 +161,6 @@ module Make(T: Typesgn) = struct
     | Var -> f (find b)
     | Sgn d -> newty (T.map (fun a -> subst a f) d)
 
-  let identical (u: t) (v: t) : bool =
-    phys_id u = phys_id v
-      
   let rec equals (u: t) (v: t) : bool =
     let ur = find u in
     let vr = find v in
