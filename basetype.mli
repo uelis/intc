@@ -24,7 +24,7 @@ type 'a sgn =
   | DataB of string * 'a list
 with sexp
 
-include Gentype.S with type 'a Sgn.t = 'a sgn
+include Uftype.S with type 'a Sgn.t = 'a sgn
 
 (** Representation of algebraic data types.
 *)

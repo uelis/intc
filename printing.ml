@@ -387,7 +387,7 @@ TEST_MODULE = struct
       Type.unify_exn aab aaab;
       false
     with
-    | Gentype.Cyclic_type ->
+    | Uftype.Cyclic_type ->
       Scanf.sscanf (string_of_type aab)
         "(rec '%s@. '%s * '%s@) -> (rec '%s@. '%s * '%s@) -> ''%s"
         (fun a1 a2 a3 b1 b2 b3 _ -> a1 = a2 && a2 = a3 && b1 = b2 && b2 = b3)
@@ -401,7 +401,7 @@ TEST_MODULE = struct
       Type.unify_exn b abb;
       false
     with
-    | Gentype.Cyclic_type ->
+    | Uftype.Cyclic_type ->
       Scanf.sscanf (string_of_type b)
         "(rec ''%s@. ''%s@ -> ''%s@)"
         (fun b1 b2 b3 -> b1 = b2 && b2 = b3)

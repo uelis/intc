@@ -9,7 +9,7 @@ type 'a sgn =
   | FunI of Basetype.t * 'a * 'a
 with sexp
 
-include Gentype.S with type 'a Sgn.t = 'a sgn
+include Uftype.S with type 'a Sgn.t = 'a sgn
 
 (** Substitution of types for types and base types for base types. *)
 val full_subst: t -> (t -> t) -> (Basetype.t -> Basetype.t) -> t

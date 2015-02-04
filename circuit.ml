@@ -751,8 +751,8 @@ let infer_types (c : t) : unit =
     let cs = constraints c.instructions in
     solve_constraints cs;
   with
-  | Gentype.Constructor_mismatch
-  | Gentype.Cyclic_type ->
+  | Uftype.Constructor_mismatch
+  | Uftype.Cyclic_type ->
     failwith "Internal error: cannot unify constraints in compilation"
 
 let of_typedterm (t : Typedterm.t) : t =
@@ -761,8 +761,8 @@ let of_typedterm (t : Typedterm.t) : t =
     ignore(infer_types c);
     c
   with
-  | Gentype.Constructor_mismatch
-  | Gentype.Cyclic_type ->
+  | Uftype.Constructor_mismatch
+  | Uftype.Cyclic_type ->
     raise (Typing_error(None, "Cannot unify index types: invalid direct definition."))
 
 (* TODO: This function should be cleaned up *)

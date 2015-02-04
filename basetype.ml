@@ -75,15 +75,15 @@ module Sig = struct
     | DataB(i, ts), DataB(j, ss) when i = j ->
       begin
         match List.zip ts ss with
-        | None -> raise Gentype.Constructor_mismatch
+        | None -> raise Uftype.Constructor_mismatch
         | Some l -> List.iter l ~f:(fun (t, s) -> unify t s)
       end
     | EncodedB _, _ | IntB, _ | ZeroB, _ | UnitB, _
     | BoxB _, _ | ArrayB _, _ | PairB _, _ | DataB _, _ ->
-      raise Gentype.Constructor_mismatch
+      raise Uftype.Constructor_mismatch
 end
 
-module Basetype = Gentype.Make(Sig)
+module Basetype = Uftype.Make(Sig)
 include Basetype
 
 module Data =
@@ -135,7 +135,8 @@ struct
     let used_names = String.Table.keys datatypes in
     Vargen.mkVarGenerator basename ~avoid:used_names ()
 
-  (* declare nullary and binary sums by default; all others are declared on demand *)
+  (* declare nullary and binary sums by default; 
+     all others are declared on demand *)
   let _ = ignore (sumid 0); ignore (sumid 2)
 
   let params id = List.length (String.Table.find_exn datatypes id).params

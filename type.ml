@@ -53,10 +53,10 @@ module Sig = struct
       unify t1 s1;
       unify t2 s2;
     | Base _, _ | Tensor _ , _ | FunV _, _ | FunI _, _ ->
-      raise Gentype.Constructor_mismatch
+      raise Uftype.Constructor_mismatch
 end
 
-module Type = Gentype.Make(Sig)
+module Type = Uftype.Make(Sig)
 include Type
 
 let rec full_subst (b: t) (f: t -> t) (fbase: Basetype.t -> Basetype.t) : t =
@@ -142,6 +142,6 @@ TEST_MODULE = struct
       Type.unify_exn abb aabb;
       false
     with
-    | Gentype.Cyclic_type -> true
+    | Uftype.Cyclic_type -> true
 
 end
