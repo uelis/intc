@@ -129,7 +129,7 @@ let facaux : int * int -> [unit] =
       val b = inteq(i, 0) in
       if b then return acc else
         val i' = intsub(i, 1) in
-	val acc' = intmul(acc, i) in
+	      val acc' = intmul(acc, i) in
         facaux (i', acc')
 )
 

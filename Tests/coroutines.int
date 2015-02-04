@@ -46,11 +46,15 @@ let println = fn i ->
 let proc1 = λ yield ->
      tailrec (λ proc1 ->
        fn j ->
-         print "p1: ";
-         println j;
-	       val j' = intadd(j, 2) in
-         val i = yield j' in
-         proc1 i
+         val b = intslt(500, j) in
+         if b then
+           return ()
+         else
+           print "p1: ";
+           println j;
+  	       val j' = intadd(j, 2) in
+           val i = yield j' in
+           proc1 i
        ) 3
 
 let proc2 = λ yield ->
