@@ -36,7 +36,7 @@ module type S = sig
     | Sgn of 'a Sgn.t
 
   (** Unique representation id of each type.
-      This id will be modified by unification.
+      This id may change over time, e.g. because of unification.
   *)
   val repr_id : t -> int
 
@@ -105,25 +105,21 @@ module Make(T: Typesgn) = struct
     | Link of t
     | D of (t var_or_sgn)
   with sexp
-
-  let next_id = ref 0
                   
-  let newD d =
-    incr next_id;
-    { desc = D d; mark = 0; id = !next_id }
+  let newD =
+    let next_id = ref 0 in
+    fun d ->
+      incr next_id;
+      { desc = D d; mark = 0; id = !next_id }
+      
   let newty s = newD (Sgn s)
   let newvar () = newD Var
 
-  let phys_id t = t.id
-
-  let current_mark : int ref = ref 0
-  let next_mark () : int = incr current_mark; !current_mark
-
-  let set_mark t i =
-    t.mark <- i
-
-  let get_mark t =
-    t.mark
+  let next_mark : unit -> int =
+    let current_mark : int ref = ref 0 in
+    fun () ->
+      incr current_mark;
+      !current_mark
 
   let rec find (t : t) : t =
     match t.desc with
@@ -142,8 +138,6 @@ module Make(T: Typesgn) = struct
 
   let union (t1 : t) (t2 : t) : unit =
     (find t1).desc <- Link (find t2)
-
-  type type_t = t with sexp
 
   let children a =
     match case a with
@@ -197,14 +191,14 @@ module Make(T: Typesgn) = struct
     let mark_done = next_mark () in
     let rec dfs (a: t) =
       let r = find a in
-      if get_mark r = mark_open then
-        Int.Table.replace cycles ~key:(phys_id r) ~data:r
-      else if (get_mark r = mark_done) then
+      if r.mark = mark_open then
+        Int.Table.replace cycles ~key:(r.id) ~data:r
+      else if (r.mark = mark_done) then
         ()
       else begin
-        set_mark r mark_open;
+        r.mark <- mark_open;
         List.iter (children r) ~f:dfs;
-        set_mark r mark_done
+        r.mark <- mark_done
       end in
     dfs t;
     let keys = Int.Table.fold cycles
@@ -218,12 +212,9 @@ module Make(T: Typesgn) = struct
     let c1, c2 = find b1, find b2 in
     if not (phys_equal c1 c2) then
       match case c1, case c2 with
-      | Var, _ ->
-        union c1 c2
-      | _, Var ->
-        union c2 c1
-      | Sgn d1, Sgn d2 ->
-        T.unify_exn d1 d2 ~unify:unify_raw
+      | Var, _ -> union c1 c2
+      | _, Var -> union c2 c1
+      | Sgn d1, Sgn d2 -> T.unify_exn d1 d2 ~unify:unify_raw
           
   let check_cycle (b: t) : unit =
     if not (is_acyclic b) then

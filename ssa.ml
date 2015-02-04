@@ -371,9 +371,11 @@ let typecheck_term
     let c = typeof_value gamma v in
     equals_exn c b1;
     equals_exn a b2
-  | Const(Ast.Cencode _, _)
-  | Const(Ast.Cdecode _, _) ->
-    () (* TODO: check *)
+  | Const(Ast.Cencode b, v) ->
+    let c = typeof_value gamma v in
+    equals_exn b c
+  | Const(Ast.Cdecode b, v) ->
+    equals_exn b a
 
 let rec typecheck_let_bindings
       (gamma: Basetype.t Typing.context)

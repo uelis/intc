@@ -6,8 +6,8 @@
 open Core.Std
 
 module Location = struct
-  type pos = { column: int; line: int}
-  type loc = {start_pos: pos; end_pos: pos}
+  type pos = { column: int; line: int }
+  type loc = { start_pos: pos; end_pos: pos }
   type t = loc option
   let none = None
 end
