@@ -13,7 +13,7 @@ let rec log i =
   if i > 1 then 1 + (log (i - i/2)) else 0
 
 (** Representation of LLVM types suitable for use as keys in a map. *)
-module Lltypes: sig
+module Lltype: sig
   
   type t =
     | Integer of int
@@ -63,7 +63,7 @@ end
 *)
 module Profile: sig
   
-  module Key = Lltypes
+  module Key = Lltype
   type t
 
   val null : t
@@ -83,7 +83,7 @@ module Profile: sig
 end
 = struct
   
-  module Key = Lltypes
+  module Key = Lltype
   type t = int Key.Map.t
 
   let null = Key.Map.empty
@@ -117,7 +117,7 @@ end
           match sa with
           | EncodedB _ -> assert false
           | ZeroB | UnitB -> null
-          | IntB -> singleton Lltypes.int_type
+          | IntB -> singleton Lltype.int_type
           | BoxB _ | ArrayB _ -> singleton Key.Pointer
           | PairB(a1, a2) -> add (a_s a1) (a_s a2)
           | DataB(id, ps) ->
@@ -321,7 +321,7 @@ let unpack_encoded_value (packed_enc: Llvm.llvalue) (a: Basetype.t)
   let len_a = Profile.of_basetype a in
   Mixedvector.unpack len_a packed_enc
 
-let int_lltype = Lltypes.to_lltype Lltypes.int_type
+let int_lltype = Lltype.to_lltype Lltype.int_type
 
 (** Encoding of values *)
 let rec build_value
@@ -333,7 +333,7 @@ let rec build_value
     List.Assoc.find_exn ctx x
   | Ssa.IntConst(i) ->
     let vali = Llvm.const_int (int_lltype) i in
-    Mixedvector.singleton Lltypes.int_type vali
+    Mixedvector.singleton Lltype.int_type vali
   | Ssa.Unit ->
     Mixedvector.null
   | Ssa.Pair(t1, t2) ->
@@ -350,7 +350,7 @@ let rec build_value
     let tenc = build_value the_module ctx t in
     let branch = Llvm.const_int (Llvm.integer_type context (log n)) i in
     let denc = Mixedvector.concatenate
-                 (Mixedvector.singleton (Lltypes.Integer (log n)) branch)
+                 (Mixedvector.singleton (Lltype.Integer (log n)) branch)
                  tenc in
     build_truncate_extend denc a
   | Ssa.Fst(t, a, b) ->
@@ -382,7 +382,7 @@ let rec build_value
       begin
         let yenc =
           let _, ya =
-            Mixedvector.takedrop tenc (Profile.singleton (Lltypes.Integer (log n))) in
+            Mixedvector.takedrop tenc (Profile.singleton (Lltype.Integer (log n))) in
           ya in
         let case_types = Basetype.Data.constructor_types id params in
         assert (i < List.length case_types);
@@ -475,50 +475,50 @@ let build_term
   | Ssa.Const(Ast.Carrayget _ as const, arg) ->
     begin
       let argenc = build_value the_module ctx arg in
-      let intargs = Mixedvector.llvalues_at_key argenc Lltypes.int_type in
-      let ptrargs = Mixedvector.llvalues_at_key argenc Lltypes.Pointer in
+      let intargs = Mixedvector.llvalues_at_key argenc Lltype.int_type in
+      let ptrargs = Mixedvector.llvalues_at_key argenc Lltype.Pointer in
       match const, intargs, ptrargs with
       | Ast.Cintadd, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_add x y "add" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_add x y "add" builder)
       | Ast.Cintadd, _, _ -> failwith "internal: wrong argument to intadd"
       | Ast.Cintsub, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_sub x y "sub" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_sub x y "sub" builder)
       | Ast.Cintsub, _, _ -> failwith "internal: wrong argument to intsub"
       | Ast.Cintmul, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_mul x y "mul" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_mul x y "mul" builder)
       | Ast.Cintmul, _, _ -> failwith "internal: wrong argument to intmul"
       | Ast.Cintdiv, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_sdiv x y "sdiv" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_sdiv x y "sdiv" builder)
       | Ast.Cintdiv, _, _ -> failwith "internal: wrong argument to intdiv"
       | Ast.Cinteq, [x; y], [] ->
-         Mixedvector.singleton (Lltypes.Integer 1)
+         Mixedvector.singleton (Lltype.Integer 1)
            (Llvm.build_icmp Llvm.Icmp.Ne x y "eq" builder)
       | Ast.Cinteq, _, _ -> failwith "internal: wrong argument to inteq"
       | Ast.Cintlt, [x; y], [] ->
-         Mixedvector.singleton (Lltypes.Integer 1)
+         Mixedvector.singleton (Lltype.Integer 1)
            (Llvm.build_icmp Llvm.Icmp.Uge x y "lt" builder )
       | Ast.Cintlt, _, _ -> failwith "internal: wrong argument to intslt"
       | Ast.Cintslt, [x; y], [] ->
-         Mixedvector.singleton (Lltypes.Integer 1)
+         Mixedvector.singleton (Lltype.Integer 1)
            (Llvm.build_icmp Llvm.Icmp.Sge x y "slt" builder )
       | Ast.Cintslt, _, _ -> failwith "internal: wrong argument to intslt"
       | Ast.Cintshl, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_shl x y "shl" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_shl x y "shl" builder)
       | Ast.Cintshl, _, _ -> failwith "internal: wrong argument to intshl"
       | Ast.Cintshr, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_lshr x y "shr" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_lshr x y "shr" builder)
       | Ast.Cintshr, _, _ -> failwith "internal: wrong argument to intshr"
       | Ast.Cintsar, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_ashr x y "sar" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_ashr x y "sar" builder)
       | Ast.Cintsar, _, _ -> failwith "internal: wrong argument to intsar"
       | Ast.Cintand, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_and x y "and" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_and x y "and" builder)
       | Ast.Cintand, _, _ -> failwith "internal: wrong argument to intand"
       | Ast.Cintor, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_or x y "or" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_or x y "or" builder)
       | Ast.Cintor, _, _ -> failwith "internal: wrong argument to intor"
       | Ast.Cintxor, [x; y], [] ->
-        Mixedvector.singleton Lltypes.int_type (Llvm.build_xor x y "xor" builder)
+        Mixedvector.singleton Lltype.int_type (Llvm.build_xor x y "xor" builder)
       | Ast.Cintxor, _, _ -> failwith "internal: wrong argument to intxor"
       | Ast.Cintprint, [x], [] ->
         let i8a = Llvm.pointer_type (Llvm.i8_type context) in
@@ -542,7 +542,7 @@ let build_term
         let addr = Llvm.build_call malloc
                           (Array.of_list [Llvm.size_of a_struct])
                           "addr" builder in
-        Mixedvector.singleton Lltypes.Pointer addr
+        Mixedvector.singleton Lltype.Pointer addr
       | Ast.Cfree _, [], [addr] ->
         let free =
           match Llvm.lookup_function "free" the_module with
@@ -564,7 +564,7 @@ let build_term
                         (Llvm.pointer_type a_struct) "memptr" builder in
         (* The following depends on the encoding of box and pairs and
          * is probably fragile! *)
-        let _, venc = Mixedvector.takedrop argenc (Profile.singleton Lltypes.Pointer) in
+        let _, venc = Mixedvector.takedrop argenc (Profile.singleton Lltype.Pointer) in
         let v_packed = pack_encoded_value (build_truncate_extend venc a) a in
         ignore (Llvm.build_store v_packed mem_ptr builder);
         Mixedvector.null
@@ -580,7 +580,7 @@ let build_term
         let addr = Llvm.build_call malloc
                           (Array.of_list [byte_size])
                           "addr" builder in
-        Mixedvector.singleton Lltypes.Pointer addr
+        Mixedvector.singleton Lltype.Pointer addr
       | Ast.Carrayalloc _, _, _ -> failwith "internal: wrong argument to arrayalloc"
       | Ast.Carrayfree _, [], [addr] ->
         let free =
@@ -597,7 +597,7 @@ let build_term
         let offset = Llvm.build_bitcast offset_arr
                        (Llvm.pointer_type (Llvm.i8_type context))
                        "offset" builder in
-        Mixedvector.singleton Lltypes.Pointer offset
+        Mixedvector.singleton Lltype.Pointer offset
       | Ast.Carrayget _, _, _ -> failwith "internal: wrong argument to arrayget"
       | Ast.Cprint _, _, _
       | Ast.Cpush _, _, _
@@ -711,7 +711,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
           | _ ->
             let cond, yenc =
               let ienc, ya =
-                Mixedvector.takedrop ebody (Profile.singleton (Lltypes.Integer (log n))) in
+                Mixedvector.takedrop ebody (Profile.singleton (Lltype.Integer (log n))) in
               let cond = Mixedvector.llvalue_of_singleton ienc in
               cond, ya in
             let case_types = Basetype.Data.constructor_types id params in
