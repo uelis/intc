@@ -1,0 +1,106 @@
+
+/* fixed point combinator */
+
+type callstack<'a> = Empty of unit
+                   | Push of 'a * box<callstack<'a>>
+
+/* stategy implementing the fixed point combinator */
+let fiximpl =
+ fn x ->
+  case x of
+   Inl(l, x) ->
+       (case x of
+          Inl(b, q) ->
+	    /* allocate new cons cell */
+	    val a = alloc() in
+	    /* store Push(b, l) in cell a */
+	    val () = store(a, Push(b, l)) in
+    	    return Inl(a, Inr(q))
+        | Inr(a) ->
+	    /* load u from cell l */
+	    val u = load(l) in
+	    /* free cell l */
+	    val () = free(l) in
+            case u of
+               Empty -> return Inr(a)
+             | Push(hd, tl) -> return Inl(tl, Inl(hd, a)))
+ | Inr(q) ->
+    val a = alloc() in
+    val () = store(a, Empty) in
+    return Inl(a, Inr(q))
+
+/* fixed point combinator */
+let c_fix = direct(fiximpl: /*{box<callstack<'b>>}*/ ( /*{'b}*/(''a) -> ''a) -> ''a)
+
+/* Variables (stack allocated) */
+
+let newvarimp = fn x ->
+   case x of
+     Inl(mem, yv) ->
+      (case yv of
+          Inl(c, p) ->
+           (case p of
+              Inl() -> return Inl(mem, Inl(c, Inl(mem)))
+            | Inr(newmem, ()) -> return Inl(newmem, Inl(c, Inr()))
+           )
+         | Inr(a) -> return Inr(a)
+      )
+   | Inr(()) -> return Inl(0, Inr())
+ 
+let c_newvar =
+   direct(newvarimp : (['a] # ('a -> [unit]) -> ['b]) -> ['b])
+
+
+let main =
+ val v =
+(c_fix
+ (\x56_fib ->
+   copy x56_fib as x19_fib, x29_fib in
+   \x2_n ->
+    c_newvar
+    (\x54_n1 ->
+      copy x54_n1 as x1_n1, x6_n1, x12_n1, x20_n1, x30_n1 in
+      c_newvar
+      (\x53_n2 ->
+        copy x53_n2 as x18_n2, x38_n2 in
+        c_newvar
+        (\x52_n3 ->
+          copy x52_n3 as x28_n3, x41_n3 in
+          val dummy = let (x3 # x4) = x1_n1 in val x5 = x2_n in x4 x5 in
+          val x49 =
+           val x50 =
+            val x11 = val x9 = let (x7 # x8) = x6_n1 in x7 in intlt (x9, 1) in
+            case x11 of    True() -> return 1 | False() -> return 0 in
+           val x51 = intand (1, x50) in inteq (1, x51) in
+          case x49 of 
+            True(dummy) -> return 0
+          | False(dummy) ->
+              val x46 =
+               val x47 =
+                val x17 =
+                 val x15 = let (x13 # x14) = x12_n1 in x13 in
+                 intlt (x15, 2) in
+                case x17 of    True() -> return 1 | False() -> return 0 in
+               val x48 = intand (1, x47) in inteq (1, x48) in
+              case x46 of 
+                True(dummy) -> return 1
+              | False(dummy) ->
+                  val dummy =
+                   val dummy =
+                    let (x25 # x26) = x18_n2 in
+                    val x27 =
+                     x19_fib
+                     (val x23 = let (x21 # x22) = x20_n1 in x21 in
+                      intsub (x23, 1)) in
+                    x26 x27 in
+                   let (x35 # x36) = x28_n3 in
+                   val x37 =
+                    x29_fib
+                    (val x33 = let (x31 # x32) = x30_n1 in x31 in
+                     intsub (x33, 2)) in
+                   x36 x37 in
+                  val x44 = let (x39 # x40) = x38_n2 in x39 in
+                  val x45 = let (x42 # x43) = x41_n3 in x42 in
+                  intadd (x44, x45)))))
+ (return 20)) in
+ print v
