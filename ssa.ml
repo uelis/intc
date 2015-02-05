@@ -374,7 +374,7 @@ let typecheck_term
   | Const(Ast.Cencode b, v) ->
     let c = typeof_value gamma v in
     equals_exn b c
-  | Const(Ast.Cdecode b, v) ->
+  | Const(Ast.Cdecode b, _) ->
     equals_exn b a
 
 let rec typecheck_let_bindings
