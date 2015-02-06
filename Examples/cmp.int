@@ -1,0 +1,22 @@
+fn cmpimp(x) =
+  case x of
+    Inr(x1) -> (
+      case x1 of
+        Inr(a, ()) -> return Inl((), (a, ()))
+      | Inl((), c) -> return Inr(Inr(c))
+    )
+  | Inl((), b) -> return Inr(Inl((), (b, ())))
+
+let cmp =
+   direct(cmpimp : ('a -> ['b]) -> (('b -> ['c]) -> 'a -> ['c]))
+
+let cmp' = \f -> \g -> fn x -> val v = f x in g v
+
+/* Compare the different index types of cmp and cmp'
+   (option --type-details) */
+
+let main =
+   val v1 = cmp (fn x -> intadd(x, 1)) (fn y -> intmul(y, 2)) 4 in
+   val v2 = cmp' (fn x -> intadd(x, 1)) (fn y -> intmul(y, 2)) 4 in
+   print v1;
+   print v2
