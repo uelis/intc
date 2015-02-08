@@ -12,7 +12,7 @@ let illformed msg =
   let column = s.pos_cnum - s.pos_bol + 1 in
   raise (Decl.Illformed_decl (msg, line, column))
 
-let location_of_pos pos = 
+let location_of_pos pos =
   { Location.line = pos.pos_lnum;
     Location.column = pos.pos_cnum - pos.pos_bol + 1 }
 
@@ -70,7 +70,7 @@ let mkDatatype id params constructors =
     constructors;
   id
 
-let check_pattern p = 
+let check_pattern p =
   let rec vars p =
     match p with
     | PatUnit -> []
@@ -84,7 +84,7 @@ let check_pattern p =
       if x = y then illformed "Multiple occurrence of variable in pattern."
       else check (y::r) in
   check sorted_vars
-  
+
 let type_vars = String.Table.create ()
 let type_var (a : string) : Type.t =
   String.Table.find_or_add type_vars a
@@ -94,7 +94,7 @@ let basetype_vars = String.Table.create ()
 let basetype_var (a : string) : Basetype.t =
   String.Table.find_or_add basetype_vars a
     ~default:(fun () -> Basetype.newvar())
-     
+
 let encoded_vars = String.Table.create ()
 let encoded_var (a : string) : Basetype.t =
   String.Table.find_or_add encoded_vars a
