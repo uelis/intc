@@ -216,7 +216,7 @@ let string_of_op_const (c: Ast.op_const) : string =
   | Cintand -> "intand"
   | Cintor  -> "intor"
   | Cintxor -> "intxor"
-  | Cintprint -> "intprint"
+  | Cintprint -> "print"
   | Calloc(_) -> "alloc"
   | Cfree(_) -> "free"
   | Cload(_) -> "load"
