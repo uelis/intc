@@ -62,8 +62,8 @@ module type S = sig
       renamed to the same fresh name. *)
   val freshen_list: t list -> t list
 
-  (** Delete the given type and replace it by a fresh type variable. *)
-  val replace_by_fresh_var: t -> unit
+  (** Delete the given type and replace it by the second type. *)
+  val replace_by: t -> t -> unit
 
   (** Substitution. The call [subst a f] applies [f] to all variables in [a]. *)
   val subst: t -> (t -> t) -> t

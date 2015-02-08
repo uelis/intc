@@ -58,7 +58,7 @@ module type S = sig
   val freshen_list: t list -> t list
 
   (** Delete the given type and replace it by a fresh type variable. *)
-  val replace_by_fresh_var: t -> unit
+  val replace_by: t -> t -> unit
 
   (** Substitution. 
       The call [subst a f] applies [f] to all variables in [a]. *)
@@ -181,9 +181,8 @@ module Make(T: Typesgn) = struct
     | [f] -> f
     | _ -> assert false
 
-  let replace_by_fresh_var t =
-    let a = newvar () in
-    (find t).desc <- Link a
+  let replace_by t1 t2 =
+    (find t1).desc <- Link t2
       
   let dfs_cycles t =
     let cycles = Int.Table.create () in
