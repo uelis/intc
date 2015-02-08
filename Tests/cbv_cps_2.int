@@ -1,0 +1,249 @@
+fn cmpimp(x) =
+  case x of
+    Inr(x1) -> (
+      case x1 of
+        Inr(a, ()) -> return Inl((), (a, ()))
+      | Inl((), c) -> return Inr(Inr(c))
+    )
+  | Inl((), b) -> return Inr(Inl((), (b, ())))
+
+let cmp =
+   direct(cmpimp : ('a -> ['b]) -> (('b -> ['c]) -> 'a -> ['c]))
+
+let main =
+(\k_134 ->
+  cmp
+  (fn (g_139, ()) ->
+    val e1_142 = encode{'a} (g_139, ()) in
+    return (e1_142, ()))
+  ((\k_79 ->
+     k_79
+     (\ix_78 ->
+       copy ix_78 as if_3, if_2 in
+       \k1_80 ->
+        cmp
+        (fn (g_81, ((), vx_78)) -> return (g_81, (((), vx_78), vx_78)))
+        ((\k_68 ->
+           cmp
+           (fn (g_73, (((), vf_2), vf_3)) ->
+             val e1_76 = encode{'b} (g_73, (((), vf_2), vf_3)) in
+             return (e1_76, ()))
+           ((\k_6 ->
+              k_6
+              (\ix_5 ->
+                \k_6 ->
+                 cmp
+                 (fn (g_7, (ctx_8, n_9)) ->
+                   val () = print n_9 in
+                   return (g_7, n_9))
+                 (k_6 (fn z_1 -> return z_1))))
+            (\f_69 ->
+              cmp
+              (fn (e1_76, f_71) ->
+                val (g_73, ctx2_75) = decode{'b} e1_76 in
+                val e2_77 = encode{'c} (g_73, f_71) in
+                return (e2_77, ctx2_75))
+              ((\k_58 ->
+                 cmp
+                 (fn (g_63, (((), vf_2), vf_3)) ->
+                   val e1_66 = encode{'d} (g_63, (((), vf_2), vf_3)) in
+                   return (e1_66, ((), vf_2)))
+                 ((\k_33 ->
+                    cmp
+                    (fn (g_38, ((), vf_2)) ->
+                      val e1_41 = encode{'e} (g_38, ((), vf_2)) in
+                      return (e1_41, ()))
+                    ((\k_12 ->
+                       k_12
+                       (\ix_11 ->
+                         \k_12 ->
+                          k_12
+                          (\ix_11 ->
+                            \k_12 ->
+                             cmp
+                             (fn (g_13, ((ctx_14, m_15), n_16)) ->
+                               val sum_17 = intadd (m_15, n_16) in
+                               return (g_13, sum_17))
+                             (k_12 (fn z_1 -> return z_1)))))
+                     (\f_34 ->
+                       cmp
+                       (fn (e1_41, f_36) ->
+                         val (g_38, ctx2_40) = decode{'e} e1_41 in
+                         val e2_42 = encode{'f} (g_38, f_36) in
+                         return (e2_42, ctx2_40))
+                       ((\k_23 ->
+                          cmp
+                          (fn (g_28, ((), vf_2)) ->
+                            val e1_31 = encode{'g} (g_28, ()) in
+                            return (e1_31, ((), vf_2)))
+                          ((\k_18 ->
+                             cmp
+                             (fn (g_19, ((), vf_2)) -> return (g_19, vf_2))
+                             (k_18 if_2))
+                           (\f_24 ->
+                             cmp
+                             (fn (e1_31, f_26) ->
+                               val (g_28, ctx2_30) = decode{'g} e1_31 in
+                               val e2_32 = encode{'h} (g_28, f_26) in
+                               return (e2_32, ctx2_30))
+                             ((\k_20 ->
+                                cmp
+                                (fn (g_21, xs_22) -> return (g_21, 3))
+                                (k_20 (fn z_1 -> return z_1)))
+                              (\x_25 ->
+                                cmp
+                                (fn (e2_32, x_27) ->
+                                  val (g_28, f_26) = decode{'h} e2_32 in
+                                  return (g_28, (f_26, x_27)))
+                                (f_24 x_25 k_23))))))
+                        (\x_35 ->
+                          cmp
+                          (fn (e2_42, x_37) ->
+                            val (g_38, f_36) = decode{'f} e2_42 in
+                            return (g_38, (f_36, x_37)))
+                          (f_34 x_35 k_33))))))
+                  (\f_59 ->
+                    cmp
+                    (fn (e1_66, f_61) ->
+                      val (g_63, ctx2_65) = decode{'d} e1_66 in
+                      val e2_67 = encode{'i} (g_63, f_61) in
+                      return (e2_67, ctx2_65))
+                    ((\k_48 ->
+                       cmp
+                       (fn (g_53, (((), vf_2), vf_3)) ->
+                         val e1_56 = encode{'j} (g_53, ()) in
+                         return (e1_56, (((), vf_2), vf_3)))
+                       ((\k_43 ->
+                          cmp
+                          (fn (g_44, (((), vf_2), vf_3)) ->
+                            return (g_44, vf_3))
+                          (k_43 if_3))
+                        (\f_49 ->
+                          cmp
+                          (fn (e1_56, f_51) ->
+                            val (g_53, ctx2_55) = decode{'j} e1_56 in
+                            val e2_57 = encode{'k} (g_53, f_51) in
+                            return (e2_57, ctx2_55))
+                          ((\k_45 ->
+                             cmp
+                             (fn (g_46, xs_47) -> return (g_46, 4))
+                             (k_45 (fn z_1 -> return z_1)))
+                           (\x_50 ->
+                             cmp
+                             (fn (e2_57, x_52) ->
+                               val (g_53, f_51) = decode{'k} e2_57 in
+                               return (g_53, (f_51, x_52)))
+                             (f_49 x_50 k_48))))))
+                     (\x_60 ->
+                       cmp
+                       (fn (e2_67, x_62) ->
+                         val (g_63, f_61) = decode{'i} e2_67 in
+                         return (g_63, (f_61, x_62)))
+                       (f_59 x_60 k_58))))))
+               (\x_70 ->
+                 cmp
+                 (fn (e2_77, x_72) ->
+                   val (g_73, f_71) = decode{'c} e2_77 in
+                   return (g_73, (f_71, x_72)))
+                 (f_69 x_70 k_68))))))
+         k1_80)))
+   (\f_135 ->
+     cmp
+     (fn (e1_142, f_137) ->
+       val (g_139, ctx2_141) = decode{'a} e1_142 in
+       val e2_143 = encode{'l} (g_139, f_137) in return (e2_143, ctx2_141))
+     ((\k_131 ->
+        k_131
+        (\ix_130 ->
+          copy ix_130 as ix_4 in
+          \k1_132 ->
+           cmp
+           (fn (g_133, ((), vx_130)) -> return (g_133, ((), vx_130)))
+           ((\k_120 ->
+              cmp
+              (fn (g_125, ((), vx_4)) ->
+                val e1_128 = encode{'m} (g_125, ((), vx_4)) in
+                return (e1_128, ()))
+              ((\k_83 ->
+                 k_83
+                 (\ix_82 ->
+                   \k_83 ->
+                    cmp
+                    (fn (g_84, (ctx_85, n_86)) ->
+                      val () = print n_86 in
+                      return (g_84, n_86))
+                    (k_83 (fn z_1 -> return z_1))))
+               (\f_121 ->
+                 cmp
+                 (fn (e1_128, f_123) ->
+                   val (g_125, ctx2_127) = decode{'m} e1_128 in
+                   val e2_129 = encode{'n} (g_125, f_123) in
+                   return (e2_129, ctx2_127))
+                 ((\k_110 ->
+                    cmp
+                    (fn (g_115, ((), vx_4)) ->
+                      val e1_118 = encode{'o} (g_115, ()) in
+                      return (e1_118, ((), vx_4)))
+                    ((\k_97 ->
+                       cmp
+                       (fn (g_102, ((), vx_4)) ->
+                         val e1_105 = encode{'p} (g_102, ((), vx_4)) in
+                         return (e1_105, ()))
+                       ((\k_89 ->
+                          k_89
+                          (\ix_88 ->
+                            \k_89 ->
+                             k_89
+                             (\ix_88 ->
+                               \k_89 ->
+                                cmp
+                                (fn (g_90, ((ctx_91, m_92), n_93)) ->
+                                  val sum_94 = intadd (m_92, n_93) in
+                                  return (g_90, sum_94))
+                                (k_89 (fn z_1 -> return z_1)))))
+                        (\f_98 ->
+                          cmp
+                          (fn (e1_105, f_100) ->
+                            val (g_102, ctx2_104) = decode{'p} e1_105 in
+                            val e2_106 = encode{'q} (g_102, f_100) in
+                            return (e2_106, ctx2_104))
+                          ((\k_95 ->
+                             cmp
+                             (fn (g_96, ((), vx_4)) -> return (g_96, vx_4))
+                             (k_95 ix_4))
+                           (\x_99 ->
+                             cmp
+                             (fn (e2_106, x_101) ->
+                               val (g_102, f_100) = decode{'q} e2_106 in
+                               return (g_102, (f_100, x_101)))
+                             (f_98 x_99 k_97))))))
+                     (\f_111 ->
+                       cmp
+                       (fn (e1_118, f_113) ->
+                         val (g_115, ctx2_117) = decode{'o} e1_118 in
+                         val e2_119 = encode{'r} (g_115, f_113) in
+                         return (e2_119, ctx2_117))
+                       ((\k_107 ->
+                          cmp
+                          (fn (g_108, xs_109) -> return (g_108, 1))
+                          (k_107 (fn z_1 -> return z_1)))
+                        (\x_112 ->
+                          cmp
+                          (fn (e2_119, x_114) ->
+                            val (g_115, f_113) = decode{'r} e2_119 in
+                            return (g_115, (f_113, x_114)))
+                          (f_111 x_112 k_110))))))
+                  (\x_122 ->
+                    cmp
+                    (fn (e2_129, x_124) ->
+                      val (g_125, f_123) = decode{'n} e2_129 in
+                      return (g_125, (f_123, x_124)))
+                    (f_121 x_122 k_120))))))
+            k1_132)))
+      (\x_136 ->
+        cmp
+        (fn (e2_143, x_138) ->
+          val (g_139, f_137) = decode{'l} e2_143 in
+          return (g_139, (f_137, x_138)))
+        (f_135 x_136 k_134))))))
+(\x_144 -> fn ((), x_145) -> print x_145) ((), ())
