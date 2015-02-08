@@ -732,11 +732,10 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
                           (Ast.mkTypeAnnot
                              (Circuit.project b a c)
                              (Type.newty (Type.Base b))) in
-          let l = Let((z,  src.message_type), Val(Var(z))) in
           let lt, d = term_to_ssa project in
           let m' = Snd(m_val, a, m'_type) in
           let vt = Pair(sigma_val, Pair(d, m')) in
-          Direct(src, z, lt @ [l], vt, label_of_dst w2)
+          Direct(src, z, lt, vt, label_of_dst w2)
         else if dst = w2.src then
           let _, a_token = unPairB w1.type_forward in
           let a, m'_type = unPairB a_token in
@@ -748,10 +747,9 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
                         (Ast.mkTypeAnnot
                            (Circuit.embed b a c)
                            (Type.newty (Type.Base a))) in
-          let l = Let((z,  src.message_type), Val(Var(z))) in
           let lt, d = term_to_ssa embed in
           let vt = Pair(sigma_val, Pair(d, m')) in
-          Direct(src, z, lt @ [l], vt, label_of_dst w1)
+          Direct(src, z, lt, vt, label_of_dst w1)
         else assert false
       | Circuit.Seq(w1 (* TA^* *), w2 (* \Tensor A TB^* *), w3 (* TB *)) ->
         if dst = w3.src then
