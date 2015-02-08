@@ -1,0 +1,6 @@
+name="intlib"
+description="intlib"
+version="1"
+requires="core,llvm"
+archive(byte)="intlib.cmo"
+archive(native)="intlib.cmx"
