@@ -1,2 +1,2 @@
-let f : 'a -> ['''b] = fn x -> encode x
+let f : 'a -> ['''b] = fn x -> encode{'a} x
 let main = return ()

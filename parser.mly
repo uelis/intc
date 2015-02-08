@@ -109,7 +109,7 @@ let clear_type_vars () =
 %token LBRACE RBRACE LPAREN RPAREN LANGLE RANGLE LBRACKET RBRACKET
 %token PLUS MINUS TIMES DIV
 %token COMMA QUOTE DOUBLEQUOTE TRIPLEQUOTE COLON SEMICOLON SHARP EQUALS TO VERTBAR
-%token FN LAMBDA TYPE UNIT PUSH POP BOX ARRAY ALLOC FREE LOAD STORE CALL NAT
+%token FN LAMBDA TYPE VOID UNIT PUSH POP BOX ARRAY ALLOC FREE LOAD STORE CALL NAT
 %token ENCODE DECODE
 %token INTADD INTSUB INTMUL INTDIV INTEQ INTLT INTSLT
 %token INTSHL INTSHR INTSAR INTAND INTOR INTXOR
@@ -312,14 +312,13 @@ term_atom:
     | ARRAYGET
        { let alpha = Basetype.newvar() in
          mkAst (Const(Carrayget(alpha)))}
-    | ENCODE
-       { let alpha = Basetype.newvar() in
-         mkAst (Const(Cencode(alpha))) }
-    | DECODE LPAREN basetype COMMA term RPAREN
+    | ENCODE LBRACE basetype RBRACE
+       { mkAst (Const(Cencode($3))) }
+    | DECODE LBRACE basetype RBRACE term_atom
        { mkAst (App(mkAst (Const(Cdecode($3))), $5)) }
-    | PUSH LPAREN basetype COMMA term RPAREN
+    | PUSH LBRACE basetype RBRACE term_atom
         { mkAst (App(mkAst (Const(Cpush($3))), $5)) }
-    | POP LPAREN basetype RPAREN
+    | POP LBRACE basetype RBRACE
         { mkAst (App(mkAst (Const(Cpop($3))), mkAst UnitV)) }
     | CALL LPAREN IDENT COLON basetype TO basetype COMMA term RPAREN
         { mkAst (App(mkAst (Const(Ccall($3, $5, $7))), $9)) }
@@ -397,6 +396,8 @@ basetype_atom:
       { basetype_var $2 }
     | TRIPLEQUOTE IDENT
       { encoded_var $2 }
+    | VOID
+      { Basetype.newty (Basetype.ZeroB) }
     | UNIT
       { Basetype.newty (Basetype.UnitB) }
     | NAT

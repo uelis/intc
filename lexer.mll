@@ -54,6 +54,7 @@ rule main = parse
   | '='          { EQUALS }
   | "return"     { RETURN }
   | "type"       { TYPE }
+  | "void"       { VOID }
   | "unit"       { UNIT }
   | "box"        { BOX }
   | "array"      { ARRAY }

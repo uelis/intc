@@ -52,7 +52,7 @@ let string_of_basetype (ty: Basetype.t): string =
             begin match st with
             | DataB(id, [t1; t2]) when id = Data.sumid 2 ->
               Printf.sprintf "%s + %s" (str t1 `Summand) (str t2 `Factor)
-            | DataB(id, []) when id = Data.sumid 0 -> "0"
+            | DataB(id, []) when id = Data.sumid 0 -> "void"
             | DataB(id, []) -> id
             | DataB(id, ls) ->
               Printf.sprintf "%s<%s>" id 
@@ -83,7 +83,7 @@ let string_of_basetype (ty: Basetype.t): string =
               match st with
               | EncodedB b -> "''" ^ (str b `Atom)
               | IntB -> "int"
-              | ZeroB -> "0"
+              | ZeroB -> "void"
               | UnitB -> "unit"
               | BoxB(b) -> Printf.sprintf "box<%s>" (str b `Atom)
               | ArrayB(b) -> Printf.sprintf "array<%s>" (str b `Atom)
@@ -224,12 +224,12 @@ let string_of_op_const (c: Ast.op_const) : string =
   | Carrayalloc _ -> "arrayalloc"
   | Carrayget _ -> "arrayget"
   | Carrayfree _ -> "arrayfree"
-  | Cpush(_) -> "push"
-  | Cpop(_) -> "pop"
+  | Cpush a -> "push{" ^ (string_of_basetype a) ^ "}"
+  | Cpop a -> "pop{" ^ (string_of_basetype a) ^ "}"
   | Ccall(f, a, b) -> "call(" ^ f ^ ": " ^ (string_of_basetype a) ^
                       " -> " ^ (string_of_basetype b) ^ ") "
-  | Cencode _ -> "encode"
-  | Cdecode _ -> "decode"
+  | Cencode a -> "encode{" ^ (string_of_basetype a) ^ "}"
+  | Cdecode a -> "decode{" ^ (string_of_basetype a) ^ "}"
 
 let fprint_ast (f: Format.formatter) (term: Ast.t): unit =
   let open Ast in

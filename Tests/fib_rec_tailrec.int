@@ -16,16 +16,16 @@ fn fiximpl(x) =
     Inl(l, x) ->
         (case x of
            Inl(b, q) ->
-             push(unit + 'b, Inr(b));
+             push{unit + 'b}(Inr(b));
              return Inl((), Inr(q))
          | Inr(a) ->
-	     val u = pop(unit + 'b) in
+	     val u = pop{unit + 'b} in
              (case u of
                 Inl -> return Inr(a)
               | Inr(hd) ->
                    return Inl((), Inl(hd, a))))
   | Inr(q) ->
-     push(unit + 'b, Inl());
+     push{unit + 'b}(Inl());
      return Inl((), Inr(q))
 
 let fix = direct(fiximpl:(''a -> ''a) -> ''a)

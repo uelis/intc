@@ -1,4 +1,4 @@
-let f = fn x -> if True then encode x else encode (x,x)
+let f = fn x -> if True then encode{'a} x else encode{'a*'a} (x,x)
 let g  =
    val c = f 3 in
    val d = intadd(c, 1) in
