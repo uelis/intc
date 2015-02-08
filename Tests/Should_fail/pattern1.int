@@ -1,0 +1,2 @@
+let t1 = fn () -> return 3
+let t2 = t1 3

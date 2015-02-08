@@ -76,7 +76,23 @@ end =
 struct  
   type t = (Ast.pattern * Typedterm.value) list
 
+  let rec unify_type p a =
+    match p with
+    | Ast.PatUnit ->
+      beq_expected_constraint None ~actual:a
+        ~expected:(Basetype.newty Basetype.UnitB)
+    | Ast.PatVar _  -> ()
+    | Ast.PatPair(p1, p2) ->
+      let alpha = Basetype.newvar() in
+      let beta = Basetype.newvar() in
+      beq_expected_constraint None
+        ~actual:a
+        ~expected:(Basetype.newty (Basetype.PairB(alpha, beta)));
+      unify_type p1 alpha;
+      unify_type p2 beta
+
   let match_pattern (env: t) (v: Typedterm.value) (p: Ast.pattern) : t =
+    unify_type p v.Typedterm.value_type;
     (p, v) :: env
 
   let find (env: t) (x: Ident.t) (loc: Ast.Location.t)
@@ -87,19 +103,18 @@ struct
       | Ast.PatVar(y) ->
         if x = y then Some v else None
       | Ast.PatPair(p1, p2) ->
-        let alpha = Basetype.newvar() in
-        let beta = Basetype.newvar() in
-        beq_expected_constraint None
-          ~actual:v.Typedterm.value_type
-          ~expected:(Basetype.newty (Basetype.PairB(alpha, beta)));
+        let a1, a2 =
+          match Basetype.case v.Typedterm.value_type with
+          | Basetype.Sgn(Basetype.PairB(a1, a2)) -> a1, a2
+          | _ -> assert false in
         let v1 = { Typedterm.value_desc = Typedterm.FstV v;
-                   Typedterm.value_type = alpha;
+                   Typedterm.value_type = a1;
                    Typedterm.value_loc = loc } in
         match find_pattern p1 v1 with
         | Some w -> Some w
         | None ->
           let v2 = { Typedterm.value_desc = Typedterm.SndV v;
-                     Typedterm.value_type = beta;
+                     Typedterm.value_type = a2;
                      Typedterm.value_loc = loc } in
           find_pattern p2 v2 in
     let rec find (env: t) =
