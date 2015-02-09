@@ -23,6 +23,13 @@ let mkAst d : Ast.t =
     loc = Some { Location.start_pos = s;
                  Location.end_pos = e } }
 
+let check_datatype id =
+  (* Check that type exists *)
+  try
+    ignore (Basetype.Data.constructor_count id)
+  with
+  | Not_found -> illformed ("Unknown data type \"" ^ id ^ "\".")
+
 let mkDatatype id params constructors =
   let n = List.length params in
   Basetype.Data.make id ~nparams:n ~discriminated:true;
@@ -407,7 +414,8 @@ basetype_atom:
     | ARRAY LANGLE basetype RANGLE
       { Basetype.newty (Basetype.ArrayB($3)) }
     | IDENT
-      { Basetype.newty (Basetype.DataB($1, [])) }
+      { check_datatype $1;
+        Basetype.newty (Basetype.DataB($1, [])) }
     | IDENT LANGLE basetype_list RANGLE
       { Basetype.newty (Basetype.DataB($1, $3)) }
     | LPAREN basetype RPAREN
