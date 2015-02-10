@@ -30,7 +30,11 @@ let check_datatype id =
   with
   | Not_found -> illformed ("Unknown data type \"" ^ id ^ "\".")
 
-let mkDatatype id params constructors =
+let mkDatatype id params =
+  let n = List.length params in
+  Basetype.Data.make id ~nparams:n ~discriminated:true
+
+let addConstructors id params constructors =
   let n = List.length params in
   Basetype.Data.make id ~nparams:n ~discriminated:true;
   List.iter
@@ -354,16 +358,18 @@ dataW:
     | TYPE datadeclW EQUALS constructorsW
       { let id, params = $2 in
         let cons = $4 in
-          mkDatatype id params cons
+          addConstructors id params cons
        }
 
 datadeclW:
     | IDENT
-      { $1, [] }
+      { mkDatatype $1 [];
+        $1, [] }
     | IDENT LANGLE dataparamsW RANGLE
-      { let ty = $1 in
+      { let id = $1 in
         let params = $3 in
-          ty, params }
+        mkDatatype id params;
+          id, params }
 
 dataparamsW:
     | QUOTE IDENT
@@ -417,7 +423,8 @@ basetype_atom:
       { check_datatype $1;
         Basetype.newty (Basetype.DataB($1, [])) }
     | IDENT LANGLE basetype_list RANGLE
-      { Basetype.newty (Basetype.DataB($1, $3)) }
+      { check_datatype $1;
+        Basetype.newty (Basetype.DataB($1, $3)) }
     | LPAREN basetype RPAREN
       { $2 }
 
