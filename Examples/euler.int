@@ -19,7 +19,7 @@ fn fiximpl(x) =
 
 let fix = direct(fiximpl:(''a -> ''a) -> ''a)
 
-let cons = λ x -> λ xs ->
+let cons = λ x -> λ xs -
    fn(i) ->
      val e = inteq(i, 0) in
      if e then x else
@@ -32,7 +32,7 @@ let tail = λ l -> fn i -> val i' = intadd(i, 1) in l(i')
 
 let andalso =
    λ b1 -> λ b2 ->
-     val c = b1 in
+     val c = b1 i
      if c then b2 else return False
 
 let orelse =
@@ -55,7 +55,7 @@ let printlistaux = λ l ->
 let printlist = λ l ->
    fn i ->
       printlistaux l (0, i)
-
+      
 fn signum(x) =
   val c = intslt(0, x) in
   if c then return 1 else

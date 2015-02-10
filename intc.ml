@@ -1,17 +1,32 @@
 open Core.Std
 open Lexing
+  
+let file_name = ref "" 
+
+let location_msg startline startcolumn endline endcolumn =
+  match endline, endcolumn with
+  | None, None ->
+    Printf.sprintf "File \"%s\", line %i, column %i:"
+      !file_name startline startcolumn
+  | None, Some ec ->
+    Printf.sprintf "File \"%s\", line %i, column %i-%i:"
+      !file_name startline startcolumn ec
+  | Some el, None ->
+    Printf.sprintf "File \"%s\", line %i, column %i - line %i:"
+      !file_name startline startcolumn el
+  | Some el, Some ec ->
+    Printf.sprintf "File \"%s\", line %i, column %i- line %i, column %i:"
+      !file_name startline startcolumn el ec
 
 let parse_error_loc lexbuf =
   let start_pos = lexbuf.lex_start_p in
-  Printf.sprintf "line %i, character %i:"
-    (start_pos.pos_lnum) (start_pos.pos_cnum - start_pos.pos_bol + 1)
+  location_msg (start_pos.pos_lnum) (start_pos.pos_cnum - start_pos.pos_bol + 1)
+    None None
 
 let error_msg loc msg = if loc = "" then msg else loc ^ " " ^ msg
 let exit_with_error loc msg =
-  Printf.printf "%s\n%!" (error_msg loc msg);
+  Printf.fprintf stderr "%s\n%!" (error_msg loc msg);
   exit 1
-let line_column_loc (line : int) (column : int ) =
-  Printf.sprintf "line %i, column %i:" line column
 
 let parse (s: string) : Decl.t list =
   let lexbuf = Lexing.from_string s in
@@ -21,7 +36,7 @@ let parse (s: string) : Decl.t list =
   | Parsing.Parse_error ->
     exit_with_error (parse_error_loc lexbuf) "Parse error"
   | Decl.Illformed_decl(msg, l, c) ->
-    exit_with_error (line_column_loc l c) ("Syntax error. " ^ msg)
+    exit_with_error (location_msg l c None None) ("Syntax error. " ^ msg)
 
 (* For error reporting: compute a string of where the error occurred *)
 let term_loc (s : Ast.t option) =
@@ -32,12 +47,11 @@ let term_loc (s : Ast.t option) =
     let open Ast.Location in
     match s.loc with
     | Some(loc) when loc.start_pos.line = loc.end_pos.line ->
-      Printf.sprintf "line %i, columns %i-%i:"
-        loc.start_pos.line loc.start_pos.column loc.end_pos.column
+      location_msg loc.start_pos.line loc.start_pos.column
+        None (Some loc.end_pos.column)
     | Some(loc) ->
-      Printf.sprintf "line %i, column %i to line %i, column %i:"
-        loc.start_pos.line loc.start_pos.column
-        loc.end_pos.line loc.end_pos.column
+      location_msg loc.start_pos.line loc.start_pos.column
+        (Some loc.end_pos.line) (Some loc.end_pos.column)
     | None -> "Term " ^ (Printing.string_of_ast s)
 
 let compile (d: Decl.t) : unit =
@@ -110,7 +124,6 @@ let usage_msg = "Usage: intc input.int\nOptions:"
 
 let () =
   try
-    let file_name = ref "" in
     Arg.parse arg_spec (fun s -> file_name := s) usage_msg;
     if !file_name = "" then
       Printf.printf "No input file.\n"
