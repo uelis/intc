@@ -16,9 +16,10 @@
 
 (setq int-keywords-regexp (regexp-opt int-keywords 'words))
 (setq int-types-regexp (concat (regexp-opt int-types 'words)
-"\\|''?'?[[:alnum:]]+"
-))
-(setq int-constants-regexp (regexp-opt int-constants 'words))
+                               "\\|''?'?[[:alnum:]]+"
+                               ))
+(setq int-constants-regexp (concat (regexp-opt int-constants 'words)
+                                   "\\|[A-Z][[:alnum:]]+"))
 (setq int-builtin-regexp (regexp-opt int-builtin 'words))
 
 (setq intKeywords
