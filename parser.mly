@@ -7,10 +7,7 @@ open Parsing
 open Ast
 
 let illformed msg =
-  let s = Parsing.symbol_start_pos () in
-  let line = s.pos_lnum in
-  let column = s.pos_cnum - s.pos_bol + 1 in
-  raise (Decl.Illformed_decl (msg, line, column))
+  raise (Decl.Illformed_decl msg)
 
 let location_of_pos pos =
   { Location.line = pos.pos_lnum;
@@ -23,10 +20,13 @@ let mkAst d : Ast.t =
     loc = Some { Location.start_pos = s;
                  Location.end_pos = e } }
 
-let check_datatype id =
+let check_datatype id n =
   (* Check that type exists *)
   try
-    ignore (Basetype.Data.constructor_count id)
+    let m = Basetype.Data.params id in
+    if n <> m then
+      illformed ("Type \"" ^ id ^ "\" expects " ^ (string_of_int m) ^
+                 " parameter(s).")
   with
   | Not_found -> illformed ("Unknown data type \"" ^ id ^ "\".")
 
@@ -420,10 +420,10 @@ basetype_atom:
     | ARRAY LANGLE basetype RANGLE
       { Basetype.newty (Basetype.ArrayB($3)) }
     | IDENT
-      { check_datatype $1;
+      { check_datatype $1 0;
         Basetype.newty (Basetype.DataB($1, [])) }
     | IDENT LANGLE basetype_list RANGLE
-      { check_datatype $1;
+      { check_datatype $1 (List.length $3);
         Basetype.newty (Basetype.DataB($1, $3)) }
     | LPAREN basetype RPAREN
       { $2 }

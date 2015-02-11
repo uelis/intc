@@ -1,7 +1,7 @@
 type t =
   | TermDecl of Ident.t * Ast.t
 
-exception Illformed_decl of string * int * int
+exception Illformed_decl of string
 
 let expand_in_term (d: t) (s: Ast.t) : Ast.t =
   (* fsubst t v s substitutes t for v in s, such that each time t is

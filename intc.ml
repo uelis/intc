@@ -4,24 +4,35 @@ open Lexing
 let file_name = ref "" 
 
 let location_msg startline startcolumn endline endcolumn =
-  match endline, endcolumn with
-  | None, None ->
-    Printf.sprintf "File \"%s\", line %i, column %i:"
-      !file_name startline startcolumn
-  | None, Some ec ->
+  if endline = startline then
     Printf.sprintf "File \"%s\", line %i, column %i-%i:"
-      !file_name startline startcolumn ec
-  | Some el, None ->
-    Printf.sprintf "File \"%s\", line %i, column %i - line %i:"
-      !file_name startline startcolumn el
-  | Some el, Some ec ->
+      !file_name startline startcolumn endcolumn
+  else
     Printf.sprintf "File \"%s\", line %i, column %i- line %i, column %i:"
-      !file_name startline startcolumn el ec
+      !file_name startline startcolumn endline endcolumn
 
 let parse_error_loc lexbuf =
-  let start_pos = lexbuf.lex_start_p in
-  location_msg (start_pos.pos_lnum) (start_pos.pos_cnum - start_pos.pos_bol + 1)
-    None None
+  let s = lexbuf.lex_start_p in
+  let sline = s.pos_lnum in
+  let scolumn = s.pos_cnum - s.pos_bol + 1 in
+  let e = lexbuf.lex_curr_p in
+  let eline = e.pos_lnum in
+  let ecolumn = e.pos_cnum - e.pos_bol + 1 in
+  location_msg sline scolumn eline ecolumn
+
+(* For error reporting: compute a string of where the error occurred *)
+let term_loc (s : Ast.t option) =
+  match s with
+  | None -> ""
+  | Some s ->
+    let open Ast in
+    let open Ast.Location in
+    match s.loc with
+    | Some(loc) ->
+      location_msg loc.start_pos.line loc.start_pos.column
+        loc.end_pos.line loc.end_pos.column
+    | None -> "Term " ^ (Printing.string_of_ast s)
+
 
 let error_msg loc msg = if loc = "" then msg else loc ^ " " ^ msg
 let exit_with_error loc msg =
@@ -35,24 +46,8 @@ let parse (s: string) : Decl.t list =
   with
   | Parsing.Parse_error ->
     exit_with_error (parse_error_loc lexbuf) "Parse error"
-  | Decl.Illformed_decl(msg, l, c) ->
-    exit_with_error (location_msg l c None None) ("Syntax error. " ^ msg)
-
-(* For error reporting: compute a string of where the error occurred *)
-let term_loc (s : Ast.t option) =
-  match s with
-  | None -> ""
-  | Some s ->
-    let open Ast in
-    let open Ast.Location in
-    match s.loc with
-    | Some(loc) when loc.start_pos.line = loc.end_pos.line ->
-      location_msg loc.start_pos.line loc.start_pos.column
-        None (Some loc.end_pos.column)
-    | Some(loc) ->
-      location_msg loc.start_pos.line loc.start_pos.column
-        (Some loc.end_pos.line) (Some loc.end_pos.column)
-    | None -> "Term " ^ (Printing.string_of_ast s)
+  | Decl.Illformed_decl(msg) ->
+    exit_with_error (parse_error_loc lexbuf) ("Syntax error. " ^ msg)
 
 let compile (d: Decl.t) : unit =
   match d with

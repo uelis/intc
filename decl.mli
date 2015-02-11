@@ -4,9 +4,8 @@
 type t =
   | TermDecl of Ident.t * Ast.t
 
-(** Exception to use when reading an illformed declaration.
-    The argments are error message, line and column. *)
-exception Illformed_decl of string * int * int
+(** Exception to use when reading an illformed declaration. *)
+exception Illformed_decl of string
 
 (** Expand left-hand side of declaration in term.
     Each occurrencd of the left-hand side of the given
