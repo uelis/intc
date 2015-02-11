@@ -125,9 +125,9 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
             | FunI(a1, t1, t2) ->
               if not concise then
                 let cyan = "\027[36m" in
-                let black = "\027[30m" in
-                Printf.sprintf "%s{%s%s}%s -> %s"
-                  cyan (string_of_basetype a1) black (str t1 `Atom) (str t2 `Type)
+                let default_fg = "\027[39m" in
+                Printf.sprintf "%s{%s}%s%s -> %s"
+                  cyan (string_of_basetype a1) default_fg (str t1 `Atom) (str t2 `Type)
               else
                 Printf.sprintf "%s -> %s" (str t1 `Atom) (str t2 `Type)
             | Base _ | Tensor _ ->
