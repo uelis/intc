@@ -12,7 +12,7 @@ let tailrec =
 type list<'a> =
         Nil of unit
       | Cons of 'a * box<list<'a>>
-
+      
 let maprev = λ f ->
    tailrec (λ mapf ->
       fn (l, r) ->

@@ -21,7 +21,7 @@ let maprev = λ f ->
         | Cons(x, xs) ->
             val tail = load(xs) in
             /* reuse memory */
-            val () = store(xs, r) in
+            store(xs, r);
             val y = f x in
             mapf(tail, Cons(y, xs))
       )
@@ -33,7 +33,7 @@ let revaux =
           Nil -> return r
         | Cons(x, xs) ->
            val tail = load(xs) in
-           val () = store(xs, r) in
+           store(xs, r);
            rev(tail, Cons(x, xs))
       )
 
@@ -55,7 +55,7 @@ let printlist = tailrec (λ printlist ->
             print h;
             print " ";
             val tail = load(t) in
-            val () = free(t) in
+            free(t);
             printlist tail
     )
 
@@ -65,16 +65,16 @@ fn clone(l) =
       fn (l, (l1, l2)) ->
         case l of
           Nil ->
-	    val rl1 = rev l1 in
-	    val rl2 = rev l2 in
-	     return (rl1, rl2)
+	          val rl1 = rev l1 in
+	          val rl2 = rev l2 in
+	            return (rl1, rl2)
         | Cons(x, xs) ->
-	    val tl = load(xs) in
-	    val () = free(xs) in
-	    val t1 = alloc() in
-	    val () = store(t1, l1) in
-	    val t2 = alloc() in
-            val () = store(t2, l2) in
+            val tl = load(xs) in
+	          free(xs);
+	          val t1 = alloc() in
+	          store(t1, l1);
+	          val t2 = alloc() in
+            store(t2, l2);
             clone(tl, (Cons(x, t1), Cons(x, t2)))
       )
     (l, (Nil, Nil))
@@ -86,7 +86,7 @@ fn upto(n) =
       if b then return r else
         val m' = intsub(m, 1) in
         val tail = alloc() in
-        val () = store(tail, r) in
+        store(tail, r);
         aux (m', Cons(m, tail))
    ) (n, Nil)
 
