@@ -23,7 +23,7 @@ let mkAst d : Ast.t =
 let check_datatype id n =
   (* Check that type exists *)
   try
-    let m = Basetype.Data.params id in
+    let m = Basetype.Data.param_count id in
     if n <> m then
       illformed ("Type \"" ^ id ^ "\" expects " ^ (string_of_int m) ^
                  " parameter(s).")
@@ -32,11 +32,11 @@ let check_datatype id n =
 
 let mkDatatype id params =
   let n = List.length params in
-  Basetype.Data.make id ~nparams:n ~discriminated:true
+  Basetype.Data.make id ~param_count:n ~discriminated:true
 
 let addConstructors id params constructors =
   let n = List.length params in
-  Basetype.Data.make id ~nparams:n ~discriminated:true;
+  Basetype.Data.make id ~param_count:n ~discriminated:true;
   List.iter
     ~f:(fun (cname, cargty) ->
 
@@ -118,7 +118,7 @@ let clear_type_vars () =
 %}
 
 %token LBRACE RBRACE LPAREN RPAREN LANGLE RANGLE LBRACKET RBRACKET
-%token PLUS MINUS TIMES DIV
+%token PLUS MINUS TIMES
 %token COMMA QUOTE DOUBLEQUOTE TRIPLEQUOTE COLON SEMICOLON SHARP EQUALS TO VERTBAR
 %token FN LAMBDA TYPE VOID UNIT PUSH POP BOX ARRAY ALLOC FREE LOAD STORE CALL NAT
 %token ENCODE DECODE
@@ -133,10 +133,6 @@ let clear_type_vars () =
 %token <string> STRING
 %token EOF
 
-%right SEMICOLON
-%left EQUALS
-%left PLUS MINUS
-%left TIMES DIV
 %nonassoc THEN
 %nonassoc VERTBAR
 
