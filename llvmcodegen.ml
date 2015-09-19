@@ -646,45 +646,45 @@ let build_body
 
 let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
       (ssa_func : Ssa.t) : unit =
-  let label_types = Int.Table.create () in
-  let predecessors = Int.Table.create () in
+  let label_types = Ident.Table.create () in
+  let predecessors = Ident.Table.create () in
   List.iter ssa_func.Ssa.blocks
     ~f:(fun b ->
       let l = Ssa.label_of_block b in
-      Int.Table.replace label_types ~key:l.Ssa.name ~data:l.Ssa.message_type;
+      Ident.Table.replace label_types ~key:l.Ssa.name ~data:l.Ssa.message_type;
       List.iter (Ssa.targets_of_block b)
-        ~f:(fun p -> Int.Table.change predecessors p.Ssa.name
+        ~f:(fun p -> Ident.Table.change predecessors p.Ssa.name
                        (function None -> Some 1
                                | Some i -> Some (i+1)))
     );
 
-  let blocks = Int.Table.create () in
-  let phi_nodes = Int.Table.create () in
+  let blocks = Ident.Table.create () in
+  let phi_nodes = Ident.Table.create () in
   let get_block name =
-    match Int.Table.find blocks name with
+    match Ident.Table.find blocks name with
     | Some block -> block
     | None ->
-      let label = Printf.sprintf "L%i" name in
+      let label = "L" ^ (Ident.to_string name) in
       let block = Llvm.append_block context label func in
-      Int.Table.replace blocks ~key:name ~data:block;
+      Ident.Table.replace blocks ~key:name ~data:block;
       block in
   let connect_to src_block encoded_value dst =
     try
-      assert_type encoded_value (Int.Table.find_exn label_types dst);
-      let phi = Int.Table.find_exn phi_nodes dst in
+      assert_type encoded_value (Ident.Table.find_exn label_types dst);
+      let phi = Ident.Table.find_exn phi_nodes dst in
       (* add (encoded_value, source) to phi node *)
       Mixedvector.add_incoming (encoded_value, src_block) phi
     with Not_found ->
       begin
         (* Insert phi node if block has more than one predecessor. *)
-        if Int.Table.find predecessors dst = Some 1 then
-          Int.Table.replace phi_nodes ~key:dst ~data:encoded_value
+        if Ident.Table.find predecessors dst = Some 1 then
+          Ident.Table.replace phi_nodes ~key:dst ~data:encoded_value
         else
           begin
             position_at_start (get_block dst) builder;
             let phi = Mixedvector.build_phi
                         (encoded_value, src_block) builder in
-            Int.Table.replace phi_nodes ~key:dst ~data:phi
+            Ident.Table.replace phi_nodes ~key:dst ~data:phi
           end
       end
   in
@@ -708,7 +708,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
         ignore (Llvm.build_unreachable builder)
       | Direct(src, x, lets, body, dst) ->
         Llvm.position_at_end (get_block src.name) builder;
-        let senc = Int.Table.find_exn phi_nodes src.name in
+        let senc = Ident.Table.find_exn phi_nodes src.name in
         assert_type senc src.message_type;
         let ev = build_body the_module [(x, senc)] lets body in
         let src_block = Llvm.insertion_block builder in
@@ -717,7 +717,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
       | Branch(src, x, lets, (id, params, body, cases)) ->
         begin
           Llvm.position_at_end (get_block src.name) builder;
-          let xenc = Int.Table.find_exn phi_nodes src.name in
+          let xenc = Ident.Table.find_exn phi_nodes src.name in
           assert_type xenc src.message_type;
           let ctx = build_letbindings the_module [(x, xenc)] lets in
           let ebody = build_value the_module ctx body in
@@ -765,7 +765,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
         end
       | Return(src, x, lets, body, return_type) ->
         Llvm.position_at_end (get_block src.name) builder;
-        let xenc = Int.Table.find_exn phi_nodes src.name in
+        let xenc = Ident.Table.find_exn phi_nodes src.name in
         let ev = build_body the_module [(x, xenc)] lets body in
         let pev = pack_encoded_value ev return_type in
         ignore (Llvm.build_ret pev builder)

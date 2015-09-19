@@ -4,11 +4,11 @@ open Ssa
 let fresh_var () = Ident.fresh "z"
 
 let block_table (func: Ssa.t) =
-  let blocks = Int.Table.create () in
+  let blocks = Ident.Table.create () in
   List.iter func.blocks
     ~f:(fun b ->
       let i = (Ssa.label_of_block b).name in
-      Int.Table.replace blocks ~key:i ~data:b
+      Ident.Table.replace blocks ~key:i ~data:b
     );
   blocks
 
@@ -16,7 +16,7 @@ let block_table (func: Ssa.t) =
    Tracing
 *)
 let trace_block blocks i0 =
-  let block = Int.Table.find_exn blocks i0 in
+  let block = Ident.Table.find_exn blocks i0 in
   let l0 = label_of_block block in
   let x0 = fresh_var () in
 
@@ -25,7 +25,7 @@ let trace_block blocks i0 =
   (* current body *)
   let lets = ref [] in
   (* already visited labels *)
-  let visited = Int.Table.create () in
+  let visited = Ident.Table.create () in
 
   let rec remove_last_push ls =
     match ls with
@@ -81,16 +81,16 @@ let trace_block blocks i0 =
 
   (* tracing of blocks*)
   let rec trace_block i v =
-    let block = Int.Table.find_exn blocks i in
-    match Int.Table.find visited i with
+    let block = Ident.Table.find_exn blocks i in
+    match Ident.Table.find visited i with
     | Some i when i > !Opts.trace_loop_threshold ->
       let lets = flush_lets () in
       let dst = label_of_block block in
       Direct(l0, x0, lets, v, dst)
     | _ ->
       begin
-        Int.Table.change visited i (function None -> Some 1
-                                           | Some i -> Some (i+1));
+        Ident.Table.change visited i (function None -> Some 1
+                                             | Some i -> Some (i+1));
         (* Printf.printf "%s\n" (string_of_letbndgs !lets); *)
         match block with
         | Unreachable(_) -> Unreachable(l0)
@@ -134,12 +134,12 @@ let trace_block blocks i0 =
 
 let trace (func : Ssa.t) =
   let blocks = block_table func in
-  let traced = Int.Table.create () in
+  let traced = Ident.Table.create () in
   let rev_blocks = ref [] in
   let rec trace_blocks i =
-    if not (Int.Table.mem traced i) then
+    if not (Ident.Table.mem traced i) then
       begin
-        Int.Table.replace traced ~key:i ~data:();
+        Ident.Table.replace traced ~key:i ~data:();
 
         let b = trace_block blocks i in
         rev_blocks := b :: !rev_blocks;
@@ -157,17 +157,17 @@ let trace (func : Ssa.t) =
    Shortcutting jumps
 *)
 let shortcut_block blocks i0 =
-  let block = Int.Table.find_exn blocks i0 in
+  let block = Ident.Table.find_exn blocks i0 in
 
   let shortcut_value (i : label) v =
-    let visited = Int.Table.create () in
+    let visited = Ident.Table.create () in
     let rec shortcut_value (i : label) v =
-      if Int.Table.mem visited i.name then
+      if Ident.Table.mem visited i.name then
         i, v
       else
         begin
-          Int.Table.add_exn visited ~key:i.name ~data:();
-          let block = Int.Table.find_exn blocks i.name in
+          Ident.Table.add_exn visited ~key:i.name ~data:();
+          let block = Ident.Table.find_exn blocks i.name in
           match block with
           | Direct(_, x, [], vr, dst) ->
             let vr' = subst_value (fun y -> if x = y then v else Var y) vr in
@@ -207,12 +207,12 @@ let shortcut_block blocks i0 =
 
 let shortcut_jumps (func : Ssa.t) =
   let blocks = block_table func in
-  let traced = Int.Table.create () in
+  let traced = Ident.Table.create () in
   let rev_blocks = ref [] in
   let rec shortcut_blocks i =
-    if not (Int.Table.mem traced i) then
+    if not (Ident.Table.mem traced i) then
       begin
-        Int.Table.replace traced ~key:i ~data:();
+        Ident.Table.replace traced ~key:i ~data:();
 
         let b = shortcut_block blocks i in
         rev_blocks := b :: !rev_blocks;

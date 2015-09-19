@@ -11,8 +11,8 @@
     forward passing ([src] to [dst]) and backwards ([dst] to
     [src]). *)
 type wire = {
-  src: int;
-  dst: int;
+  src: Ident.t;
+  dst: Ident.t;
   type_forward: Basetype.t;
   type_back: Basetype.t
 }

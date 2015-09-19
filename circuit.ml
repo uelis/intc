@@ -9,8 +9,8 @@ open Typing
 
 (** A wire represents a dart in an undirected graph. *)
 type wire = {
-  src: int;
-  dst: int;
+  src: Ident.t;
+  dst: Ident.t;
   type_forward: Basetype.t;
   type_back: Basetype.t
 }
@@ -82,19 +82,14 @@ let sum s t = Basetype.newty (Basetype.DataB(Basetype.Data.sumid 2, [s; t]))
  * that are variables, i.e. not {1+1}'a --o 'b, for example. *)
 let raw_circuit_of_term  (sigma: value_context) (gamma: wire context)
       (t: Typedterm.t): t =
-  let used_wirenames =
-    List.fold_right gamma ~f:(fun (_, w) wns -> w.src :: w.dst :: wns) ~init:[] in
-  let next_wirename = ref ((List.fold_right used_wirenames ~f:max ~init:(-1)) + 1) in
   let restrict_context gamma t =
     List.filter gamma
       ~f:(fun (x, _) -> List.Assoc.mem t.Typedterm.t_context x) in
   let remove_context gamma ls =
     List.filter gamma ~f:(fun (x, _) -> not (List.mem ls x)) in
   let fresh_wire () =
-    let n = !next_wirename in
-    next_wirename := !next_wirename + 2;
-    { src = n;
-      dst = n + 1;
+    { src = Ident.fresh "wire";
+      dst = Ident.fresh "wire";
       type_forward = Basetype.newvar();
       type_back = Basetype.newvar()
     } in
@@ -735,44 +730,62 @@ let dot_of_circuit
   let node_name ins =
     match ins with
     | Base(w1, _) ->
-      Printf.sprintf "\"Base({%i,%i})\"" w1.src w1.dst
+      Printf.sprintf "\"Base({%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
     | Encode(w1) ->
-      Printf.sprintf "\"Encode({%i,%i})\"" w1.src w1.dst
+      Printf.sprintf "\"Encode({%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
     | Decode(w1) ->
-      Printf.sprintf "\"Decode({%i,%i})\"" w1.src w1.dst
+      Printf.sprintf "\"Decode({%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
     | Tensor(w1, w2, w3) ->
-      Printf.sprintf "\"Tensor({%i,%i},{%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst w3.src w3.dst
+      Printf.sprintf "\"Tensor({%s,%s},{%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
+        (Ident.to_string w3.src) (Ident.to_string w3.dst)
     | Der(w1, w2, _) ->
-      Printf.sprintf "\"Der({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
+      Printf.sprintf "\"Der({%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
     | Case(id, _, w1, ws) ->
-      Printf.sprintf "\"Case(%s, {%i,%i},%s)\""
-        id w1.src w1.dst
+      Printf.sprintf "\"Case(%s, {%s,%s},%s)\""
+        id (Ident.to_string w1.src) (Ident.to_string w1.dst)
         (String.concat ~sep:","
-           (List.map ~f:(fun w -> Printf.sprintf "{%i,%i}" w.src w.dst) ws))
+           (List.map ~f:(fun w -> Printf.sprintf "{%s,%s}"
+                                    (Ident.to_string w.src)
+                                    (Ident.to_string w.dst)) ws))
     | Door(w1, w2) ->
-      Printf.sprintf "\"Door({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
+      Printf.sprintf "\"Door({%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
     | Assoc(w1, w2) ->
-      Printf.sprintf "\"Assoc({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
+      Printf.sprintf "\"Assoc({%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
     | LWeak(w1, w2) ->
-      Printf.sprintf "\"LWeak({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
+      Printf.sprintf "\"LWeak({%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
     | Bind(w1, w2) ->
-      Printf.sprintf "\"Bind({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
+      Printf.sprintf "\"Bind({%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
     | App(w1, _, w2) ->
-      Printf.sprintf "\"App({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
+      Printf.sprintf "\"App({%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
     | Direct(w1, w2) ->
-      Printf.sprintf "\"Direct({%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst
+      Printf.sprintf "\"Direct({%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
     | Seq(w1, w2, w3) ->
-      Printf.sprintf "\"Seq({%i,%i},{%i,%i},{%i,%i})\""
-        w1.src w1.dst w2.src w2.dst w3.src w3.dst
+      Printf.sprintf "\"Seq({%s,%s},{%s,%s},{%s,%s})\""
+        (Ident.to_string w1.src) (Ident.to_string w1.dst)
+        (Ident.to_string w2.src) (Ident.to_string w2.dst)
+        (Ident.to_string w3.src) (Ident.to_string w3.dst)
   in
+  let entry_label = Ident.fresh "wentry" in
+  let exit_label = Ident.fresh "wexit" in
   let node_label ins =
     let ws = wires ins in
     let name =
@@ -784,7 +797,7 @@ let dot_of_circuit
       | Der _ -> "&pi;_..."
       | Case _ -> "case"
       | Door(_, w) ->
-        if w.src = -1 then "\", shape=\"plaintext" else "&uarr;"
+        if w.src = entry_label then "\", shape=\"plaintext" else "&uarr;"
       | Assoc _ -> "assoc;"
       | LWeak _ -> "lweak"
       | Bind _ -> "bind"
@@ -792,21 +805,23 @@ let dot_of_circuit
       | App _ -> "app"
       | Direct _ -> "direct"
     in
-    List.fold_right ws ~f:(fun w s -> Printf.sprintf "%s(%i)" s w.src) ~init:name
+    List.fold_right ws
+      ~f:(fun w s -> Printf.sprintf "%s(%s)" s (Ident.to_string w.src))
+      ~init:name
   in
   let instructions_with_result =
     (Door(flip c.output,
-          { src = (-1);
-            dst = (-2);
+          { src = entry_label;
+            dst = exit_label;
             type_forward = Basetype.newvar();
             type_back = Basetype.newvar()})) :: c.instructions in
   let node_map_by_src =
     let rec build_dst_map i =
       match i with
-      | [] -> Int.Map.empty
+      | [] -> Ident.Map.empty
       | node :: rest ->
         List.fold_right (wires node)
-          ~f:(fun w map -> Int.Map.add map ~key:w.src ~data:node)
+          ~f:(fun w map -> Ident.Map.add map ~key:w.src ~data:node)
           ~init:(build_dst_map rest)
     in build_dst_map instructions_with_result in
   let buf = Buffer.create 1024 in
@@ -821,13 +836,13 @@ let dot_of_circuit
   let edges () =
     let edge srcins (w: wire) =
       try
-        let dstins = Int.Map.find_exn node_map_by_src w.dst in
+        let dstins = Ident.Map.find_exn node_map_by_src w.dst in
         Buffer.add_string buf (node_name srcins);
         Buffer.add_string buf " -> ";
         Buffer.add_string buf (node_name dstins);
         Buffer.add_string buf (wire_style w);
         Buffer.add_string buf
-          (Printf.sprintf "[label=\"%i(%s)\"]" w.dst
+          (Printf.sprintf "[label=\"%s(%s)\"]" (Ident.to_string w.dst)
              (Printing.string_of_basetype w.type_forward));
         Buffer.add_string buf ";\n ";
       with Not_found -> () (* Weakening *) in

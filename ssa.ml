@@ -107,7 +107,7 @@ type let_binding =
 type let_bindings = let_binding list
 
 type label = {
-  name: int;
+  name: Ident.t;
   message_type: Basetype.t
 }
 
@@ -168,19 +168,23 @@ let fprint_letbndgs (oc: Out_channel.t) (bndgs: let_bindings) : unit =
 let fprint_block (oc: Out_channel.t) (b: block) : unit =
   match b with
     | Unreachable(l) ->
-      Printf.fprintf oc " l%i(x : %s) = unreachable"
-        l.name
+      Printf.fprintf oc " l%s(x : %s) = unreachable"
+        (Ident.to_string l.name)
         (Printing.string_of_basetype l.message_type)
     | Direct(l, x, bndgs, body, goal) ->
-      Printf.fprintf oc " l%i(%s : %s) =\n" l.name (Ident.to_string x)
+      Printf.fprintf oc " l%s(%s : %s) =\n"
+        (Ident.to_string l.name)
+        (Ident.to_string x)
         (Printing.string_of_basetype l.message_type);
       fprint_letbndgs oc bndgs;
-      Printf.fprintf oc "   l%i(" goal.name;
+      Printf.fprintf oc "   l%s(" (Ident.to_string goal.name);
       fprint_value oc body;
       Printf.fprintf oc ")\n"
     | Branch(la, x, bndgs, (id, _, cond, cases)) ->
       let constructor_names = Basetype.Data.constructor_names id in
-      Printf.fprintf oc " l%i(%s : %s) =\n" la.name (Ident.to_string x)
+      Printf.fprintf oc " l%s(%s : %s) =\n"
+        (Ident.to_string la.name)
+        (Ident.to_string x)
         (Printing.string_of_basetype la.message_type);
       fprint_letbndgs oc bndgs;
       Printf.fprintf oc "   case ";
@@ -188,11 +192,13 @@ let fprint_block (oc: Out_channel.t) (b: block) : unit =
       Printf.fprintf oc " of\n";
       List.iter2_exn constructor_names cases
         ~f:(fun cname (l, lb, lg) ->
-          Printf.fprintf oc "   | %s(%s) -> l%i(" cname (Ident.to_string l) lg.name;
+          Printf.fprintf oc "   | %s(%s) -> l%s(" cname
+            (Ident.to_string l) (Ident.to_string lg.name);
           fprint_value oc lb;
           Printf.fprintf oc ")\n")
     | Return(l, x, bndgs, body, _) ->
-      Printf.fprintf oc " l%i(%s : %s) =\n" l.name (Ident.to_string x)
+      Printf.fprintf oc " l%s(%s : %s) =\n"
+        (Ident.to_string l.name) (Ident.to_string x)
         (Printing.string_of_basetype l.message_type);
       fprint_letbndgs oc bndgs;
       Printf.fprintf oc "   return ";
@@ -200,11 +206,11 @@ let fprint_block (oc: Out_channel.t) (b: block) : unit =
       Printf.fprintf oc "\n"
 
 let fprint_func (oc: Out_channel.t) (func: t) : unit =
-  Printf.fprintf oc "%s(x: %s) : %s = l%i(x)\n\n"
+  Printf.fprintf oc "%s(x: %s) : %s = l%s(x)\n\n"
     func.func_name
     (Printing.string_of_basetype func.entry_label.message_type)
     (Printing.string_of_basetype func.return_type)
-    (func.entry_label.name);
+    (Ident.to_string func.entry_label.name);
   List.iter func.blocks
     ~f:(fun block ->
       fprint_block oc block;
@@ -214,18 +220,18 @@ let fprint_func (oc: Out_channel.t) (func: t) : unit =
    types in ssa programs. *)
 
 let check_blocks_invariant entry_label blocks =
-  let defined_labels = Int.Table.create () in
-  let invoked_labels = Int.Table.create () in
-  Int.Table.replace invoked_labels ~key:entry_label.name ~data:();
+  let defined_labels = Ident.Table.create () in
+  let invoked_labels = Ident.Table.create () in
+  Ident.Table.replace invoked_labels ~key:entry_label.name ~data:();
   let check block =
     let l = label_of_block block in
     let ts = targets_of_block block in
-    if Int.Table.mem defined_labels l.name then
+    if Ident.Table.mem defined_labels l.name then
       failwith ("ssa invariant: duplicate label definition");
-    Int.Table.replace defined_labels ~key:l.name ~data:();
-    if not (Int.Table.mem invoked_labels l.name) then
+    Ident.Table.replace defined_labels ~key:l.name ~data:();
+    if not (Ident.Table.mem invoked_labels l.name) then
       failwith ("ssa invariant: no forward path from entry label");
-    List.iter ts ~f:(fun l -> Int.Table.replace invoked_labels
+    List.iter ts ~f:(fun l -> Ident.Table.replace invoked_labels
                                 ~key:l.name ~data:()) in
   List.iter blocks ~f:check
 
@@ -389,11 +395,11 @@ let rec typecheck_let_bindings
     typecheck_term gamma1 t a;
     (v, a) :: gamma1
 
-let typecheck_block (label_types: Basetype.t Int.Table.t) (b: block) : unit =
+let typecheck_block (label_types: Basetype.t Ident.Table.t) (b: block) : unit =
   let equals_exn a b =
     if Basetype.equals a b then () else failwith "internal ssa.ml: type mismatch" in
   let check_label_exn l a =
-    match Int.Table.find label_types l.name with
+    match Ident.Table.find label_types l.name with
     | Some b ->
       equals_exn a b;
       equals_exn l.message_type b
@@ -430,10 +436,10 @@ let typecheck_block (label_types: Basetype.t Int.Table.t) (b: block) : unit =
     equals_exn a b
 
 let typecheck (blocks: block list) : unit =
-  let label_types = Int.Table.create () in
+  let label_types = Ident.Table.create () in
   List.iter blocks ~f:(fun b ->
     let l = label_of_block b in
-    match Int.Table.add label_types ~key:l.name ~data:l.message_type with
+    match Ident.Table.add label_types ~key:l.name ~data:l.message_type with
     | `Duplicate -> failwith "internal ssa.ml: duplicte block"
     | `Ok -> ()
   );
@@ -567,10 +573,10 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
     blocks := block :: !blocks in
 
   let nodes_by_src =
-    let tbl = Int.Table.create () in
+    let tbl = Ident.Table.create () in
     let add_node n =
       List.iter (wires n)
-        ~f:(fun w -> Int.Table.replace tbl ~key:w.src ~data:n) in
+        ~f:(fun w -> Ident.Table.replace tbl ~key:w.src ~data:n) in
     List.iter c.instructions ~f:add_node;
     tbl in
   let label_of_dst w = { name = w.dst; message_type = w.type_forward } in
@@ -590,7 +596,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
           Unreachable(src)
       end
     else
-      match Int.Table.find_exn nodes_by_src dst with
+      match Ident.Table.find_exn nodes_by_src dst with
       | Circuit.Base(w1 (* [f] *), (gamma, f)) ->
         if dst = w1.src then
           (* ensure that variables in (y, f) do not collide with
@@ -800,12 +806,12 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
         else assert false
   in
 
-  let generated_blocks = Int.Table.create () in
+  let generated_blocks = Ident.Table.create () in
   let rec generate_blocks_from l =
-    if l.name >= 0 && not (Int.Table.mem generated_blocks l.name) then
+    if not (Ident.Table.mem generated_blocks l.name) then
       let block = make_block l l.name in
       emit_block block;
-      Int.Table.replace generated_blocks ~key:l.name ~data:();
+      Ident.Table.replace generated_blocks ~key:l.name ~data:();
       List.iter (targets_of_block block)
         ~f:generate_blocks_from in
 
@@ -830,18 +836,15 @@ let add_entry_exit_code (f: t) : t =
   List.iter (Basetype.free_vars ret_type)
     ~f:(Basetype.unify_exn (Basetype.newty Basetype.IntB));
 
-  let label_names = List.map f.blocks ~f:(fun b -> (label_of_block b).name) in
-  let max_label_name = List.fold_right label_names ~f:max ~init:0 in
-
   let entry_label = {
-    name = max_label_name + 1;
+    name = Ident.fresh "entry";
     message_type = arg_type} in
   let entry_block =
     let z = Ident.fresh "z" in
     Direct(entry_label, z, [], Pair(Unit, Var z), f.entry_label) in
 
   let exit_label = {
-    name = max_label_name + 2;
+    name = Ident.fresh "exit";
     message_type =
       Basetype.newty (
         Basetype.PairB(

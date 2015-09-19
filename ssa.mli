@@ -32,7 +32,7 @@ type let_bindings = let_binding list
 
 (** Programs consist of a list of blocks, which each defines a label.*)
 type label = {
-  name: int;
+  name: Ident.t;
   message_type: Basetype.t
 }
 
