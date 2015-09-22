@@ -55,9 +55,17 @@ let string_of_basetype (ty: Basetype.t): string =
             | DataB(id, []) when id = Data.sumid 0 -> "void"
             | DataB(id, []) -> id
             | DataB(id, ls) ->
-              Printf.sprintf "%s<%s>" id 
-                (List.map ls ~f:(fun t2 -> str t2 `Summand)
-                 |> String.concat ~sep:", ")
+              (*if not (Data.is_discriminated id || Data.is_recursive id) then
+                begin
+                  let cs = Data.constructor_types id ls in
+                  Printf.sprintf "union<%s>"  
+                    (List.map cs ~f:(fun t2 -> str t2 `Summand)
+                     |> String.concat ~sep:", ")
+                end
+                else*)
+                Printf.sprintf "%s<%s>" id 
+                  (List.map ls ~f:(fun t2 -> str t2 `Summand)
+                   |> String.concat ~sep:", ")
             | PairB _ | EncodedB _ | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
               s `Factor
             end
@@ -174,7 +182,7 @@ let string_of_data id =
   let buf = Buffer.create 80 in
   let name = id in
   let cnames = Basetype.Data.constructor_names id in
-  let nparams = Basetype.Data.params id in
+  let nparams = Basetype.Data.param_count id in
   let params = List.init nparams ~f:(fun _ -> Basetype.newvar()) in
   let ctypes = Basetype.Data.constructor_types id params in
   let cs = List.zip_exn cnames ctypes in

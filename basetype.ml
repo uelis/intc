@@ -139,7 +139,7 @@ struct
      all others are declared on demand *)
   let _ = ignore (sumid 0); ignore (sumid 2)
 
-  let params id = List.length (String.Table.find_exn datatypes id).params
+  let param_count id = List.length (String.Table.find_exn datatypes id).params
 
   let constructor_count id =
     let cs = (String.Table.find_exn datatypes id).constructors in
@@ -177,7 +177,7 @@ struct
           | DataB(id', bs) -> id = id' || List.exists ~f:check_rec bs
         end
     in
-    let freshparams = List.init (params id) ~f:(fun _ -> newvar ()) in
+    let freshparams = List.init (param_count id) ~f:(fun _ -> newvar ()) in
     let ct = constructor_types id freshparams in
     List.exists ~f:check_rec ct
 
@@ -194,7 +194,7 @@ struct
         raise Not_found
     with Found (id, i) -> id, i
 
-  let make name ~nparams:nparams ~discriminated:discriminated =
+  let make name ~param_count:nparams ~discriminated:discriminated =
     String.Table.replace datatypes ~key:name
       ~data:{ name = name;
               (* (these type variables must remain private) *)

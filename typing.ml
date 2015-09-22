@@ -190,7 +190,7 @@ let rec ptV (c: ValEnv.t) (t: Ast.t)
       value_loc = t.Ast.loc }
   | Ast.InV(id, k, t1) ->
     let a1 = ptV c t1 in
-    let n = Basetype.Data.params id in
+    let n = Basetype.Data.param_count id in
     let params = List.init n ~f:(fun _ -> Basetype.newvar ()) in
     let data = Basetype.newty (Basetype.DataB(id, params)) in
     let argtype =
@@ -484,7 +484,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
     assert (Basetype.Data.is_discriminated id);
     (* case distinction is allowed over values only *)
     let s1 = ptV c s in
-    let n = Basetype.Data.params id in
+    let n = Basetype.Data.param_count id in
     let params = List.init n ~f:(fun _ -> Basetype.newvar ()) in
     let data = Basetype.newty (Basetype.DataB(id, params)) in
     let argtypes = Basetype.Data.constructor_types id params in
@@ -547,7 +547,7 @@ and pt (c: ValEnv.t) (phi: Type.t context) (t: Ast.t)
           | Basetype.DataB(id, bs) ->
             begin
               try
-                let n = Basetype.Data.params id in
+                let n = Basetype.Data.param_count id in
                 if List.length bs <> n then
                   let error_msg =
                     Printf.sprintf "Data type %s takes %i argument(s)." id n in

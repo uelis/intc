@@ -362,7 +362,7 @@ let solve_constraints (ineqs: leq_constraint list) : unit =
             let params = List.filter fv_unique
                            ~f:(fun beta -> not (Basetype.equals beta alpha)) in
             let n = List.length params in
-            Basetype.Data.make recty ~nparams:n ~discriminated:false;
+            Basetype.Data.make recty ~param_count:n ~discriminated:false;
             let data = Basetype.newty (Basetype.DataB(recty, params)) in
             let sol =
               if constraint_recursive then

@@ -43,7 +43,6 @@ rule main = parse
   | '+'          { PLUS }
   | '-'          { MINUS }
   | '*'          { TIMES }
-  | '/'          { DIV }
   | ','          { COMMA }
   | '''          { QUOTE }
   | "''"         { DOUBLEQUOTE }

@@ -45,7 +45,7 @@ sig
 
   (** Number of type parameters of a data type.
       For example, pair<'a,'b> has two parameters *)
-  val params : id -> int
+  val param_count : id -> int
 
   (** Number of constructors *)
   val constructor_count : id -> int
@@ -69,7 +69,7 @@ sig
   val find_constructor: string -> id * int
 
   (** Add a new data type, initially with no constructors. *)
-  val make : id -> nparams:int -> discriminated:bool -> unit
+  val make : id -> param_count:int -> discriminated:bool -> unit
 
   (** Add a constructor.
       The call [add_constructor id name params a] adds a
