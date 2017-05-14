@@ -1,2 +1,38 @@
-<*.ml> or <*.mli> or "intc.byte" or "intc.native" or "intc.p.native" or "test.native": g++, package(llvm), package(llvm.bitwriter), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), pa_ounit_lib(intc)
-<*.cmx> and not "intlib.cmx": for-pack(Intlib)
+true: thread
+<**/*.ml{,i}>: warn(-40)
+<**/*.ml{,i}>: ppx(ppx-jane -as-ppx -inline-test-lib Intc)
+# true: profile
+# This prevents the implicit addition of -ppx options by ocamlfind
+
+# OASIS_START
+# DO NOT EDIT (digest: 7fcd352c632108ea9fd90e62b1b82233)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+true: annot, bin_annot
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Executable intc
+"intc.native": package(core)
+"intc.native": package(llvm)
+"intc.native": package(llvm.bitwriter)
+"intc.native": package(sexplib)
+<*.ml{,i,y}>: package(sexplib)
+# Executable test
+"test.native": package(core)
+"test.native": package(llvm)
+"test.native": package(llvm.bitwriter)
+"test.native": package(oUnit)
+<*.ml{,i,y}>: package(core)
+<*.ml{,i,y}>: package(llvm)
+<*.ml{,i,y}>: package(llvm.bitwriter)
+<*.ml{,i,y}>: package(oUnit)
+# OASIS_STOP

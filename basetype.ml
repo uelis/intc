@@ -9,11 +9,11 @@ type 'a sgn =
   | ArrayB of 'a
   | PairB of 'a * 'a
   | DataB of string * 'a list
-with sexp
-    
+[@@deriving sexp]
+
 module Sig = struct
 
-  type 'a t = 'a sgn with sexp                  
+  type 'a t = 'a sgn [@@deriving sexp]
 
   let map (f : 'a -> 'b) (t : 'a t) : 'b t =
     match t with
@@ -43,8 +43,8 @@ module Sig = struct
     | ZeroB, ZeroB
     | UnitB, UnitB ->
       true
-    | EncodedB(t1), EncodedB(s1) 
-    | BoxB(t1), BoxB(s1) 
+    | EncodedB(t1), EncodedB(s1)
+    | BoxB(t1), BoxB(s1)
     | ArrayB(t1), ArrayB(s1) ->
       equals t1 s1
     | PairB(t1, t2), PairB(s1, s2) ->
@@ -65,8 +65,8 @@ module Sig = struct
     | ZeroB, ZeroB
     | UnitB, UnitB ->
       ()
-    | EncodedB(t1), EncodedB(s1) 
-    | BoxB(t1), BoxB(s1) 
+    | EncodedB(t1), EncodedB(s1)
+    | BoxB(t1), BoxB(s1)
     | ArrayB(t1), ArrayB(s1) ->
       unify t1 s1
     | PairB(t1, t2), PairB(s1, s2) ->
@@ -98,7 +98,7 @@ struct
 
   let datatypes = String.Table.create ()
   let boolid =
-    String.Table.replace datatypes
+    String.Table.set datatypes
       ~key:"bool"
       ~data:{ name = "bool";
               params = [];
@@ -127,15 +127,15 @@ struct
                   params = params;
                   discriminated = true;
                   constructors = constructors } in
-        String.Table.replace datatypes ~key:name ~data:d;
-        Int.Table.replace sumtypes ~key:n ~data:name;
+        String.Table.set datatypes ~key:name ~data:d;
+        Int.Table.set sumtypes ~key:n ~data:name;
         name
 
   let fresh_id basename =
     let used_names = String.Table.keys datatypes in
     Vargen.mkVarGenerator basename ~avoid:used_names ()
 
-  (* declare nullary and binary sums by default; 
+  (* declare nullary and binary sums by default;
      all others are declared on demand *)
   let _ = ignore (sumid 0); ignore (sumid 2)
 
@@ -185,7 +185,7 @@ struct
 
   let find_constructor name =
     try
-      String.Table.iter datatypes
+      String.Table.iteri datatypes
         ~f:(fun ~key:id ~data:d ->
           Array.of_list d.constructors
           |> Array.iteri ~f:(fun i (cname, _) ->
@@ -195,7 +195,7 @@ struct
     with Found (id, i) -> id, i
 
   let make name ~param_count:nparams ~discriminated:discriminated =
-    String.Table.replace datatypes ~key:name
+    String.Table.set datatypes ~key:name
       ~data:{ name = name;
               (* (these type variables must remain private) *)
               params = List.init nparams ~f:(fun _ -> newvar ());
@@ -258,5 +258,5 @@ struct
       |> Option.value ~default:alpha in
     let argtype' = subst argtype param_subst in
     let d' = { d with constructors = d.constructors @ [name, argtype'] } in
-    String.Table.replace datatypes ~key:id ~data:d'
+    String.Table.set datatypes ~key:id ~data:d'
 end

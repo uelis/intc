@@ -22,7 +22,7 @@ type 'a sgn =
   | ArrayB of 'a
   | PairB of 'a * 'a
   | DataB of string * 'a list
-with sexp
+      [@@deriving sexp]
 
 include Uftype.S with type 'a Sgn.t = 'a sgn
 

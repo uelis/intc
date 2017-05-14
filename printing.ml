@@ -44,7 +44,7 @@ let string_of_basetype (ty: Basetype.t): string =
   let rec str (t: Basetype.t) l =
     let rec s l =
       match l with
-      | `Summand -> 
+      | `Summand ->
         begin
           match case t with
           | Var -> s `Factor
@@ -58,12 +58,12 @@ let string_of_basetype (ty: Basetype.t): string =
               (*if not (Data.is_discriminated id || Data.is_recursive id) then
                 begin
                   let cs = Data.constructor_types id ls in
-                  Printf.sprintf "union<%s>"  
+                  Printf.sprintf "union<%s>"
                     (List.map cs ~f:(fun t2 -> str t2 `Summand)
                      |> String.concat ~sep:", ")
                 end
                 else*)
-                Printf.sprintf "%s<%s>" id 
+                Printf.sprintf "%s<%s>" id
                   (List.map ls ~f:(fun t2 -> str t2 `Summand)
                    |> String.concat ~sep:", ")
             | PairB _ | EncodedB _ | IntB | ZeroB | UnitB | BoxB _ | ArrayB _ ->
@@ -105,14 +105,14 @@ let string_of_basetype (ty: Basetype.t): string =
     | None ->
       if Int.Set.mem cycle_nodes tid then
         let alpha = "'" ^ (name_of_basetypevar (newvar())) in
-        Int.Table.replace strs ~key:tid ~data:alpha;
+        Int.Table.set strs ~key:tid ~data:alpha;
         let s = "(rec " ^ alpha ^ ". " ^ (s l) ^ ")" in
-        Int.Table.replace strs ~key:tid ~data:s;
+        Int.Table.set strs ~key:tid ~data:s;
         s
       else
         s l in
   str ty `Summand
-        
+
 let string_of_type ?concise:(concise=true) (ty: Type.t): string =
   let open Type in
   let cycle_nodes =
@@ -122,7 +122,7 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
   let rec str (t: Type.t) l =
     let rec s l =
       match l with
-      | `Type -> 
+      | `Type ->
         begin
           match case t with
           | Var -> s `Factor
@@ -170,9 +170,9 @@ let string_of_type ?concise:(concise=true) (ty: Type.t): string =
     | None ->
       if Int.Set.mem cycle_nodes tid then
         let alpha = "''" ^ (name_of_typevar (newvar())) in
-        Int.Table.replace strs ~key:tid ~data:alpha;
+        Int.Table.set strs ~key:tid ~data:alpha;
         let s = "(rec " ^ alpha ^ ". " ^ (s l) ^ ")" in
-        Int.Table.replace strs ~key:tid ~data:s;
+        Int.Table.set strs ~key:tid ~data:s;
         s
       else
         s l in
@@ -380,10 +380,9 @@ let string_of_ast t =
   Format.flush_str_formatter ()
 
 
+let%test_module "printing" = (module struct
 
-TEST_MODULE = struct
-
-  TEST "printing of cyclic types 1" =
+  let%test "printing of cyclic types 1" =
     let open Basetype in
     let a = newvar () in
     let aa = newty (PairB(a, a)) in
@@ -399,8 +398,8 @@ TEST_MODULE = struct
       Scanf.sscanf (string_of_type aab)
         "(rec '%s@. '%s * '%s@) -> (rec '%s@. '%s * '%s@) -> ''%s"
         (fun a1 a2 a3 b1 b2 b3 _ -> a1 = a2 && a2 = a3 && b1 = b2 && b2 = b3)
-        
-  TEST "printing of cyclic types 2" =
+
+  let%test "printing of cyclic types 2" =
     let open Basetype in
     let a = newvar () in
     let b = Type.newvar() in
@@ -414,4 +413,4 @@ TEST_MODULE = struct
         "(rec ''%s@. ''%s@ -> ''%s@)"
         (fun b1 b2 b3 -> b1 = b2 && b2 = b3)
 
-end
+end)

@@ -5,11 +5,11 @@ type 'a sgn =
   | Tensor of 'a * 'a
   | FunV of Basetype.t * 'a
   | FunI of Basetype.t * 'a * 'a
-with sexp
-  
+[@@deriving sexp]
+
 module Sig = struct
 
-  type 'a t = 'a sgn with sexp                  
+  type 'a t = 'a sgn [@@deriving sexp]
 
   let map (f : 'a -> 'b) (t : 'a t) : 'b t =
     match t with
@@ -101,7 +101,7 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
           | None ->
             let betam = Basetype.newvar() in
             let betap = Basetype.newvar() in
-            Int.Table.replace vm ~key:(repr_id t) ~data:(betam, betap);
+            Int.Table.set vm ~key:(repr_id t) ~data:(betam, betap);
             betam, betap
         end
     | Sgn st ->
@@ -129,9 +129,9 @@ let question_answer_pair (s: t) : Basetype.t * Basetype.t =
   in qap s
 
 
-TEST_MODULE = struct
+let%test_module "type" = (module struct
 
-  TEST "cyclic sub-basetypes" =
+  let%test "cyclic sub-basetypes" =
     let open Basetype in
     let a = newvar () in
     let aa = newty (PairB(a, a)) in
@@ -144,4 +144,4 @@ TEST_MODULE = struct
     with
     | Uftype.Cyclic_type -> true
 
-end
+end)

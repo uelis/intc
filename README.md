@@ -37,8 +37,11 @@ The dependencies are most easily installed using the
 OCaml Package Manager (OPAM).
 
 ```
-  opam install core
-  opam install llvm
+  opam install oasis core ounit
+  # Install llvm OCaml-bindings with the right version.
+  # LLVM itself needs to be installed.
+  opam pin add llvm 3.9
+  oasis setup
   make
 ```
 
@@ -66,13 +69,13 @@ value of type `A`.
 
 A computation term that returns value:
 ```rust
-let t1 = 
+let t1 =
   return 3
 ```
 Computations can be evaluated and their result value be bound to
 variables.
 ```rust
-let t2 = 
+let t2 =
   val v = t1 in
   val w = intadd(v, v) in
   return w
@@ -99,11 +102,11 @@ let f : int -> [unit] =
 
 let main =
   f 5
-```    
+```
 
 ### Higher-Order Functions
 
-Higher-order functions are available as well. 
+Higher-order functions are available as well.
 ```rust
 let comp = \f -> \g -> \x -> f (g x)
 ```
@@ -138,7 +141,7 @@ let fac : int -> [unit] =
   fn i ->
    facaux (i, 1)
 ```
-   
+
 ```rust
 /* fibonacci */
 let fib = fix (\ fib ->

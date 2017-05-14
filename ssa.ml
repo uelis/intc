@@ -222,16 +222,16 @@ let fprint_func (oc: Out_channel.t) (func: t) : unit =
 let check_blocks_invariant entry_label blocks =
   let defined_labels = Ident.Table.create () in
   let invoked_labels = Ident.Table.create () in
-  Ident.Table.replace invoked_labels ~key:entry_label.name ~data:();
+  Ident.Table.set invoked_labels ~key:entry_label.name ~data:();
   let check block =
     let l = label_of_block block in
     let ts = targets_of_block block in
     if Ident.Table.mem defined_labels l.name then
       failwith ("ssa invariant: duplicate label definition");
-    Ident.Table.replace defined_labels ~key:l.name ~data:();
+    Ident.Table.set defined_labels ~key:l.name ~data:();
     if not (Ident.Table.mem invoked_labels l.name) then
       failwith ("ssa invariant: no forward path from entry label");
-    List.iter ts ~f:(fun l -> Ident.Table.replace invoked_labels
+    List.iter ts ~f:(fun l -> Ident.Table.set invoked_labels
                                 ~key:l.name ~data:()) in
   List.iter blocks ~f:check
 
@@ -576,7 +576,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
     let tbl = Ident.Table.create () in
     let add_node n =
       List.iter (wires n)
-        ~f:(fun w -> Ident.Table.replace tbl ~key:w.src ~data:n) in
+        ~f:(fun w -> Ident.Table.set tbl ~key:w.src ~data:n) in
     List.iter c.instructions ~f:add_node;
     tbl in
   let label_of_dst w = { name = w.dst; message_type = w.type_forward } in
@@ -811,7 +811,7 @@ let circuit_to_ssa_body (name: string) (c: Circuit.t) : t =
     if not (Ident.Table.mem generated_blocks l.name) then
       let block = make_block l l.name in
       emit_block block;
-      Ident.Table.replace generated_blocks ~key:l.name ~data:();
+      Ident.Table.set generated_blocks ~key:l.name ~data:();
       List.iter (targets_of_block block)
         ~f:generate_blocks_from in
 

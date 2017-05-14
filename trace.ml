@@ -8,7 +8,7 @@ let block_table (func: Ssa.t) =
   List.iter func.blocks
     ~f:(fun b ->
       let i = (Ssa.label_of_block b).name in
-      Ident.Table.replace blocks ~key:i ~data:b
+      Ident.Table.set blocks ~key:i ~data:b
     );
   blocks
 
@@ -44,16 +44,16 @@ let trace_block blocks i0 =
       begin
         match t', !lets with
         | Val v', _ ->
-          Ident.Table.replace rho ~key:x ~data:v'
+          Ident.Table.set rho ~key:x ~data:v'
         | Const(Ast.Cpop(_), _), _ ->
           begin
             match remove_last_push !lets with
             | Some (v', lets') ->
               lets := lets';
-              Ident.Table.replace rho ~key:x ~data:v'
+              Ident.Table.set rho ~key:x ~data:v'
             | None ->
               let x' = fresh_var () in
-              Ident.Table.replace rho ~key:x ~data:(Var x');
+              Ident.Table.set rho ~key:x ~data:(Var x');
               lets := Let((x', a), t') :: !lets
           end
         (* quick hack to eliminate Alloc,Store,Load,Free sequences
@@ -61,16 +61,16 @@ let trace_block blocks i0 =
           (* TODO:
         | Load(addr1, _), Let((z1, a1), Store(addr2, v, _)) :: rest
           when addr1 = addr2 ->
-          String.Table.replace rho ~key:x ~data:v;
+          String.Table.set rho ~key:x ~data:v;
           lets := rest @ [Let((z1, a1), Val(Unit))]
         | Free(addr1, _), Let((addr2, anat) , Alloc(_)) :: rest
           when addr1 = Var addr2 ->
-          String.Table.replace rho ~key:x ~data:Unit;
+          String.Table.set rho ~key:x ~data:Unit;
           lets := rest @ [Let((addr2, anat), Val(IntConst(0)))]
           *)
         | _ ->
           let x' = fresh_var () in
-          Ident.Table.replace rho ~key:x ~data:(Var x');
+          Ident.Table.set rho ~key:x ~data:(Var x');
           lets := Let((x', a), t') :: !lets
       end in
   let trace_lets lets = List.iter (List.rev lets) ~f:trace_let in
@@ -95,19 +95,19 @@ let trace_block blocks i0 =
         match block with
         | Unreachable(_) -> Unreachable(l0)
         | Direct(_, x, lets, vr, dst) ->
-          Ident.Table.replace rho ~key:x ~data:v;
+          Ident.Table.set rho ~key:x ~data:v;
           trace_lets lets;
           let vr' = subst_value (Ident.Table.find_exn rho) vr in
           trace_block dst.name vr'
         | Branch(_, x, lets, (id, params, vc, cases)) ->
-          Ident.Table.replace rho ~key:x ~data:v;
+          Ident.Table.set rho ~key:x ~data:v;
           trace_lets lets;
           let vc' = subst_value (Ident.Table.find_exn rho) vc in
           begin
             match vc' with
             | In((_, i, vi), _) ->
               let (y, vd, dst) = List.nth_exn cases i in
-              Ident.Table.replace rho ~key:y ~data:vi;
+              Ident.Table.set rho ~key:y ~data:vi;
               let vd' = subst_value (Ident.Table.find_exn rho) vd in
               trace_block dst.name vd'
             | _ ->
@@ -116,20 +116,20 @@ let trace_block blocks i0 =
                 List.map cases
                   ~f:(fun (y, vd, dst) ->
                     let y' = fresh_var () in
-                    Ident.Table.replace rho ~key:y ~data:(Var y');
+                    Ident.Table.set rho ~key:y ~data:(Var y');
                     let vd' = subst_value (Ident.Table.find_exn rho) vd in
                     (y', vd', dst)) in
               Branch(l0, x0, lets, (id, params, vc', cases'))
           end
         | Return(_, x, lets, vr, a) ->
-          Ident.Table.replace rho ~key:x ~data:v;
+          Ident.Table.set rho ~key:x ~data:v;
           trace_lets lets;
           let vr' = subst_value (Ident.Table.find_exn rho) vr in
           let lets = flush_lets () in
           Return(l0, x0, lets, vr', a)
       end in
   let v0 = Var x0 in
-  Ident.Table.replace rho ~key:x0 ~data:v0;
+  Ident.Table.set rho ~key:x0 ~data:v0;
   trace_block i0 v0
 
 let trace (func : Ssa.t) =
@@ -139,7 +139,7 @@ let trace (func : Ssa.t) =
   let rec trace_blocks i =
     if not (Ident.Table.mem traced i) then
       begin
-        Ident.Table.replace traced ~key:i ~data:();
+        Ident.Table.set traced ~key:i ~data:();
 
         let b = trace_block blocks i in
         rev_blocks := b :: !rev_blocks;
@@ -212,7 +212,7 @@ let shortcut_jumps (func : Ssa.t) =
   let rec shortcut_blocks i =
     if not (Ident.Table.mem traced i) then
       begin
-        Ident.Table.replace traced ~key:i ~data:();
+        Ident.Table.set traced ~key:i ~data:();
 
         let b = shortcut_block blocks i in
         rev_blocks := b :: !rev_blocks;

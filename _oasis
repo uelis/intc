@@ -1,0 +1,38 @@
+Name: intc
+Version: 0.1
+Synopsis: A small experimental implementation of INT
+Authors: Ulrich Schoepp <schoepp@tcs.ifi.lmu.de>
+License: LGPL with OCaml linking exception
+
+Homepage: http://ulrichschoepp.de
+OASISFormat: 0.4
+OCamlVersion: >= 4.02.3
+FindlibVersion: >= 1.3.2
+BuildTools: ocamlbuild
+Plugins: META (0.4), DevFiles (0.4), StdFiles (0.4)
+AlphaFeatures: ocamlbuild_more_args
+XOCamlbuildPluginTags: package(ppx_driver.ocamlbuild)
+
+Executable "intc"
+  Path: .
+  MainIs: intc.ml
+  CompiledObject: native
+  BuildDepends:
+    core (>= 113.24.00),
+    sexplib,
+    llvm,
+    llvm.bitwriter
+
+Executable "test"
+  Path: .
+  MainIs: test.ml
+  CompiledObject: native
+  BuildDepends:
+    core,
+    llvm,
+    llvm.bitwriter,
+    oUnit
+
+Test "test_all"
+  TestTools: test
+  Command: $test

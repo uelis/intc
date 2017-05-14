@@ -1,19 +1,19 @@
 open Core.Std
-       
+
 exception Constructor_mismatch
 exception Cyclic_type
 
 (** Signature of type constructors *)
 module type Typesgn = sig
-  
+
   (** Constructors over values of type ['a].
       For a type with nat and functions, the signature would be
       [type 'a t = Nat | Fun of 'a * 'a].
   *)
-  type 'a t with sexp
-  
+  type 'a t [@@deriving sexp]
+
   val map: ('a -> 'b) -> 'a t -> 'b t
-                                   
+
   val children: 'a t -> 'a list
 
   val equals: 'a t -> 'a t -> equals:('a -> 'a -> bool) -> bool
@@ -25,7 +25,7 @@ module type Typesgn = sig
 end
 
 module type S = sig
-  type t with sexp
+  type t [@@deriving sexp]
 
   (** Signature of type constructors. *)
   module Sgn: Typesgn
@@ -45,7 +45,7 @@ module type S = sig
 
   (** Construct a type from a given constructor application. *)
   val newty : t Sgn.t -> t
-  
+
   (** Type variables in type. *)
   val free_vars: t -> t list
 
@@ -60,7 +60,7 @@ module type S = sig
   (** Delete the given type and replace it by a fresh type variable. *)
   val replace_by: t -> t -> unit
 
-  (** Substitution. 
+  (** Substitution.
       The call [subst a f] applies [f] to all variables in [a]. *)
   val subst: t -> (t -> t) -> t
 
@@ -74,15 +74,15 @@ module type S = sig
   (** Unification of types.
       May raise the exceptions [Constructor_mismatch] or [Cyclic_type].*)
   val unify_exn : t -> t -> unit
-    
+
   (** Finds the points where a dfs walk in the syntax tree returns to an
       already visited node.
       Unification performs a circularity check. If a circular type is found,
       exception [Cyclic_type] is raised and the type will be left cyclic, e.g.
-      for error reporting. 
+      for error reporting.
   *)
   val dfs_cycles: t -> t list
-                         
+
   (** Checks if type is a syntax tree. *)
   val is_acyclic : t -> bool
 end
@@ -90,11 +90,11 @@ end
 module Make(T: Typesgn) = struct
 
   module Sgn = T
-    
+
   type 'a var_or_sgn =
     | Var
     | Sgn of 'a T.t
-  with sexp
+  [@@deriving sexp]
 
   type t =
     { mutable desc : desc;
@@ -104,14 +104,14 @@ module Make(T: Typesgn) = struct
   and desc =
     | Link of t
     | D of (t var_or_sgn)
-  with sexp
-                  
+  [@@deriving sexp]
+
   let newD =
     let next_id = ref 0 in
     fun d ->
       incr next_id;
       { desc = D d; mark = 0; id = !next_id }
-      
+
   let newty s = newD (Sgn s)
   let newvar () = newD Var
 
@@ -128,7 +128,7 @@ module Make(T: Typesgn) = struct
       in t.desc <- Link r;
       r
     | _ -> t
-      
+
   let repr_id t = (find t).id
 
   let case (t: t) : t var_or_sgn =
@@ -172,7 +172,7 @@ module Make(T: Typesgn) = struct
       | Some y -> y
       | None ->
         let y = newvar () in
-        Int.Table.replace vm ~key:(find x).id ~data:y;
+        Int.Table.set vm ~key:(find x).id ~data:y;
         y in
     List.map ts ~f:(fun a -> subst a fv)
 
@@ -183,7 +183,7 @@ module Make(T: Typesgn) = struct
 
   let replace_by t1 t2 =
     (find t1).desc <- Link t2
-      
+
   let dfs_cycles t =
     let cycles = Int.Table.create () in
     let mark_open = next_mark () in
@@ -191,7 +191,7 @@ module Make(T: Typesgn) = struct
     let rec dfs (a: t) =
       let r = find a in
       if r.mark = mark_open then
-        Int.Table.replace cycles ~key:(r.id) ~data:r
+        Int.Table.set cycles ~key:(r.id) ~data:r
       else if (r.mark = mark_done) then
         ()
       else begin
@@ -206,7 +206,7 @@ module Make(T: Typesgn) = struct
 
   let is_acyclic t =
     dfs_cycles t = []
-      
+
   let rec unify_raw (b1: t) (b2: t) : unit =
     let c1, c2 = find b1, find b2 in
     if not (phys_equal c1 c2) then
@@ -214,11 +214,11 @@ module Make(T: Typesgn) = struct
       | Var, _ -> union c1 c2
       | _, Var -> union c2 c1
       | Sgn d1, Sgn d2 -> T.unify_exn d1 d2 ~unify:unify_raw
-          
+
   let check_cycle (b: t) : unit =
     if not (is_acyclic b) then
       raise Cyclic_type
-        
+
   let unify_exn (b1 : t) (b2 : t) : unit =
     unify_raw b1 b2;
     check_cycle b1

@@ -3,11 +3,11 @@
 open Core.Std
 
 module T = struct
-  
+
   type t = {
     name: string;
     index: int
-  } with sexp
+  } [@@deriving sexp]
 
   let compare (x: t) (y: t): int =
     let i = String.compare x.name y.name in

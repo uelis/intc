@@ -14,14 +14,14 @@ let rec log i =
 
 (** Representation of LLVM types suitable for use as keys in a map. *)
 module Lltype: sig
-  
+
   type t =
     | Integer of int
     | Pointer (* void pointer *)
-  with sexp
+  [@@deriving sexp]
 
   module Map: Map.S with type Key.t = t
-    
+
   val int_type: t
   val to_lltype: t -> Llvm.lltype
 end
@@ -31,7 +31,7 @@ end
     type t =
       | Integer of int
       | Pointer
-    with sexp
+    [@@deriving sexp]
 
     let compare (x: t) (y: t) =
       match x, y with
@@ -42,7 +42,7 @@ end
   end
   include T
   module Map = Map.Make(T)
-                 
+
   let int_type = Integer !Opts.int_size
 
   let to_lltype (x: t) =
@@ -54,7 +54,7 @@ end
 
 (** A profile is a finite map from llvm types to numbers.
     Below, ssa values are encoded as vectors of llvm values
-    of different type.The profile of a vector explains how many 
+    of different type.The profile of a vector explains how many
     values of each type it contains.
 
     The following module enforces the invariant that
@@ -62,7 +62,7 @@ end
     value is > 0.
 *)
 module Profile: sig
-  
+
   type t
 
   (* The empty profile. *)
@@ -70,7 +70,7 @@ module Profile: sig
 
   (* Profile of a vector containing a single value of the given type.*)
   val singleton : Lltype.t -> t
-    
+
   (* Profile of a vector containing n values of the given type. *)
   val ntimes : Lltype.t -> int -> t
 
@@ -88,7 +88,7 @@ module Profile: sig
 
 end
 = struct
-  
+
   type t = int Lltype.Map.t
 
   let null = Lltype.Map.empty
@@ -651,7 +651,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
   List.iter ssa_func.Ssa.blocks
     ~f:(fun b ->
       let l = Ssa.label_of_block b in
-      Ident.Table.replace label_types ~key:l.Ssa.name ~data:l.Ssa.message_type;
+      Ident.Table.set label_types ~key:l.Ssa.name ~data:l.Ssa.message_type;
       List.iter (Ssa.targets_of_block b)
         ~f:(fun p -> Ident.Table.change predecessors p.Ssa.name
                        (function None -> Some 1
@@ -666,7 +666,7 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
     | None ->
       let label = "L" ^ (Ident.to_string name) in
       let block = Llvm.append_block context label func in
-      Ident.Table.replace blocks ~key:name ~data:block;
+      Ident.Table.set blocks ~key:name ~data:block;
       block in
   let connect_to src_block encoded_value dst =
     try
@@ -678,13 +678,13 @@ let build_ssa_blocks (the_module : Llvm.llmodule) (func : Llvm.llvalue)
       begin
         (* Insert phi node if block has more than one predecessor. *)
         if Ident.Table.find predecessors dst = Some 1 then
-          Ident.Table.replace phi_nodes ~key:dst ~data:encoded_value
+          Ident.Table.set phi_nodes ~key:dst ~data:encoded_value
         else
           begin
             position_at_start (get_block dst) builder;
             let phi = Mixedvector.build_phi
                         (encoded_value, src_block) builder in
-            Ident.Table.replace phi_nodes ~key:dst ~data:phi
+            Ident.Table.set phi_nodes ~key:dst ~data:phi
           end
       end
   in

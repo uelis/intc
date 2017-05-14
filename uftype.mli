@@ -1,24 +1,24 @@
 (** Union-find representation of types for any given signature. *)
 open Core.Std
 
-(** Exception raised in unification if the root constructors of the 
+(** Exception raised in unification if the root constructors of the
     unified types do not match. *)
 exception Constructor_mismatch
-  
-(** Exception raised in unification if the unified type would be 
+
+(** Exception raised in unification if the unified type would be
     cyclic. *)
 exception Cyclic_type
 
 (** Signature of type constructors *)
 module type Typesgn = sig
-  
+
   (** Constructors over values of type ['a].
       For a type with nat and functions, the signature would be
       [type 'a t = Nat | Fun of 'a * 'a].  *)
-  type 'a t with sexp
-  
+  type 'a t [@@deriving sexp]
+
   val map: ('a -> 'b) -> 'a t -> 'b t
-                                   
+
   val children: 'a t -> 'a list
 
   val equals: 'a t -> 'a t -> equals:('a -> 'a -> bool) -> bool
@@ -30,7 +30,7 @@ end
 
 (** Union-find representation of types *)
 module type S = sig
-  type t with sexp
+  type t [@@deriving sexp]
 
   (** Signature of type constructors. *)
   module Sgn: Typesgn
@@ -50,7 +50,7 @@ module type S = sig
 
   (** Construct a type from a given constructor application. *)
   val newty : t Sgn.t -> t
-  
+
   (** Type variables in type. *)
   val free_vars: t -> t list
 
@@ -78,15 +78,15 @@ module type S = sig
   (** Unification of types.
       May raise the exceptions [Constructor_mismatch] or [Cyclic_type].*)
   val unify_exn : t -> t -> unit
-    
+
   (** Finds the points where a dfs walk in the syntax tree returns to an
       already visited node.
       Unification performs a circularity check. If a circular type is found,
       exception [Cyclic_type] is raised and the type will be left cyclic, e.g.
-      for error reporting. 
+      for error reporting.
   *)
   val dfs_cycles: t -> t list
-                         
+
   (** Checks if type is a syntax tree. *)
   val is_acyclic : t -> bool
 end

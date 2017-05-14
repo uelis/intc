@@ -7,7 +7,7 @@ type 'a sgn =
   | Tensor of 'a * 'a
   | FunV of Basetype.t * 'a
   | FunI of Basetype.t * 'a * 'a
-with sexp
+[@@deriving sexp]
 
 include Uftype.S with type 'a Sgn.t = 'a sgn
 
